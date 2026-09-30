@@ -68,9 +68,8 @@ The raiser verifies each after `slice phases` (transcription, not repair).
 
 - **justfile instead of Makefile** (user direction, 2026-09-30). Design
   § 9 Tooling and § 10 Code Impact, and the slice scope's Tooling bullet,
-  name a `Makefile`; the recipes map one-to-one. The user adds `just` to
-  the flake's `projectPkgs`; the agent adds the Emacs 30 input and wrapper
-  (DEC-006). Not reopened at design: a runner swap changes no design
+  name a `Makefile`; the recipes map one-to-one. The user added `just` and
+  the Emacs 30 input and wrapper (DEC-006) to the flake (2026-10-01). Not reopened at design: a runner swap changes no design
   content.
 - **Every phase gates on `just test-all`**, not only PHASE-08: the rebuilt
   shell has `emacs-30` in-jail (30.2 ships Org 9.7.11 vs 9.8.10 on 31.1; the
