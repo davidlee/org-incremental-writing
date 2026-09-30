@@ -1,0 +1,18 @@
+schema = "doctrine.observation"
+schema_version = 1
+uid = "01a0f30f-f4ff-78d1-99de-f95e192d62c7"
+recorded_at = "2026-09-30T16:05:04.383915682Z"
+kind = "friction"
+summary = "doctrine memory retrieve needs --query; phase-plan guidance implies positional"
+detail = "SL-001 PHASE-02 and PHASE-03 planners and the PHASE-03 worker each tried a positional query first; the CLI requires --query. The skill text doesn't mention the flag."
+
+[facets.execution]
+schema_version = 1
+interface = "cli"
+interface_origin = "automatic"
+product_surface = "doctrine"
+product_surface_origin = "automatic"
+command = "observation record"
+command_origin = "automatic"
+repository_context = "primary"
+repository_context_origin = "automatic"
