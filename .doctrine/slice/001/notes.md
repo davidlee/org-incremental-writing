@@ -81,7 +81,7 @@ org-iw-core landed, 11 tests; gate green on Emacs 31.1 and 30.2. I6 child-
 Emacs test shown red with a temporary `(require 'org)`. Design delta for
 /reconcile: § 5.2 `org-iw-core-append-rank` takes `(ORDERED QUEUE)`.
 
-## PHASE-03 (2026-10-01) — implemented, uncommitted at worker hand-back
+## PHASE-03 (2026-10-01) — completed, 82c3bd2
 
 org-iw-discovery (files + scan) and the corpus fixture
 (test/org-iw-test-helpers.el); 33 new tests (44 total), gate green on both
@@ -98,6 +98,29 @@ Gotchas: a dangling lock symlink is already dropped by the regular-file
 filter, so the `.#` rule needs a regular `.#` file to test;
 `set-buffer-modified-p nil` alone releases a lock file. Deltas for /reconcile:
 `org-iw-scan-create` constructor; fixture FILES is an evaluated form.
+
+## PHASE-04 (2026-10-01) — completed, uncommitted at worker hand-back
+
+`org-iw-discovery-buffer`, `-id-count`, `-resolve` added to
+org-iw-discovery.el; 9 new tests (53 total), gate green on both Emacs.
+Rulings: `id-count` (no buffer argument) works on
+`(or (buffer-base-buffer) (current-buffer))`, widened, so a narrowed
+indirect buffer still counts the whole base; `resolve` calls it inside
+`(with-current-buffer (org-iw-discovery-buffer FILE) ...)`. POL-002: the
+PHASE-03 owner became `org-iw-discovery--id-lines` returning
+`((VALUE . LINE-START) ...)`; `--id-values` (scan tally) is its `mapcar
+#'car`, `--id-positions` (count and resolve) filters it — one matcher. The
+scan-excluded check is by ID only (a cross-file duplicate names just the first
+file, so a file check would let the second file's entry through); refusal
+wording differs per cause (duplicate / not found / ambiguous) and always
+names ID and file. F-1 probe: holds for a same-file copy without and with
+another membership, lowercase `:id:` key, case-variant value, a copy hidden by
+narrowing, and via an indirect buffer. Copies present at scan time surface as
+"duplicate"; copies added after the scan (test inserts them into the visiting
+buffer) exercise the "ambiguous" path. The indirect-buffer claim of design § 3
+holds on Emacs 30 and 31: `buffer-file-name` is nil and `find-buffer-visiting`
+returns the base. `org-back-to-heading-or-point-min` is passed `t`
+(invisible-ok) so a folded heading cannot fail the lookup. No design delta.
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->

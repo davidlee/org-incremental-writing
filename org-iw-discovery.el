@@ -107,23 +107,30 @@ do not exist are ignored."
     (dolist (value values tally)
       (cl-incf (gethash value tally 0)))))
 
-(defun org-iw-discovery--id-values ()
-  "Return the values of the ID property lines in the current buffer.
+(defun org-iw-discovery--id-lines ()
+  "Return the ID property lines in the current buffer as (VALUE . POS).
 An ID property line matches `org-iw-discovery--id-line-regexp', key in
-any case, where `org-at-property-p' holds.  Values keep their case and
-come in buffer order.  Only the accessible portion is searched, so
-widen first to see the whole buffer."
+any case, where `org-at-property-p' holds.  VALUE keeps its case and
+POS is the start of the line; lines come in buffer order.  Only the
+accessible portion is searched, so widen first to see the whole buffer.
+
+This is the only matcher of ID lines, so every caller agrees on them."
   (save-excursion
     (goto-char (point-min))
-    (let ((values nil))
+    (let ((lines nil))
       (while (let ((case-fold-search t))
                (re-search-forward org-iw-discovery--id-line-regexp nil t))
         (let ((value (match-string-no-properties 1)))
           (save-excursion
             (goto-char (match-beginning 0))
             (when (org-at-property-p)
-              (push value values)))))
-      (nreverse values))))
+              (push (cons value (point)) lines)))))
+      (nreverse lines))))
+
+(defun org-iw-discovery--id-values ()
+  "Return the values of the ID property lines in the current buffer.
+See `org-iw-discovery--id-lines'."
+  (mapcar #'car (org-iw-discovery--id-lines)))
 
 (defun org-iw-discovery--iw-lines ()
   "Return the entry's IW_ property lines as an alist (NAME . VALUE).
@@ -318,6 +325,59 @@ buffer is changed."
      :entries (car split)
      :problems (append (apply #'append (mapcar #'cdr results))
                        (cdr split)))))
+
+;;;; ID resolution
+
+(defun org-iw-discovery-buffer (file)
+  "Return the buffer visiting FILE, visiting it first if need be.
+An indirect buffer has no file name, so this is always a base buffer.
+The lookup is by file, so it finds a buffer visiting FILE through a
+symlink."
+  (or (find-buffer-visiting file)
+      (find-file-noselect file)))
+
+(defun org-iw-discovery--id-positions (id)
+  "Return the start positions of the ID property lines with value ID.
+The search covers the whole of the current buffer's base buffer,
+whatever its narrowing or the current buffer's.  Positions are in
+the base buffer."
+  (with-current-buffer (or (buffer-base-buffer) (current-buffer))
+    (org-with-wide-buffer
+     (cl-loop for (value . position) in (org-iw-discovery--id-lines)
+              when (string= value id) collect position))))
+
+(defun org-iw-discovery-id-count (id)
+  "Return the number of ID property lines with value ID.
+The whole base buffer of the current buffer is counted, ignoring
+narrowing.  The key matches in any case; the value, case-sensitively."
+  (length (org-iw-discovery--id-positions id)))
+
+(defun org-iw-discovery--refuse (what id file)
+  "Signal an `org-iw-refusal' that WHAT is wrong with ID in FILE."
+  (signal 'org-iw-refusal (list (format "ID %s in %s: %s" id file what))))
+
+(defun org-iw-discovery-resolve (scan id file)
+  "Return a marker at the entry with ID in FILE, or refuse.
+This is the only resolver of IDs.  The marker is in FILE's buffer, at
+the heading, or at `point-min' for a document-level ID.  SCAN is the
+scan that found the entry; refuse with `org-iw-refusal' if it excluded
+ID as a duplicate (in any file), or if ID is not on exactly one ID
+property line in FILE, which catches copies the scan cannot know of."
+  (when (seq-some (lambda (problem)
+                    (and (eq (org-iw-problem-type problem) 'duplicate-id)
+                         (equal (org-iw-problem-id problem) id)))
+                  (org-iw-scan-problems scan))
+    (org-iw-discovery--refuse "duplicate ID, excluded from the queue" id file))
+  (with-current-buffer (org-iw-discovery-buffer file)
+    (pcase (org-iw-discovery--id-positions id)
+      ('() (org-iw-discovery--refuse "ID not found" id file))
+      (`(,position)
+       (org-with-wide-buffer
+        (goto-char position)
+        (org-back-to-heading-or-point-min t)
+        (copy-marker (point))))
+      (_ (org-iw-discovery--refuse "ID ambiguous, more than one heading"
+                                   id file)))))
 
 (provide 'org-iw-discovery)
 ;;; org-iw-discovery.el ends here

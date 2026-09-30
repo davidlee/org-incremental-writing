@@ -531,5 +531,199 @@ Copies differing in case, or quoted in a block, do not count."
         (should (equal (org-iw-discovery-test--problems scan)
                        '((unreadable "locked.org" nil))))))))
 
+;;;; ID resolution (`org-iw-discovery-buffer', `-id-count', `-resolve')
+
+(defun org-iw-discovery-test--marker-line (marker)
+  "Return the text of the line MARKER points at."
+  (with-current-buffer (marker-buffer marker)
+    (save-excursion
+      (goto-char marker)
+      (buffer-substring-no-properties (line-beginning-position)
+                                      (line-end-position)))))
+
+(defun org-iw-discovery-test--refuse (kind scan id name)
+  "Assert resolving ID in corpus file NAME against SCAN refuses as KIND.
+KIND is a regexp for the cause; the message must also name ID and the
+file.  Each cause is worded differently, so this proves which one fired."
+  (let* ((file (org-iw-test-path name))
+         (err (should-error (org-iw-discovery-resolve scan id file)
+                            :type 'org-iw-refusal))
+         (message (error-message-string err)))
+    (should (string-match-p kind message))
+    (should (string-match-p (regexp-quote id) message))
+    (should (string-match-p (regexp-quote file) message))))
+
+(defun org-iw-discovery-test--copy-after-scan (name copy)
+  "Scan the corpus, then add COPY to the end of the buffer visiting NAME.
+Return the scan, taken before the copy existed, so it cannot have
+excluded the ID; only `org-iw-discovery-id-count' can see the copy."
+  (let ((scan (org-iw-discovery-test--scan)))
+    (with-current-buffer (org-iw-test-visit name)
+      (goto-char (point-max))
+      (insert copy))
+    scan))
+
+(ert-deftest org-iw-discovery-test-buffer-lookup ()
+  "The visiting buffer is returned, even for a symlink; else the file is visited."
+  (org-iw-test-with-corpus `(("a.org" . ,org-iw-discovery-test--member)
+                             ("b.org" . ,org-iw-discovery-test--member))
+    (let* ((a (org-iw-test-visit "a.org"))
+           (link (org-iw-test-make-symlink (org-iw-test-path "a.org")
+                                           "link.org"))
+           (b (org-iw-discovery-buffer (org-iw-test-path "b.org"))))
+      (should (eq (org-iw-discovery-buffer (org-iw-test-path "a.org")) a))
+      (should (eq (org-iw-discovery-buffer link) a))
+      (should (equal (buffer-file-name b) (org-iw-test-path "b.org")))
+      (should (eq (org-iw-discovery-buffer (org-iw-test-path "b.org")) b)))))
+
+(ert-deftest org-iw-discovery-test-id-count-lines ()
+  "`org-iw-discovery-id-count' counts ID property lines: any key case, exact value."
+  (org-iw-test-with-corpus
+      `(("a.org" . ,(concat (org-iw-discovery-test--heading "One" "a1")
+                            (org-iw-discovery-test--heading "Two" nil ":id: a1")
+                            (org-iw-discovery-test--heading "Three" "A1")
+                            (org-iw-discovery-test--org
+                             "* Quoted" "#+begin_example" ":ID: a1"
+                             "#+end_example" "Body text." ":ID: a1"))))
+    (with-current-buffer (org-iw-test-visit "a.org")
+      (should (= (org-iw-discovery-id-count "a1") 2))
+      (should (= (org-iw-discovery-id-count "A1") 1))
+      (should (= (org-iw-discovery-id-count "zz") 0)))))
+
+(ert-deftest org-iw-discovery-test-id-count-ignores-narrowing ()
+  "A copy outside `narrow-to-region' is still counted, target or copy alike."
+  (org-iw-test-with-corpus
+      `(("a.org" . ,(concat (org-iw-discovery-test--heading "Target" "t1")
+                            (org-iw-discovery-test--heading "Copy" "t1"))))
+    (with-current-buffer (org-iw-test-visit "a.org")
+      (goto-char (point-min))
+      (narrow-to-region (point-min) (line-end-position))
+      (should (= (org-iw-discovery-id-count "t1") 2))
+      (widen)
+      (search-forward "* Copy")
+      (narrow-to-region (line-beginning-position) (point-max))
+      (should (= (org-iw-discovery-id-count "t1") 2)))))
+
+(ert-deftest org-iw-discovery-test-id-count-via-indirect-buffer ()
+  "Called from a narrowed `make-indirect-buffer', the count is the base's."
+  (org-iw-test-with-corpus
+      `(("a.org" . ,(concat (org-iw-discovery-test--heading "Target" "t1")
+                            (org-iw-discovery-test--heading "Copy" nil ":id: t1"))))
+    (let* ((base (org-iw-test-visit "a.org"))
+           (indirect (make-indirect-buffer base "*org-iw-indirect*")))
+      (unwind-protect
+          (with-current-buffer indirect
+            ;; Design § 3: an indirect buffer is never returned as a source.
+            (should-not (buffer-file-name indirect))
+            (should (eq (find-buffer-visiting (org-iw-test-path "a.org")) base))
+            (narrow-to-region (point-min) (line-end-position))
+            (should (= (org-iw-discovery-id-count "t1") 2)))
+        (kill-buffer indirect)))))
+
+(ert-deftest org-iw-discovery-test-resolve-unique ()
+  "`org-iw-discovery-resolve' returns a marker at the heading, or point-min."
+  (org-iw-test-with-corpus
+      `(("a.org" . ,org-iw-discovery-test--member)
+        ("b.org" . ,(org-iw-discovery-test--heading "Other" "b1"
+                                                    ":IW_NOTES: 1"))
+        ("c.org" . ,(org-iw-discovery-test--org
+                     ":PROPERTIES:" ":ID: d1" ":IW_ESSAYS: 7" ":END:"
+                     "* Heading")))
+    (let* ((scan (org-iw-discovery-test--scan))
+           (visited (org-iw-test-visit "a.org"))
+           (in-a (org-iw-discovery-resolve scan "m1" (org-iw-test-path "a.org")))
+           (in-b (org-iw-discovery-resolve scan "b1" (org-iw-test-path "b.org")))
+           (in-c (org-iw-discovery-resolve scan "d1" (org-iw-test-path "c.org"))))
+      (should (eq (marker-buffer in-a) visited))
+      (should (equal (org-iw-discovery-test--marker-line in-a) "* Member"))
+      (should (equal (buffer-file-name (marker-buffer in-b))
+                     (org-iw-test-path "b.org")))
+      (should (equal (org-iw-discovery-test--marker-line in-b) "* Other"))
+      (should (= in-c 1)))))
+
+(ert-deftest org-iw-discovery-test-resolve-not-found ()
+  "Resolve refuses an ID absent from the file, or differing only in case."
+  (org-iw-test-with-corpus
+      `(("a.org" . ,(org-iw-discovery-test--heading "Upper" "A1"
+                                                    ":IW_ESSAYS: 1"))
+        ("b.org" . ,org-iw-discovery-test--member))
+    (let ((scan (org-iw-discovery-test--scan)))
+      (org-iw-discovery-test--refuse "not found" scan "zz" "a.org")
+      (org-iw-discovery-test--refuse "not found" scan "a1" "a.org")
+      ;; Only the named file is searched.
+      (org-iw-discovery-test--refuse "not found" scan "m1" "a.org")
+      (should (org-iw-discovery-resolve scan "A1" (org-iw-test-path "a.org"))))))
+
+(ert-deftest org-iw-discovery-test-resolve-scan-excluded-duplicate ()
+  "Resolve refuses an ID the scan excluded as a duplicate, in either file."
+  (dolist (copy `(("no memberships" . ,(org-iw-discovery-test--heading
+                                        "Copy" "x1"))
+                  ("other queue" . ,(org-iw-discovery-test--heading
+                                     "Copy" "x1" ":IW_NOTES: 1"))
+                  ("lowercase key" . ,(org-iw-discovery-test--heading
+                                       "Copy" nil ":id: x1"))))
+    (ert-info ((car copy) :prefix "Copy: ")
+      (org-iw-test-with-corpus
+          `(("a.org" . ,(concat (org-iw-discovery-test--heading
+                                 "Member" "x1" ":IW_ESSAYS: 1")
+                                (cdr copy))))
+        (let ((scan (org-iw-discovery-test--scan)))
+          (should-not (org-iw-scan-entries scan))
+          (org-iw-discovery-test--refuse "duplicate" scan "x1" "a.org")))))
+  (org-iw-test-with-corpus
+      `(("a.org" . ,(org-iw-discovery-test--heading "A" "x1" ":IW_ESSAYS: 1"))
+        ("b.org" . ,(org-iw-discovery-test--heading "B" "x1" ":IW_NOTES: 2")))
+    ;; The problem names only the first file; both must still be refused.
+    (let ((scan (org-iw-discovery-test--scan)))
+      (org-iw-discovery-test--refuse "duplicate" scan "x1" "a.org")
+      (org-iw-discovery-test--refuse "duplicate" scan "x1" "b.org"))))
+
+(ert-deftest org-iw-discovery-test-resolve-ambiguous-after-scan ()
+  "Resolve refuses when a copy appeared after the scan, seen or hidden.
+The scan predates the copy, so this is `org-iw-discovery-id-count' alone."
+  (dolist (copy `(("no memberships" . ,(org-iw-discovery-test--heading
+                                        "Copy" "m1"))
+                  ("other queue" . ,(org-iw-discovery-test--heading
+                                     "Copy" "m1" ":IW_NOTES: 1"))
+                  ("lowercase key" . ,(org-iw-discovery-test--heading
+                                       "Copy" nil ":id: m1"))))
+    (ert-info ((car copy) :prefix "Copy: ")
+      (org-iw-test-with-corpus `(("a.org" . ,org-iw-discovery-test--member))
+        (let ((scan (org-iw-discovery-test--copy-after-scan "a.org" (cdr copy))))
+          (should (org-iw-scan-entries scan))
+          (org-iw-discovery-test--refuse "ambiguous" scan "m1" "a.org")
+          (with-current-buffer (org-iw-test-visit "a.org")
+            ;; Hidden by narrowing to the target, or the target hidden.
+            (goto-char (point-min))
+            (narrow-to-region (point-min) (line-end-position))
+            (org-iw-discovery-test--refuse "ambiguous" scan "m1" "a.org")
+            (widen)
+            (goto-char (point-max))
+            (search-backward "* Copy")
+            (narrow-to-region (line-beginning-position) (point-max))
+            (org-iw-discovery-test--refuse "ambiguous" scan "m1" "a.org")))))))
+
+(ert-deftest org-iw-discovery-test-resolve-narrowed-and-indirect ()
+  "Resolve finds the target through narrowing and an indirect buffer.
+The marker is in the base buffer, whatever buffer is current."
+  (org-iw-test-with-corpus
+      `(("a.org" . ,(concat (org-iw-discovery-test--heading "Front" "f1")
+                            org-iw-discovery-test--member)))
+    (let* ((scan (org-iw-discovery-test--scan))
+           (file (org-iw-test-path "a.org"))
+           (base (org-iw-test-visit "a.org"))
+           (indirect (make-indirect-buffer base "*org-iw-indirect*")))
+      (unwind-protect
+          (with-current-buffer indirect
+            (narrow-to-region (point-min) (line-end-position))
+            (let ((marker (org-iw-discovery-resolve scan "m1" file)))
+              (should (eq (marker-buffer marker) base))
+              (should (equal (org-iw-discovery-test--marker-line marker)
+                             "* Member"))))
+        (kill-buffer indirect))
+      (with-current-buffer base
+        (narrow-to-region (point-min) (line-end-position))
+        (should (org-iw-discovery-resolve scan "m1" file))))))
+
 (provide 'org-iw-discovery-test)
 ;;; org-iw-discovery-test.el ends here
