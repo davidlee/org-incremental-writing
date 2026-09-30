@@ -1,0 +1,18 @@
+schema = "doctrine.observation"
+schema_version = 1
+uid = "01a0f34a-14ba-7c52-a2b7-ae2c1a39c0be"
+recorded_at = "2026-09-30T17:08:33.594850202Z"
+kind = "friction"
+summary = "verify-vt passes VT rows vacuously from unrelated tests"
+detail = "SL-001 PHASE-07 planner: VT-3 keywords (queue change not saved, source problems ignored) already match in test/org-iw-test.el via PHASE-06 Add tests, so the row PASSes before any Continue test exists. Keywords are matched file-wide, not per test/phase."
+
+[facets.execution]
+schema_version = 1
+interface = "cli"
+interface_origin = "automatic"
+product_surface = "doctrine"
+product_surface_origin = "automatic"
+command = "observation record"
+command_origin = "automatic"
+repository_context = "primary"
+repository_context_origin = "automatic"

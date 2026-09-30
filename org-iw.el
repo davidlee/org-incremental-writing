@@ -128,6 +128,20 @@ Entries whose key is not a valid queue ID are left out."
   "Return the display name of QUEUE, a canonical queue ID."
   (or (org-iw--configured-name queue) queue))
 
+(defun org-iw--queue-id (queue)
+  "Return QUEUE, a queue ID in any case, canonical; refuse if invalid."
+  (or (org-iw-core-queue-id queue)
+      (org-iw--refuse "invalid queue ID %S" queue)))
+
+(defun org-iw--order (scan queue)
+  "Return the members of QUEUE, a canonical queue ID, in SCAN, in order."
+  (org-iw-core-queue-order (org-iw-scan-entries scan) queue))
+
+(defun org-iw--append-rank (order queue)
+  "Return the rank after ORDER, members of QUEUE; refuse at the limit."
+  (or (org-iw-core-append-rank order queue)
+      (org-iw--refuse "rank limit; redistribution needed")))
+
 (defun org-iw--read-queue (scan)
   "Prompt for a queue ID and return the string entered, unchecked.
 Completion offers the configured queues with valid IDs and those
@@ -164,6 +178,31 @@ Return the message."
              (if (zerop problems)
                  ""
                (format " [%d source problems ignored]" problems)))))
+
+;;;; Session
+
+(cl-defstruct (org-iw--session (:constructor org-iw--session-create)
+                               (:copier nil))
+  "The entry being worked on: its QUEUE (canonical ID), ID and TITLE."
+  queue id title)
+
+(defvar org-iw--session nil
+  "The current `org-iw--session', or nil.
+Set only by `org-iw--visit'; cleared only by `org-iw-end-session'.")
+
+(defconst org-iw--mode-line-construct '(:eval (org-iw--mode-line))
+  "The `global-mode-string' item showing the session.")
+
+(defun org-iw--mode-line ()
+  "Return the mode-line text for the session, or nil without one.
+The text is IW[NAME: TITLE], with % doubled in both so that the mode
+line shows it literally."
+  (when org-iw--session
+    (let ((escape (lambda (text) (string-replace "%" "%%" text))))
+      (format "IW[%s: %s]"
+              (funcall escape (org-iw--queue-name
+                               (org-iw--session-queue org-iw--session)))
+              (funcall escape (org-iw--session-title org-iw--session))))))
 
 ;;;; Add
 
@@ -267,22 +306,152 @@ Return the message shown."
   (interactive (progn (org-iw--add-target)
                       (list (org-iw--read-queue (org-iw--scan)))))
   (let* ((marker (org-iw--add-target))
-         (queue-id (or (org-iw-core-queue-id queue)
-                       (org-iw--refuse "invalid queue ID %S" queue)))
+         (queue-id (org-iw--queue-id queue))
          (scan (org-iw--scan))
-         (order (org-iw-core-queue-order (org-iw-scan-entries scan)
-                                         queue-id))
+         (order (org-iw--order scan queue-id))
          (name (org-iw--queue-name queue-id)))
     (if-let* ((position (org-iw--check-heading marker scan order queue-id)))
         (org-iw--report scan "Already in %s at %d/%d"
                         name position (length order))
-      (let* ((rank (or (org-iw-core-append-rank order queue-id)
-                       (org-iw--refuse "rank limit; redistribution needed")))
+      (let* ((rank (org-iw--append-rank order queue-id))
              (status (org-iw-write-put-rank marker queue-id rank
                                             :expected :absent :ensure-id t))
              (total (1+ (length order))))
         (org-iw--report scan "Added to %s at %d/%d %s"
                         name total total (org-iw--save-status status))))))
+
+;;;; Visit
+
+(defun org-iw--visit (scan entry queue pos total)
+  "Show ENTRY of SCAN, POS of TOTAL in QUEUE, and make it the session.
+QUEUE is a canonical queue ID.  The entry's buffer is shown in the
+selected window, widened only if its narrowing hides the entry, with
+point at the entry and the entry revealed.  If the entry cannot be
+resolved, refuse before anything changes.  Nothing is written.
+
+Return the message shown."
+  (let ((marker (org-iw-discovery-resolve scan (org-iw-entry-id entry)
+                                          (org-iw-entry-file entry))))
+    (pop-to-buffer-same-window (marker-buffer marker))
+    ;; The heading starts at MARKER, so at point-max it is hidden too.
+    (unless (and (<= (point-min) marker) (< marker (point-max)))
+      (widen))
+    (goto-char marker)
+    (org-fold-reveal)
+    (org-fold-show-entry)
+    (setq org-iw--session (org-iw--session-create
+                           :queue queue
+                           :id (org-iw-entry-id entry)
+                           :title (org-iw-entry-title entry)))
+    (add-to-list 'global-mode-string org-iw--mode-line-construct)
+    (force-mode-line-update t)
+    (org-iw--report scan "IW %s %d/%d: %s" (org-iw--queue-name queue)
+                    pos total (org-iw-entry-title entry))))
+
+;;;###autoload
+(defun org-iw-visit-next (queue)
+  "Visit the first entry of QUEUE and make it the session's entry.
+QUEUE is a queue ID in any case.  Interactively, it is the session's
+queue; with a prefix argument, or without a session, it is read with
+completion over the configured and discovered queues.
+
+The entry's buffer is shown in the selected window, widened only if
+its narrowing hides the entry.  Nothing is written, so visiting again
+without `org-iw-continue' shows the same entry.  An empty queue is
+reported and changes nothing.  Refuses if QUEUE is not a valid ID or
+the entry cannot be found.
+
+Return the message shown."
+  (interactive (list (if (and org-iw--session (not current-prefix-arg))
+                         (org-iw--session-queue org-iw--session)
+                       (org-iw--read-queue (org-iw--scan)))))
+  (let* ((queue-id (org-iw--queue-id queue))
+         (scan (org-iw--scan))
+         (order (org-iw--order scan queue-id)))
+    (if order
+        (org-iw--visit scan (car order) queue-id 1 (length order))
+      (org-iw--report scan "Queue %s is empty" (org-iw--queue-name queue-id)))))
+
+;;;; Continue to End
+
+(defun org-iw--refuse-absent (scan session)
+  "Refuse because SESSION's entry is not in its queue in SCAN.
+Say whether SCAN excluded the entry's ID as a duplicate."
+  (let ((id (org-iw--session-id session))
+        (title (org-iw--session-title session)))
+    (if (org-iw-discovery--excluded-id-p scan id)
+        (org-iw--refuse "ID %s is duplicated; %s not moved" id title)
+      (org-iw--refuse "%s is no longer in queue %s" title
+                      (org-iw--queue-name (org-iw--session-queue session))))))
+
+(defun org-iw--move-to-end (scan entry rest queue)
+  "Rank ENTRY of SCAN after REST, the other members of QUEUE.
+Return the result of `org-iw-write-put-rank'."
+  (let ((rank (org-iw--append-rank rest queue))
+        (marker (org-iw-discovery-resolve scan (org-iw-entry-id entry)
+                                          (org-iw-entry-file entry))))
+    (org-iw-write-put-rank marker queue rank
+                           :expected (org-iw-core-rank entry queue))))
+
+;;;###autoload
+(defun org-iw-continue ()
+  "Move the session's entry to the end of its queue; visit the next.
+The entry is the one `org-iw-visit-next' last showed, whatever is at
+point or now first in the queue.  It is ranked after the queue's
+other members through its buffer, which is saved unless it already
+had unsaved changes.  Then the first of the other members is visited
+and becomes the session's entry.
+
+An entry already last is not written, and the only entry in its
+queue is left alone.  Continue refuses, writing and visiting nothing,
+if there is no session, the entry has left its queue or its ID is
+duplicated, the queue has no rank left, or the write refuses (the
+file changed on disk or is not writable, or the rank changed since
+the scan).
+
+Return the message shown."
+  (interactive)
+  (unless org-iw--session
+    (org-iw--refuse "no session; run org-iw-visit-next first"))
+  (let* ((queue (org-iw--session-queue org-iw--session))
+         (id (org-iw--session-id org-iw--session))
+         (scan (org-iw--scan))
+         (order (org-iw--order scan queue))
+         (retained (or (seq-find (lambda (entry)
+                                   (equal (org-iw-entry-id entry) id))
+                                 order)
+                       (org-iw--refuse-absent scan org-iw--session)))
+         (rest (remq retained order))
+         (title (org-iw-entry-title retained)))
+    (if (null rest)
+        (org-iw--report scan "%s is the only entry in queue %s"
+                        title (org-iw--queue-name queue))
+      (let ((moved (unless (eq retained (car (last order)))
+                     (org-iw--save-status
+                      (org-iw--move-to-end scan retained rest queue))))
+            (next (car rest)))
+        (org-iw--visit scan next queue 1 (length order))
+        (org-iw--report scan "%s. Now 1/%d: %s"
+                        (if moved
+                            (format "Moved %s to end %s" title moved)
+                          (format "%s already at end" title))
+                        (length order) (org-iw-entry-title next))))))
+
+;;;; End session
+
+;;;###autoload
+(defun org-iw-end-session ()
+  "End the session and remove it from the mode line.
+Without a session this does nothing but say so.  Nothing is written.
+
+Return the message shown."
+  (interactive)
+  (let ((ended org-iw--session))
+    (setq org-iw--session nil)
+    (setq global-mode-string (delete org-iw--mode-line-construct
+                                     global-mode-string))
+    (force-mode-line-update t)
+    (message (if ended "org-iw session ended" "No org-iw session"))))
 
 (provide 'org-iw)
 ;;; org-iw.el ends here

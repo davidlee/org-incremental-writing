@@ -173,7 +173,7 @@ Outcomes:
   `</dev/null`.
 - No Org 9.7/9.8 differences observed.
 
-## PHASE-06 (2026-10-01) — completed, uncommitted
+## PHASE-06 (2026-10-01) — completed, 62c2437
 
 org-iw.el: autoloaded `org-iw-add` (QUEUE) plus private `--refuse`,
 `--files`, `--scan`, `--buffer-truename`, `--source-file-p`,
@@ -249,6 +249,105 @@ Outcomes:
   docstring names `org-iw-sources`, a reference).
 - No Org 9.7/9.8 differences observed.
 
+## PHASE-07 (2026-10-01) — completed, uncommitted
+
+org-iw.el: session struct `org-iw--session` (constructor
+`org-iw--session-create`), `defvar org-iw--session`, `defconst
+org-iw--mode-line-construct` `(:eval (org-iw--mode-line))`,
+`org-iw--mode-line`, `org-iw--visit`, autoloaded `org-iw-visit-next`,
+`org-iw-continue`, `org-iw-end-session`, and private `--queue-id`
+(validate or refuse "invalid queue ID %S"), `--order` (queue order of a
+scan), `--append-rank` (rank or refuse "rank limit; redistribution
+needed"), `--refuse-absent`, `--move-to-end`. Add now uses `--queue-id`,
+`--order`, `--append-rank` (POL-002: each message string occurs once).
+No lower-layer change (R2). Tests: 31 new in test/org-iw-test.el (134
+total); fixture binds `org-iw--session` and `global-mode-string` nil;
+`org-iw-write-test--rewrite-behind` promoted to the fixture file as
+`org-iw-test-rewrite-behind NAME TEXT` (write-test's VT keywords intact).
+Gate green on Emacs 31.1/Org 9.8.10 and 30.2/Org 9.7.11; `org-iw.el`
+coverage 99% (the one "missed" line, visit-next's empty-queue report, is
+asserted by `org-iw-cmd-test-visit-next-empty-queue`; undercover
+misattributes it).
+
+Rulings (orchestrator, adopting the phase sheet's defaults G1-G10):
+- G1: `org-iw-visit-next` keeps one required QUEUE; its interactive spec
+  gives the session's queue unless there is no session or a prefix arg,
+  else prompts. G2: two scans per prompting call, accepted.
+- G3: "T is the only entry in queue NAME" is a report (with the problems
+  suffix), not a refusal; no write, no navigation, session kept.
+- G4: Continue's visit echoes "IW NAME 1/N: NEXT", then Continue's own
+  message replaces it; Continue returns its own.
+- G5: end-session is idempotent: "org-iw session ended" / "No org-iw
+  session", returned. Other `global-mode-string` items are kept.
+- G6 wordings: "no session; run org-iw-visit-next first", "T is no
+  longer in queue NAME" (T from the session), "ID X is duplicated; T not
+  moved", "T already at end. Now 1/N: NEXT", "Moved T to end STATUS.
+  Now 1/N: NEXT".
+- G7: a refusal from the next entry's visit after a successful write
+  propagates; not tested (as allowed).
+- G8: T and NEXT in Continue's messages are the scanned titles; only the
+  "no longer in queue" / "duplicated" refusals use the session title.
+- G9, G10: see PHASE-08 below.
+
+Outcomes:
+- Strictly test-first: every branch had its test run red before code.
+  Red conditions: void-function (`--session-create`, `--mode-line`,
+  `--visit`, `visit-next`, `end-session`, `continue`), `commandp` for the
+  interactive tests; no session -> `wrong-type-argument org-iw--session`;
+  removed entry -> `wrong-type-argument org-iw-entry nil`; duplicated ID
+  -> the refusal "A is no longer in queue ESSAYS" (this is the planned
+  proof: without the excluded-ID branch a duplicate reads as "no longer
+  in queue"); only entry -> wrote D, then failed visiting nil; already
+  last -> rewrote A and reported "Moved"; rank limit -> `wrong-type-argument
+  numberp nil`.
+- Green on first run, proven by mutation: Continue propagating a write
+  refusal (changed on disk; swallowing put-rank's refusal fails it); the
+  unsaved and save-failed reports (forcing "(saved)" fails both;
+  signalling on save-failed fails the navigation check); the problems
+  suffix (dropping it in `--report` fails it). These reuse
+  `--save-status` / `--report` from PHASE-06, so no code was written for
+  them.
+- Found by T3: a buffer narrowed to the previous subtree ends exactly at
+  the next heading, so the marker equals `point-max` and "inside the
+  narrowing" held while the heading was hidden (`org-fold-reveal`
+  signalled end-of-buffer). Visit widens unless point-min <= marker <
+  point-max.
+- EX-4 (F-3) holds: after an unsaved edit in a directory source, with the
+  lock file `.#a.org` present (asserted; appears on 30.2 and 31.1),
+  Continue reports "queue change not saved", the disk is unchanged, the
+  buffer holds the new rank, and B is visited.
+- EX-5 (F-1) holds: with a same-file copy of the session ID (added in the
+  buffer, unsaved), Continue refuses "ID a1 is duplicated; A not moved";
+  every file and buffer, the session and the window are unchanged.
+- I3: Continue acts on the session ID with point moved to C, and with C
+  made the front in another file's unsaved buffer (A goes after the
+  last of the rest; C visited; b.org stays unsaved).
+- `format-mode-line` renders "" in batch (G10), so tests assert the raw
+  `org-iw--mode-line` string ("IW[50%% Club: 100%% done]") and the
+  construct's single presence in `global-mode-string`.
+- `current-message` is nil under `--batch`; visit tests assert the
+  returned message instead.
+- Grep: 4 autoload cookies (add, visit-next, continue, end-session);
+  `org-iw--session` assigned only in `org-iw--visit` and
+  `org-iw-end-session` (R3); no `org-find-entry-with-id`,
+  `org-entry-properties` or IW regexp in org-iw.el; `verify-vt` PASS for
+  PHASE-02..07 (all 11 PHASE-07 keywords present literally in
+  test/org-iw-test.el; every PHASE-06 keyword retained).
+- No Org 9.7/9.8 differences observed; `org-fold-reveal` and
+  `org-fold-show-entry` behave alike on both.
+
+For PHASE-08 (human trial):
+- G10: check the mode line shows `IW[Name: Title]` after visit-next; a
+  queue name or title containing `%` shows a single `%`; it disappears
+  after `M-x org-iw-end-session`, and other `global-mode-string` items
+  stay.
+- G9: a `global-mode-string` set to a bare string (not a list) makes the
+  first visit signal in `add-to-list`; unhandled, SL-005 candidate.
+- `pop-to-buffer-same-window` from a dedicated or minibuffer window may
+  show the entry elsewhere; batch cannot show it.
+- Continue shows two echoes in quick succession (G4); only the second
+  stays visible, both are in *Messages*.
+
 ## Design deltas for /reconcile
 
 - § 5.2 `org-iw-core-append-rank` takes `(ORDERED QUEUE)`, not `(ORDERED)`
@@ -290,6 +389,23 @@ Outcomes:
   (`--queue-lines`, `--entry-id`, `--in-block-p`, `--excluded-id-p`) and
   write calls `--queue-lines`. Suggest promoting a small public discovery
   reader API (entry ID, per-queue lines, block test, excluded-ID test).
+- § 5.3 (PHASE-07): the session struct has constructor
+  `org-iw--session-create`; `org-iw--mode-line-construct` names the
+  `global-mode-string` item.
+- § 5.2 `org-iw-visit-next` (G1): QUEUE stays required; the interactive
+  spec supplies the session's queue (no session or prefix arg -> prompt).
+  The design's "(QUEUE; a prefix argument forces the prompt)" read so.
+- § 5.4 Continue diagram (G3): the "only entry" branch is a report (not a
+  refusal), with no navigation and the session kept.
+- § 5.4 Continue (G4, G8): Continue's message replaces the visit's echo
+  and is the return value; T and NEXT are the scanned titles.
+- § 5.4 Continue (G7): if the next entry's visit refuses after a
+  successful write, the refusal propagates; the write stands and the
+  session still names the moved entry (a second Continue reports "already
+  at end" and retries the visit).
+- § 5.4 Visit step 2: "outside the narrowing" includes a marker at
+  `point-max` (the heading line is then hidden); visit widens unless
+  point-min <= marker < point-max.
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->

@@ -105,6 +105,8 @@ See `org-iw-test-with-corpus'."
          (org-iw-sources (list org-iw-test-dir))
          (org-iw-exclude-regexp nil)
          (org-iw-queues nil)
+         (org-iw--session nil)
+         (global-mode-string nil)
          (org-id-locations-file ids-file)
          (org-id-locations nil)
          (org-id-track-globally nil))
@@ -132,9 +134,10 @@ FILES is evaluated to an alist (NAME . CONTENT); NAME is relative to
 the corpus and may include subdirectories.
 
 BODY runs with `org-iw-test-dir' naming the corpus, `org-iw-sources'
-bound to it, `org-iw-exclude-regexp' and `org-iw-queues' nil, and
-org-id isolated: `org-id-locations-file' is a temporary file outside
-the corpus, `org-id-locations' nil and `org-id-track-globally' nil.
+bound to it, `org-iw-exclude-regexp' and `org-iw-queues' nil, no
+session (`org-iw--session' and `global-mode-string' nil), and org-id
+isolated: `org-id-locations-file' is a temporary file outside the
+corpus, `org-id-locations' nil and `org-id-track-globally' nil.
 
 Afterwards, even if BODY fails, the corpus buffers are killed with
 their edits discarded and file modes changed through
@@ -169,6 +172,15 @@ NAME is declared as an expected extra for the I8 check."
   "Return a buffer visiting corpus file NAME.
 The fixture kills it at the end of the test."
   (find-file-noselect (org-iw-test-path name)))
+
+(defun org-iw-test-rewrite-behind (name text)
+  "Replace corpus file NAME's contents with TEXT behind Emacs's back.
+Its modification time is moved an hour back, so that clock
+granularity cannot hide the change."
+  (let ((path (org-iw-test-path name)))
+    (with-temp-file path
+      (insert text))
+    (set-file-times path (time-subtract nil 3600))))
 
 (defun org-iw-test-changed-lines (before after)
   "Return the lines that differ between strings BEFORE and AFTER.

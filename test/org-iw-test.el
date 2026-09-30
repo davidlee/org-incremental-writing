@@ -22,9 +22,10 @@
 
 ;;; Commentary:
 
-;; ERT tests for the command layer: `org-iw-add' and the private
-;; helpers the commands share.  Every prompt is stubbed, so that no
-;; test reads from standard input.
+;; ERT tests for the command layer: `org-iw-add', the session and its
+;; mode line, `org-iw-visit-next', `org-iw-continue',
+;; `org-iw-end-session', and the private helpers the commands share.
+;; Every prompt is stubbed, so that no test reads from standard input.
 
 ;;; Code:
 
@@ -120,9 +121,7 @@ at the prompt, proving BODY never prompts."
 
 (defun org-iw-cmd-test--order (queue)
   "Return the IDs of QUEUE's members in queue order, scanned afresh."
-  (mapcar #'org-iw-entry-id
-          (org-iw-core-queue-order (org-iw-scan-entries (org-iw--scan))
-                                   queue)))
+  (mapcar #'org-iw-entry-id (org-iw--order (org-iw--scan) queue)))
 
 (ert-deftest org-iw-cmd-test-add-appends ()
   "Add appends; on disk only the new IW_ESSAYS line appears (I2, I4)."
@@ -460,6 +459,494 @@ Invalid configured IDs are dropped; a new queue may be typed."
           (goto-char marker)
           (call-interactively #'org-iw-add)))
       (should (equal (org-iw-cmd-test--order "ESSAYS") '("m1" "t1"))))))
+
+;;;; Session and mode line (VT-1, DEC-005)
+
+(defun org-iw-cmd-test--session (queue title)
+  "Return a session in QUEUE on an entry titled TITLE, ID x1."
+  (org-iw--session-create :queue queue :id "x1" :title title))
+
+(ert-deftest org-iw-cmd-test-mode-line-escapes-percent ()
+  "`org-iw--mode-line' shows the queue name and title, % escaped as %%."
+  (let ((org-iw-queues '(("essays" :name "50% Club")))
+        (org-iw--session (org-iw-cmd-test--session "ESSAYS" "100% done")))
+    (should (equal (org-iw--mode-line) "IW[50%% Club: 100%% done]"))))
+
+(ert-deftest org-iw-cmd-test-mode-line-unconfigured-queue ()
+  "An unconfigured queue is shown by its ID."
+  (let ((org-iw-queues nil)
+        (org-iw--session (org-iw-cmd-test--session "ESSAYS" "A")))
+    (should (equal (org-iw--mode-line) "IW[ESSAYS: A]"))))
+
+(ert-deftest org-iw-cmd-test-mode-line-without-session ()
+  "Without a session the mode line shows nothing."
+  (let ((org-iw--session nil))
+    (should-not (org-iw--mode-line))))
+
+;;;; Visit (EX-1)
+
+(defconst org-iw-cmd-test--a-file
+  (concat (org-iw-test-org "* Other" "Other text.")
+          (org-iw-test-heading "A" "a1" ":IW_ESSAYS: 1024")
+          (org-iw-test-org "A body."))
+  "A non-member heading Other, then A, in ESSAYS at 1024.")
+
+(defconst org-iw-cmd-test--b-file
+  (concat (org-iw-test-heading "B" "b1" ":IW_ESSAYS: 2048")
+          (org-iw-test-heading "C" "c1" ":IW_ESSAYS: 3072"))
+  "B and C, in ESSAYS at 2048 and 3072.")
+
+(defconst org-iw-cmd-test--queue
+  `(("a.org" . ,org-iw-cmd-test--a-file)
+    ("b.org" . ,org-iw-cmd-test--b-file)
+    ("d.org" . ,(org-iw-test-heading "D" "d1" ":IW_DRAFTS: 1")))
+  "ESSAYS holds A (a.org), B and C (b.org), in that order.
+DRAFTS holds D (d.org).")
+
+(defconst org-iw-cmd-test--problem
+  (cons "c.org" (org-iw-test-heading "No ID" nil ":IW_ESSAYS: 1"))
+  "A file whose heading is in ESSAYS but has no ID: one problem.")
+
+(defun org-iw-cmd-test--entry (scan id)
+  "Return the entry of SCAN with ID."
+  (seq-find (lambda (entry) (equal (org-iw-entry-id entry) id))
+            (org-iw-scan-entries scan)))
+
+(defun org-iw-cmd-test--visit (id &optional scan)
+  "Visit the entry ID as 1/3 of ESSAYS, from SCAN or a fresh scan.
+Return the message."
+  (let ((scan (or scan (org-iw--scan))))
+    (org-iw--visit scan (org-iw-cmd-test--entry scan id) "ESSAYS" 1 3)))
+
+(defun org-iw-cmd-test--shown ()
+  "Return (BUFFER HEADING) for the selected window.
+BUFFER is the corpus-relative file shown, or the buffer's name if it
+has no file; HEADING the title of the heading at its point, or nil if
+point is not at a heading."
+  (with-current-buffer (window-buffer (selected-window))
+    (save-excursion
+      (goto-char (window-point))
+      (list (if buffer-file-name
+                (file-relative-name buffer-file-name org-iw-test-dir)
+              (buffer-name))
+            (and (derived-mode-p 'org-mode)
+                 (org-at-heading-p)
+                 (org-get-heading t t t t))))))
+
+(defun org-iw-cmd-test--session-id ()
+  "Return the ID of the session's entry, or nil without a session."
+  (and org-iw--session (org-iw--session-id org-iw--session)))
+
+(defun org-iw-cmd-test--body-hidden-p (name text)
+  "Return non-nil if TEXT in corpus file NAME's buffer is invisible."
+  (with-current-buffer (org-iw-test-visit name)
+    (org-with-wide-buffer
+     (goto-char (point-min))
+     (search-forward text)
+     (invisible-p (match-beginning 0)))))
+
+(ert-deftest org-iw-cmd-test-visit-navigates-and-reveals ()
+  "Visit shows the entry's buffer in the selected window, at its heading.
+A folded entry is revealed, body included."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (with-current-buffer (org-iw-test-visit "a.org")
+      (org-overview))
+    (should (org-iw-cmd-test--body-hidden-p "a.org" "A body."))
+    (org-iw-cmd-test--visit "a1")
+    (should (equal (org-iw-cmd-test--shown) '("a.org" "A")))
+    (should-not (invisible-p (window-point)))
+    (should-not (org-iw-cmd-test--body-hidden-p "a.org" "A body."))))
+
+(ert-deftest org-iw-cmd-test-visit-sets-session ()
+  "Visit sets the session and shows it once in `global-mode-string'."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (org-iw-cmd-test--visit "a1")
+    (org-iw-cmd-test--visit "b1")
+    (should (equal (list (org-iw--session-queue org-iw--session)
+                         (org-iw--session-id org-iw--session)
+                         (org-iw--session-title org-iw--session))
+                   '("ESSAYS" "b1" "B")))
+    (should (equal (cl-count org-iw--mode-line-construct global-mode-string
+                             :test #'equal)
+                   1))))
+
+(ert-deftest org-iw-cmd-test-visit-message ()
+  "Visit echoes and returns IW NAME POS/TOTAL: TITLE, counting problems."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (let ((org-iw-queues '(("essays" :name "Essays"))))
+      (should (equal (org-iw-cmd-test--visit "a1") "IW Essays 1/3: A"))))
+  (org-iw-test-with-corpus `(,@org-iw-cmd-test--queue
+                             ,org-iw-cmd-test--problem)
+    (should (equal (org-iw-cmd-test--visit "a1")
+                   "IW ESSAYS 1/3: A [1 source problems ignored]"))))
+
+(defun org-iw-cmd-test--narrow-to (name title)
+  "Narrow corpus file NAME's buffer to the subtree of heading TITLE.
+Return the buffer."
+  (let ((marker (org-iw-test-marker name title)))
+    (with-current-buffer (marker-buffer marker)
+      (goto-char marker)
+      (narrow-to-region marker (save-excursion (org-end-of-subtree t t)))
+      (current-buffer))))
+
+(ert-deftest org-iw-cmd-test-visit-widens-only-to-reach-entry ()
+  "A narrowing that hides the entry is removed; one showing it is kept.
+Narrowed to the previous subtree, the entry's heading starts at the
+end of the accessible text, so it is hidden."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (let ((buffer (org-iw-cmd-test--narrow-to "a.org" "Other")))
+      (org-iw-cmd-test--visit "a1")
+      (should (equal (org-iw-cmd-test--shown) '("a.org" "A")))
+      (should-not (with-current-buffer buffer (buffer-narrowed-p)))))
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (let* ((buffer (org-iw-cmd-test--narrow-to "a.org" "A"))
+           (text (with-current-buffer buffer (buffer-string))))
+      (org-iw-cmd-test--visit "a1")
+      (should (equal (org-iw-cmd-test--shown) '("a.org" "A")))
+      (should (equal (with-current-buffer buffer (buffer-string)) text)))))
+
+(ert-deftest org-iw-cmd-test-visit-refusal-changes-nothing ()
+  "A refused resolve leaves the session and the selected window alone.
+The ID is copied after the scan, so resolve finds it ambiguous."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (org-iw-cmd-test--visit "b1")
+    (let ((session org-iw--session)
+          (scan (org-iw--scan)))
+      (with-current-buffer (org-iw-test-visit "a.org")
+        (goto-char (point-min))
+        (forward-line 1)
+        (insert ":PROPERTIES:\n:ID: a1\n:END:\n"))
+      (should (string-search
+               "ambiguous"
+               (cadr (should-error (org-iw-cmd-test--visit "a1" scan)
+                                   :type 'org-iw-refusal))))
+      (should (eq org-iw--session session))
+      (should (equal (org-iw-cmd-test--shown) '("b.org" "B"))))))
+
+;;;; Visit next (EX-2, VT-1, I1)
+
+(defun org-iw-cmd-test--open-all ()
+  "Visit every source file, so that a state compares every buffer."
+  (mapc #'find-file-noselect (org-iw--files)))
+
+(defun org-iw-cmd-test--should-change-nothing (fn)
+  "Call FN and assert it changed nothing; return its value.
+Nothing is the corpus state (see `org-iw-test-state'), the session
+and what the selected window shows."
+  (let ((state (org-iw-test-state))
+        (session org-iw--session)
+        (shown (org-iw-cmd-test--shown)))
+    (prog1 (funcall fn)
+      (should (equal (org-iw-test-state) state))
+      (should (eq org-iw--session session))
+      (should (equal (org-iw-cmd-test--shown) shown)))))
+
+(defun org-iw-cmd-test--should-refuse-cleanly (substring fn)
+  "Assert FN refuses with SUBSTRING and changes nothing.
+The refusal must be an `org-iw-refusal'.  Return its message."
+  (let ((reason (cadr (org-iw-cmd-test--should-change-nothing
+                       (lambda ()
+                         (should-error (funcall fn)
+                                       :type 'org-iw-refusal))))))
+    (should (string-search substring reason))
+    reason))
+
+(ert-deftest org-iw-cmd-test-visit-next-writes-nothing ()
+  "`org-iw-visit-next' changes nothing and repeats the same entry (I1)."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (org-iw-cmd-test--open-all)
+    (let ((state (org-iw-test-state)))
+      (dotimes (_ 2)
+        (should (equal (org-iw-visit-next "essays") "IW ESSAYS 1/3: A"))
+        (should (equal (org-iw-cmd-test--shown) '("a.org" "A")))
+        (should (equal (org-iw-cmd-test--session-id) "a1")))
+      (should (equal (org-iw-test-state) state)))))
+
+(ert-deftest org-iw-cmd-test-visit-next-opens-file-cleanly ()
+  "A file `org-iw-visit-next' opens is unmodified; no disk changes (I1)."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (let ((state (org-iw-test-state)))
+      (org-iw-visit-next "ESSAYS")
+      (should-not (buffer-modified-p (get-file-buffer
+                                      (org-iw-test-path "a.org"))))
+      (should (equal (seq-take (org-iw-test-state) (length state)) state)))))
+
+(ert-deftest org-iw-cmd-test-visit-next-uses-session-queue ()
+  "Interactively, with a session, the session's queue is used unasked."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (org-iw-visit-next "drafts")
+    (org-iw-cmd-test--with-prompt nil
+      (should (equal (call-interactively #'org-iw-visit-next)
+                     "IW DRAFTS 1/1: D")))))
+
+(ert-deftest org-iw-cmd-test-visit-next-prompts ()
+  "Interactively, a prefix argument or no session prompts for the queue."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (org-iw-cmd-test--with-prompt "essays"
+      (should (equal (call-interactively #'org-iw-visit-next)
+                     "IW ESSAYS 1/3: A"))
+      (should (equal (length org-iw-cmd-test--prompts) 1)))
+    (org-iw-cmd-test--with-prompt "drafts"
+      (let ((current-prefix-arg '(4)))
+        (should (equal (call-interactively #'org-iw-visit-next)
+                       "IW DRAFTS 1/1: D")))
+      (should (equal (length org-iw-cmd-test--prompts) 1)))
+    (should (equal (org-iw--session-queue org-iw--session) "DRAFTS"))))
+
+(ert-deftest org-iw-cmd-test-visit-next-refuses-invalid-queue ()
+  "A typed queue ID that is not valid is refused; nothing changes."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (org-iw-cmd-test--open-all)
+    (org-iw-visit-next "ESSAYS")
+    (org-iw-cmd-test--should-refuse-cleanly
+     "invalid queue ID \"ess_ays\""
+     (lambda () (org-iw-visit-next "ess_ays")))))
+
+(ert-deftest org-iw-cmd-test-visit-next-empty-queue ()
+  "An empty queue is reported; nothing changes, the session included."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (let ((org-iw-queues '(("ideas" :name "Ideas"))))
+      (org-iw-cmd-test--open-all)
+      (org-iw-visit-next "ESSAYS")
+      (should (equal (org-iw-cmd-test--should-change-nothing
+                      (lambda () (org-iw-visit-next "ideas")))
+                     "Queue Ideas is empty")))))
+
+(ert-deftest org-iw-cmd-test-visit-next-widens ()
+  "A buffer narrowed with `narrow-to-region' away from the entry is widened."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (let ((buffer (org-iw-cmd-test--narrow-to "a.org" "Other")))
+      (org-iw-visit-next "ESSAYS")
+      (should (equal (org-iw-cmd-test--shown) '("a.org" "A")))
+      (should-not (with-current-buffer buffer (buffer-narrowed-p))))))
+
+;;;; End session (EX-1, VT-1)
+
+(ert-deftest org-iw-cmd-test-end-session-clears ()
+  "`org-iw-end-session' clears the session and its mode-line item.
+Other `global-mode-string' items stay; a second call is harmless."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (setq global-mode-string (list "x"))
+    (org-iw-visit-next "ESSAYS")
+    (should (equal global-mode-string
+                   (list org-iw--mode-line-construct "x")))
+    (should (equal (org-iw-end-session) "org-iw session ended"))
+    (should-not org-iw--session)
+    (should (equal global-mode-string '("x")))
+    (should (equal (org-iw-end-session) "No org-iw session"))
+    (should (equal global-mode-string '("x")))))
+
+;;;; Continue to End (EX-3, VT-2, I2, I3)
+
+(defun org-iw-cmd-test--disks ()
+  "Return an alist (NAME . CONTENTS) of the corpus files on disk."
+  (mapcar (lambda (file)
+            (cons (file-relative-name file org-iw-test-dir)
+                  (org-iw-test-file-string file)))
+          (org-iw--files)))
+
+(defun org-iw-cmd-test--should-move (fn file from to)
+  "Call FN; assert on disk it changed only FILE's IW_ESSAYS FROM to TO.
+FROM and TO are ranks.  Return FN's value."
+  (let ((before (org-iw-cmd-test--disks)))
+    (prog1 (funcall fn)
+      (let ((after (org-iw-cmd-test--disks)))
+        (should (equal (assoc-delete-all file (copy-sequence after))
+                       (assoc-delete-all file (copy-sequence before))))
+        (should (equal (org-iw-test-changed-lines
+                        (alist-get file before nil nil #'equal)
+                        (alist-get file after nil nil #'equal))
+                       `((,(format ":IW_ESSAYS: %d" from))
+                         ,(format ":IW_ESSAYS: %d" to))))))))
+
+(defun org-iw-cmd-test--set-rank (name from to)
+  "Change IW_ESSAYS FROM to TO in corpus file NAME's buffer, unsaved."
+  (with-current-buffer (org-iw-test-visit name)
+    (org-with-wide-buffer
+     (goto-char (point-min))
+     (search-forward (format ":IW_ESSAYS: %d" from))
+     (replace-match (format ":IW_ESSAYS: %d" to) t t))))
+
+(ert-deftest org-iw-cmd-test-continue-moves-to-end ()
+  "`org-iw-continue' changes one line in one file and visits the next (I2)."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (org-iw-visit-next "ESSAYS")
+    (should (equal (org-iw-cmd-test--should-move #'org-iw-continue
+                                                 "a.org" 1024 4096)
+                   "Moved A to end (saved). Now 1/3: B"))
+    (should (equal (org-iw-cmd-test--shown) '("b.org" "B")))
+    (should (equal (org-iw-cmd-test--session-id) "b1"))
+    (should (equal (org-iw-cmd-test--order "ESSAYS") '("b1" "c1" "a1")))))
+
+(ert-deftest org-iw-cmd-test-continue-ignores-point ()
+  "Continue moves the session's entry, not the one at point (I3)."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (org-iw-visit-next "ESSAYS")
+    (let ((c (org-iw-test-marker "b.org" "C")))
+      (pop-to-buffer-same-window (marker-buffer c))
+      (goto-char c))
+    (org-iw-cmd-test--should-move #'org-iw-continue "a.org" 1024 4096)
+    (should (equal (org-iw-cmd-test--order "ESSAYS") '("b1" "c1" "a1")))))
+
+(ert-deftest org-iw-cmd-test-continue-ignores-new-front ()
+  "Continue moves the session's entry when another became the front.
+C, in another file, is re-ranked first in its unsaved buffer; A goes
+after B, the last of the rest, C is visited, and b.org is not saved."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (org-iw-visit-next "ESSAYS")
+    (org-iw-cmd-test--set-rank "b.org" 3072 1)
+    (should (equal (org-iw-cmd-test--should-move #'org-iw-continue
+                                                 "a.org" 1024 3072)
+                   "Moved A to end (saved). Now 1/3: C"))
+    (should (equal (org-iw-cmd-test--shown) '("b.org" "C")))
+    (should (buffer-modified-p (org-iw-test-visit "b.org")))
+    (should (equal (org-iw-test-file-string "b.org")
+                   org-iw-cmd-test--b-file))))
+
+(ert-deftest org-iw-cmd-test-continue-full-cycle ()
+  "Three Continues from A come back to A, one line in one file each."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (org-iw-visit-next "ESSAYS")
+    (org-iw-cmd-test--should-move #'org-iw-continue "a.org" 1024 4096)
+    (org-iw-cmd-test--should-move #'org-iw-continue "b.org" 2048 5120)
+    (org-iw-cmd-test--should-move #'org-iw-continue "b.org" 3072 6144)
+    (should (equal (org-iw-cmd-test--shown) '("a.org" "A")))
+    (should (equal (org-iw-cmd-test--session-id) "a1"))))
+
+(ert-deftest org-iw-cmd-test-continue-after-buffer-killed ()
+  "Continue works when the session entry's buffer was killed."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (org-iw-visit-next "ESSAYS")
+    (kill-buffer (org-iw-test-visit "a.org"))
+    (org-iw-cmd-test--should-move #'org-iw-continue "a.org" 1024 4096)
+    (should (equal (org-iw-cmd-test--shown) '("b.org" "B")))))
+
+;;;; Continue: refusals and short cuts (EX-3, EX-5, VT-2)
+
+(ert-deftest org-iw-cmd-test-continue-refuses-without-session ()
+  "Without a session, Continue refuses before scanning."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (org-iw-cmd-test--open-all)
+    (cl-letf (((symbol-function 'org-iw--scan)
+               (lambda () (ert-fail "Scanned"))))
+      (org-iw-cmd-test--should-refuse-cleanly "no session" #'org-iw-continue))))
+
+(defun org-iw-cmd-test--delete-in-a (regexp)
+  "Delete the text REGEXP matches in a.org's buffer, leaving it unsaved."
+  (with-current-buffer (org-iw-test-visit "a.org")
+    (org-with-wide-buffer
+     (goto-char (point-min))
+     (re-search-forward regexp)
+     (replace-match ""))))
+
+(ert-deftest org-iw-cmd-test-continue-refuses-removed-entry ()
+  "An entry that left the queue, or was deleted, is not in queue order.
+Continue refuses, writing and visiting nothing."
+  (dolist (regexp '("^:IW_ESSAYS: 1024\n" "^\\* A\n\\(?:.*\n\\)*"))
+    (org-iw-test-with-corpus org-iw-cmd-test--queue
+      (org-iw-cmd-test--open-all)
+      (org-iw-visit-next "ESSAYS")
+      (org-iw-cmd-test--delete-in-a regexp)
+      (should (equal (org-iw-cmd-test--should-refuse-cleanly
+                      "no longer in queue" #'org-iw-continue)
+                     "A is no longer in queue ESSAYS")))))
+
+(ert-deftest org-iw-cmd-test-continue-refuses-duplicated-id ()
+  "A same-file copy of the entry's ID makes Continue refuse (RV-001 F-1).
+The copy is on a heading outside the queue; the scan excludes the ID.
+Nothing is written: a.org's buffer and every file are unchanged."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (org-iw-cmd-test--open-all)
+    (org-iw-visit-next "ESSAYS")
+    (with-current-buffer (org-iw-test-visit "a.org")
+      (goto-char (point-max))
+      (insert (org-iw-test-heading "Copy" "a1")))
+    (should (equal (org-iw-cmd-test--should-refuse-cleanly
+                    "duplicated" #'org-iw-continue)
+                   "ID a1 is duplicated; A not moved"))))
+
+(ert-deftest org-iw-cmd-test-continue-only-entry ()
+  "The only entry in a queue is left in place and stays the session's."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (org-iw-cmd-test--open-all)
+    (org-iw-visit-next "DRAFTS")
+    (should (equal (org-iw-cmd-test--should-change-nothing #'org-iw-continue)
+                   "D is the only entry in queue DRAFTS"))))
+
+(ert-deftest org-iw-cmd-test-continue-already-last ()
+  "An entry already last is not written; the head of the rest is visited.
+B and C are re-ranked before A in b.org's unsaved buffer."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (org-iw-cmd-test--open-all)
+    (org-iw-visit-next "ESSAYS")
+    (org-iw-cmd-test--set-rank "b.org" 2048 1)
+    (org-iw-cmd-test--set-rank "b.org" 3072 2)
+    (let ((state (org-iw-test-state)))
+      (should (equal (org-iw-continue) "A already at end. Now 1/3: B"))
+      (should (equal (org-iw-test-state) state)))
+    (should (equal (org-iw-cmd-test--shown) '("b.org" "B")))
+    (should (equal (org-iw-cmd-test--session-id) "b1"))))
+
+(ert-deftest org-iw-cmd-test-continue-refuses-at-rank-limit ()
+  "Continue refuses when the last rank leaves no room below the limit."
+  (org-iw-test-with-corpus
+      `(("a.org" . ,org-iw-cmd-test--a-file)
+        ("b.org" . ,(org-iw-test-heading "B" "b1"
+                                         ":IW_ESSAYS: 9007199254740991")))
+    (org-iw-cmd-test--open-all)
+    (org-iw-visit-next "ESSAYS")
+    (org-iw-cmd-test--should-refuse-cleanly
+     "rank limit; redistribution needed" #'org-iw-continue)))
+
+(ert-deftest org-iw-cmd-test-continue-propagates-write-refusal ()
+  "A refusal from the write, here a file changed on disk, is passed on.
+Nothing is written or visited, and the session is unchanged."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (org-iw-cmd-test--open-all)
+    (org-iw-visit-next "ESSAYS")
+    (org-iw-test-rewrite-behind "a.org" (concat org-iw-cmd-test--a-file
+                                                "* Added outside\n"))
+    (org-iw-cmd-test--should-refuse-cleanly "changed on disk"
+                                            #'org-iw-continue)))
+
+;;;; Continue: save status and problems (EX-4, VT-3, I5)
+
+(ert-deftest org-iw-cmd-test-continue-leaves-dirty-buffer-unsaved ()
+  "A visited entry edited and left unsaved is moved but not saved.
+The corpus is a directory source and the edit's lock file is present
+\(RV-001 F-3); the disk is unchanged (I5) and B is visited."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (org-iw-visit-next "ESSAYS")
+    (org-iw-test-edit-elsewhere (org-iw-test-marker "a.org" "A"))
+    (should (file-symlink-p (org-iw-test-path ".#a.org")))
+    (should (string-search "queue change not saved" (org-iw-continue)))
+    (should (equal (org-iw-test-file-string "a.org") org-iw-cmd-test--a-file))
+    (with-current-buffer (org-iw-test-visit "a.org")
+      (should (buffer-modified-p))
+      (should (string-search ":IW_ESSAYS: 4096" (buffer-string))))
+    (should (equal (org-iw-cmd-test--shown) '("b.org" "B")))))
+
+(ert-deftest org-iw-cmd-test-continue-counts-source-problems ()
+  "Continue's message counts the scan's problems."
+  (org-iw-test-with-corpus `(,@org-iw-cmd-test--queue
+                             ,org-iw-cmd-test--problem)
+    (org-iw-visit-next "ESSAYS")
+    (let ((message (org-iw-continue)))
+      (should (string-search "source problems ignored" message))
+      (should (equal message (concat "Moved A to end (saved). Now 1/3: B"
+                                     " [1 source problems ignored]"))))))
+
+(ert-deftest org-iw-cmd-test-continue-reports-failed-save ()
+  "A failing save is reported; the edit stands and B is still visited."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (org-iw-visit-next "ESSAYS")
+    (let ((write-file-functions (list (lambda () (error "Disk full")))))
+      (should (equal (org-iw-continue)
+                     (concat "Moved A to end (queue change applied but not"
+                             " saved: Disk full). Now 1/3: B"))))
+    (should (buffer-modified-p (org-iw-test-visit "a.org")))
+    (should (equal (org-iw-test-file-string "a.org") org-iw-cmd-test--a-file))
+    (should (equal (org-iw-cmd-test--shown) '("b.org" "B")))))
 
 (provide 'org-iw-test)
 ;;; org-iw-test.el ends here

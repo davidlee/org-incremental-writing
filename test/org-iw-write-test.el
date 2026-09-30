@@ -233,20 +233,12 @@ DRAWER-LINES are the IW lines of a heading with an ID."
 
 ;;;; File checks (RV-001 F-4)
 
-(defun org-iw-write-test--rewrite-behind (name)
-  "Rewrite corpus file NAME behind Emacs's back.
-Its modification time is moved an hour back, so that clock
-granularity cannot hide the change."
-  (let ((path (org-iw-test-path name)))
-    (with-temp-file path
-      (insert org-iw-write-test--target "* Added outside\n"))
-    (set-file-times path (time-subtract nil 3600))))
-
 (ert-deftest org-iw-write-test-refuses-changed-on-disk ()
   "A clean buffer whose file changed on disk refuses, with no prompt."
   (org-iw-test-with-corpus `(("a.org" . ,org-iw-write-test--target))
     (let ((marker (org-iw-test-marker "a.org" "Target")))
-      (org-iw-write-test--rewrite-behind "a.org")
+      (org-iw-test-rewrite-behind
+       "a.org" (concat org-iw-write-test--target "* Added outside\n"))
       (should (string-search "changed on disk"
                              (org-iw-write-test--should-refuse
                               marker "ESSAYS" :expected 2048))))))
@@ -258,7 +250,8 @@ The indirect buffer is made by `make-indirect-buffer' (via
 `org-iw-test-call-with-indirect')."
   (org-iw-test-with-corpus `(("a.org" . ,org-iw-write-test--target))
     (let ((marker (org-iw-test-marker "a.org" "Target")))
-      (org-iw-write-test--rewrite-behind "a.org")
+      (org-iw-test-rewrite-behind
+       "a.org" (concat org-iw-write-test--target "* Added outside\n"))
       (org-iw-test-call-with-indirect
        marker
        (lambda (indirect-marker)
