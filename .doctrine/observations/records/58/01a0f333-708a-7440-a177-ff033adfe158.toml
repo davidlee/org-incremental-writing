@@ -1,0 +1,18 @@
+schema = "doctrine.observation"
+schema_version = 1
+uid = "01a0f333-708a-7440-a177-ff033adfe158"
+recorded_at = "2026-09-30T16:43:49.770667991Z"
+kind = "friction"
+summary = "just test can hang on interactive prompts"
+detail = "SL-001 PHASE-05 worker: a red-proof run reached yes-or-no-p in batch with stdin open under the tool runner and blocked 10 min instead of failing, leaving source mutated. Running with </dev/null fixes it; consider redirecting stdin in the justfile test recipe."
+
+[facets.execution]
+schema_version = 1
+interface = "cli"
+interface_origin = "automatic"
+product_surface = "doctrine"
+product_surface_origin = "automatic"
+command = "observation record"
+command_origin = "automatic"
+repository_context = "primary"
+repository_context_origin = "automatic"
