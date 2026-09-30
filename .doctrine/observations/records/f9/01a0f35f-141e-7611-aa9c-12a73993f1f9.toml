@@ -1,0 +1,18 @@
+schema = "doctrine.observation"
+schema_version = 1
+uid = "01a0f35f-141e-7611-aa9c-12a73993f1f9"
+recorded_at = "2026-09-30T17:31:29.694341876Z"
+kind = "friction"
+summary = "memory retrieve rejects positional query"
+detail = "SL-001 PHASE-08 planner: 'doctrine memory retrieve <topic>' errors; needs --query/--command flags. Prompts/skills citing positional form mislead."
+
+[facets.execution]
+schema_version = 1
+interface = "cli"
+interface_origin = "automatic"
+product_surface = "doctrine"
+product_surface_origin = "automatic"
+command = "observation record"
+command_origin = "automatic"
+repository_context = "primary"
+repository_context_origin = "automatic"

@@ -1,0 +1,18 @@
+schema = "doctrine.observation"
+schema_version = 1
+uid = "01a0f35f-1421-7cd0-887a-3b072b5ec0ad"
+recorded_at = "2026-09-30T17:31:29.69705309Z"
+kind = "friction"
+summary = "orchestrator cannot verify red without stash"
+detail = "SL-001 PHASE-08: git-guard refuses git stash; to independently confirm a worker's red test the orchestrator committed the test alone, checked red in a temp worktree, then amended the fix in. Works but is awkward; a documented red-check recipe would help."
+
+[facets.execution]
+schema_version = 1
+interface = "cli"
+interface_origin = "automatic"
+product_surface = "doctrine"
+product_surface_origin = "automatic"
+command = "observation record"
+command_origin = "automatic"
+repository_context = "primary"
+repository_context_origin = "automatic"
