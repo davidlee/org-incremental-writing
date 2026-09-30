@@ -1,0 +1,16 @@
+schema = "doctrine.policy"
+version = 1
+
+id = 3
+slug = "human-trial"
+title = "Working software, verified by human trial"
+status = "required"
+created = "2026-09-30"
+updated = "2026-09-30"
+tags = ["process"]
+
+[relationships]
+# `supersedes` stays typed — author with `doctrine supersede POL-NNN <previous>`.
+# `related` edges are uniform `[[relation]]` rows — author with `doctrine link POL-NNN related <target>`.
+supersedes    = []
+superseded_by = []   # reverse link is derived

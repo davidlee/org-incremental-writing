@@ -1,0 +1,44 @@
+schema = "doctrine.rfc"
+version = 1
+
+id = 1
+slug = "roadmap"
+title = "org-iw delivery roadmap"
+status = "open"
+created = "2026-09-30"
+updated = "2026-09-30"
+tags = ["roadmap"]
+
+[relationships]
+# RFCs participate in the tier-1 `related` relation (AnyNumbered — links to any entity).
+# Author with `doctrine link RFC-NNN related <target>`. `doctrine inspect RFC-NNN` renders them.
+superseded_by = []   # reverse link is derived (REV→RFC originates_from)
+
+[[relation]]
+label = "related"
+target = "PRD-001"
+
+[[relation]]
+label = "related"
+target = "ADR-001"
+
+[[relation]]
+label = "related"
+target = "ADR-002"
+
+[[relation]]
+label = "related"
+target = "ADR-003"
+
+[[relation]]
+label = "related"
+target = "POL-001"
+
+[[relation]]
+label = "related"
+target = "POL-002"
+
+[[relation]]
+label = "related"
+target = "POL-003"
+

@@ -1,0 +1,22 @@
+schema = "doctrine.requirement"
+version = 1
+
+id = 19
+slug = "explicit-redistribution"
+title = "Explicit redistribution"
+status = "pending"
+kind = "functional"
+
+# description — the requirement statement (structured, queryable; `show` renders
+# it as the statement line — the storage rule forbids deriving it from prose).
+# Rationale and extended discussion stay in the sister `.md`. Add as:
+#   description = "…"
+description = "When a placement cannot be represented, or on explicit request to normalise a queue, the user is shown a redistribution plan (affected entries and files, the pending operation, unsaved buffers, unwritable files, non-atomicity and a Git-commit recommendation) and must approve it before any rank changes."
+tags = []
+acceptance_criteria = [
+  "Cancelling applies neither redistribution nor the pending move.",
+  "A plan whose source state changed after preview is rejected and a fresh plan is presented for approval.",
+  "Unsaved edits in affected buffers must be resolved explicitly; approval never discards them.",
+  "Unwritable targets are detected before any write.",
+  "Redistribution preserves intended order including the pending move.",
+]

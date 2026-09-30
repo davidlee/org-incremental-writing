@@ -1,0 +1,21 @@
+schema = "doctrine.requirement"
+version = 1
+
+id = 7
+slug = "identity-resolution-and-diagnostics"
+title = "Identity resolution and diagnostics"
+status = "pending"
+kind = "functional"
+
+# description — the requirement statement (structured, queryable; `show` renders
+# it as the statement line — the storage rule forbids deriving it from prose).
+# Rationale and extended discussion stay in the sister `.md`. Add as:
+#   description = "…"
+description = "Entries are resolved by Org ID so refiled entries remain members, and missing targets, invalid rank values and duplicate IDs produce actionable diagnostics rather than arbitrary writes."
+tags = []
+acceptance_criteria = [
+  "An entry refiled to another configured file is still found in its queue.",
+  "A non-integer rank (e.g. IW_ESSAYS: soon) is reported with its location and excluded from ordering; it is not rewritten.",
+  "Two entries sharing an Org ID are reported as an ambiguity; no operation writes to either until resolved.",
+  "An operation whose target cannot be resolved reports that and does not recreate it.",
+]

@@ -1,0 +1,60 @@
+id = 4
+slug = "documents-batch-add"
+title = "Documents and batch add"
+status = "proposed"
+created = "2026-09-30"
+updated = "2026-09-30"
+tags = ["roadmap"]
+
+[relationships]
+needs = ["SL-001"]                      # slice→work hard prerequisite
+after = []                      # slice→work soft sequence: { to, rank }
+
+[[selector]]
+selector = "*.el"
+intent = "scope-relevant"
+
+[[selector]]
+selector = "test/**"
+intent = "scope-relevant"
+
+[[relation]]
+label = "governed_by"
+target = "ADR-001"
+
+[[relation]]
+label = "governed_by"
+target = "ADR-002"
+
+[[relation]]
+label = "governed_by"
+target = "ADR-003"
+
+[[relation]]
+label = "governed_by"
+target = "POL-001"
+
+[[relation]]
+label = "governed_by"
+target = "POL-002"
+
+[[relation]]
+label = "governed_by"
+target = "POL-003"
+
+[[relation]]
+label = "related"
+target = "PRD-001"
+
+[[relation]]
+label = "related"
+target = "RFC-001"
+
+# STRUCTURAL relations are uniform `[[relation]]` rows, never a typed
+# `[relationships]` axis. Slices carry no typed STRUCTURAL
+# relation axes — the `[relationships]` table above holds only the dep/seq payload
+# (`needs`/`after`). Author a structural edge with the `doctrine link` verb
+# — it validates the (source, label) pair and resolves the target:
+#   doctrine link SL-NNN specs SPEC-NNN
+#   doctrine link SL-NNN governed_by ADR-NNN
+# `doctrine inspect SL-NNN` renders the inbound + outbound edges.

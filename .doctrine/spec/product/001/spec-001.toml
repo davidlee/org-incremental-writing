@@ -1,0 +1,25 @@
+schema = "doctrine.spec.product"
+version = 1
+
+id = 1
+slug = "org-iw"
+title = "org-iw: incremental writing queues for Org"
+status = "active"
+kind = "product"
+category = "emacs-package"
+tags = ["org", "incremental-writing", "queue"]
+product_level = "capability"
+responsibilities = [
+  "Maintain named, ordered queues of existing Org documents and headings, with membership and rank stored on the entries themselves.",
+  "Let the user pull the front entry, work on it in place, and reinsert or remove it with one short interaction.",
+  "Keep ordering stable and edits minimal, with multi-file redistribution only as explicit, approved maintenance.",
+  "Never lose, conceal or silently save the user's writing.",
+]
+
+# product_level — closed product ladder: domain | capability | feature. `feature` is
+#   the floor and may parent another feature — decomposition without a new altitude.
+#   Add as:
+#   product_level = "capability"
+# parent — single decomposition parent (PRD-NNN, product→product); the tree must
+#   stay acyclic. Add as:
+#   parent = "PRD-001"

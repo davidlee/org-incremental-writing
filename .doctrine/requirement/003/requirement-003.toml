@@ -1,0 +1,20 @@
+schema = "doctrine.requirement"
+version = 1
+
+id = 3
+slug = "queue-identifier-rules"
+title = "Queue identifier rules"
+status = "pending"
+kind = "functional"
+
+# description — the requirement statement (structured, queryable; `show` renders
+# it as the statement line — the storage rule forbids deriving it from prose).
+# Rationale and extended discussion stay in the sister `.md`. Add as:
+#   description = "…"
+description = "Queue IDs consist of one or more ASCII letters, digits and hyphens, are case-insensitive, are written as canonical uppercase property suffixes, and must not contain underscores."
+tags = []
+acceptance_criteria = [
+  "essays, Essays and ESSAYS denote the same queue and are written as IW_ESSAYS.",
+  "A queue ID containing an underscore or any non [A-Za-z0-9-] character is rejected with a diagnostic.",
+  "IW_AFTER_ESSAYS is never interpreted as membership of a queue; IW_AFTER-ESSAYS is membership of queue after-essays.",
+]

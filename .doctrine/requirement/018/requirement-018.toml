@@ -1,0 +1,19 @@
+schema = "doctrine.requirement"
+version = 1
+
+id = 18
+slug = "remove-membership"
+title = "Remove membership"
+status = "pending"
+kind = "functional"
+
+# description — the requirement statement (structured, queryable; `show` renders
+# it as the statement line — the storage rule forbids deriving it from prose).
+# Rationale and extended discussion stay in the sister `.md`. Add as:
+#   description = "…"
+description = "Remove deletes only the selected membership property; it never deletes content or changes TODO state, and is distinct from Continue even when offered alongside it."
+tags = []
+acceptance_criteria = [
+  "After remove, the entry's other properties and memberships are unchanged.",
+  "Remove offered in the Continue chooser does not reinsert the entry.",
+]

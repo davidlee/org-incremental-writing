@@ -1,0 +1,21 @@
+schema = "doctrine.requirement"
+version = 1
+
+id = 13
+slug = "inspect-queue"
+title = "Inspect queue"
+status = "pending"
+kind = "functional"
+
+# description — the requirement statement (structured, queryable; `show` renders
+# it as the statement line — the storage rule forbids deriving it from prose).
+# Rationale and extended discussion stay in the sister `.md`. Add as:
+#   description = "…"
+description = "The user can choose a queue by completion and see its actual ordering with ordinal position, title and enough file/outline context to distinguish entries, and from that view open, move up/down, place before/after a chosen entry, remove membership and refresh from source state."
+tags = []
+acceptance_criteria = [
+  "Every configured queue and every encountered unconfigured queue is offered for completion.",
+  "Two entries with the same title are distinguishable by file/outline context.",
+  "Refresh reflects source changes including undo.",
+  "Opening an entry from the view establishes the same session context as Visit next.",
+]

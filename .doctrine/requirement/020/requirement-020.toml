@@ -1,0 +1,19 @@
+schema = "doctrine.requirement"
+version = 1
+
+id = 20
+slug = "redistribution-failure-reporting"
+title = "Redistribution failure reporting"
+status = "pending"
+kind = "functional"
+
+# description — the requirement statement (structured, queryable; `show` renders
+# it as the statement line — the storage rule forbids deriving it from prose).
+# Rationale and extended discussion stay in the sister `.md`. Add as:
+#   description = "…"
+description = "If a redistribution write fails, the operation stops and reports which files were saved, which buffers are modified and which were untouched, and does not complete the pending navigation."
+tags = []
+acceptance_criteria = [
+  "A simulated write failure mid-plan produces a report partitioning affected files into saved/modified/untouched.",
+  "Continue does not navigate onward after a failed redistribution.",
+]

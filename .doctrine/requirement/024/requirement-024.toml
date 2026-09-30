@@ -1,0 +1,19 @@
+schema = "doctrine.requirement"
+version = 1
+
+id = 24
+slug = "emacs-and-org-compatibility"
+title = "Emacs and Org compatibility"
+status = "pending"
+kind = "quality"
+
+# description — the requirement statement (structured, queryable; `show` renders
+# it as the statement line — the storage rule forbids deriving it from prose).
+# Rationale and extended discussion stay in the sister `.md`. Add as:
+#   description = "…"
+description = "The package supports Emacs 30.1 and later with its bundled Org, requires no third-party packages at runtime, and is verified on Emacs 30 and 31."
+tags = []
+acceptance_criteria = [
+  "The test suite passes under Emacs 30.x and 31.x in batch mode.",
+  "Package-Requires declares (emacs \"30.1\") and no non-built-in runtime dependencies.",
+]

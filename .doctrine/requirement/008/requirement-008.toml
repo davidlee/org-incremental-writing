@@ -1,0 +1,19 @@
+schema = "doctrine.requirement"
+version = 1
+
+id = 8
+slug = "deterministic-ordering"
+title = "Deterministic ordering"
+status = "pending"
+kind = "functional"
+
+# description — the requirement statement (structured, queryable; `show` renders
+# it as the statement line — the storage rule forbids deriving it from prose).
+# Rationale and extended discussion stay in the sister `.md`. Add as:
+#   description = "…"
+description = "A queue's ordering is by rank ascending, with equal ranks ordered by entry ID, and displayed ordinal positions are derived from that ordering."
+tags = []
+acceptance_criteria = [
+  "Two entries with equal rank sort by entry ID, identically on every read.",
+  "Ordinal positions shown to the user are 1..N regardless of stored rank values.",
+]

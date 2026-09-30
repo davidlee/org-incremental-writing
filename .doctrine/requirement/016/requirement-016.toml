@@ -1,0 +1,20 @@
+schema = "doctrine.requirement"
+version = 1
+
+id = 16
+slug = "reinsertion-vocabulary"
+title = "Reinsertion vocabulary"
+status = "pending"
+kind = "functional"
+
+# description — the requirement statement (structured, queryable; `show` renders
+# it as the statement line — the storage rule forbids deriving it from prose).
+# Rationale and extended discussion stay in the sister `.md`. Add as:
+#   description = "…"
+description = "Each queue may configure the labels, placement specifications and default used by Continue; unconfigured queues use standard defaults (Soon, Later, End)."
+tags = []
+acceptance_criteria = [
+  "A configured queue's Continue chooser shows its labels in configured order.",
+  "An unconfigured queue offers the standard Soon/Later/End choices.",
+  "Changing a queue's display name or labels requires no change to entries.",
+]

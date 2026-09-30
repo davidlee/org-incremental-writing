@@ -1,0 +1,20 @@
+schema = "doctrine.requirement"
+version = 1
+
+id = 2
+slug = "document-and-heading-targets"
+title = "Document and heading targets"
+status = "pending"
+kind = "functional"
+
+# description — the requirement statement (structured, queryable; `show` renders
+# it as the statement line — the storage rule forbids deriving it from prose).
+# Rationale and extended discussion stay in the sister `.md`. Add as:
+#   description = "…"
+description = "Both a whole Org document (file-level property drawer preceding the title) and an Org heading are valid entries, identified by their Org ID, and memberships are read locally without property inheritance."
+tags = []
+acceptance_criteria = [
+  "A document-level IW_<Q> property enrols the document only; its headings are not members.",
+  "A heading-level IW_<Q> property enrols that heading only; neither its parent nor children inherit it.",
+  "Document and heading entries appear together in one queue ordering.",
+]

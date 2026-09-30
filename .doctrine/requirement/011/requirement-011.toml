@@ -1,0 +1,22 @@
+schema = "doctrine.requirement"
+version = 1
+
+id = 11
+slug = "add-entry"
+title = "Add entry"
+status = "pending"
+kind = "functional"
+
+# description — the requirement statement (structured, queryable; `show` renders
+# it as the statement line — the storage rule forbids deriving it from prose).
+# Rationale and extended discussion stay in the sister `.md`. Add as:
+#   description = "…"
+description = "The user can enrol the current heading, or the document when point is before the first heading, or explicitly the whole document from anywhere, into a chosen queue, appending by default or at another chosen placement, ensuring the target has an Org ID."
+tags = []
+acceptance_criteria = [
+  "Add with point in a heading enrols that heading; before the first heading enrols the document.",
+  "An explicit document command/prefix enrols the document from anywhere in the file.",
+  "An entry lacking an ID receives one on enrolment.",
+  "Adding an existing membership is a reported no-op, not a move.",
+  "Adding to queue A never alters membership in queue B.",
+]

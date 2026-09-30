@@ -1,0 +1,19 @@
+schema = "doctrine.requirement"
+version = 1
+
+id = 6
+slug = "live-buffer-authority"
+title = "Live buffer authority"
+status = "pending"
+kind = "functional"
+
+# description — the requirement statement (structured, queryable; `show` renders
+# it as the statement line — the storage rule forbids deriving it from prose).
+# Rationale and extended discussion stay in the sister `.md`. Add as:
+#   description = "…"
+description = "Queue state is derived from live buffer contents where a file is visited, including unsaved changes; disk contents are used only for files with no live buffer."
+tags = []
+acceptance_criteria = [
+  "An unsaved IW_<Q> edit in a visiting buffer is reflected in the queue ordering.",
+  "A disk scan never overwrites or conceals a live buffer's state.",
+]

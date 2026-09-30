@@ -1,0 +1,19 @@
+schema = "doctrine.requirement"
+version = 1
+
+id = 17
+slug = "move-membership"
+title = "Move membership"
+status = "pending"
+kind = "functional"
+
+# description — the requirement statement (structured, queryable; `show` renders
+# it as the statement line — the storage rule forbids deriving it from prose).
+# Rationale and extended discussion stay in the sister `.md`. Add as:
+#   description = "…"
+description = "The user can change one membership's position from the queue view or from the source entry, being asked for the queue when it is ambiguous outside an established session."
+tags = []
+acceptance_criteria = [
+  "Move from a source entry with memberships in two queues and no session asks which queue.",
+  "Move changes only that membership's rank.",
+]

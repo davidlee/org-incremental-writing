@@ -1,0 +1,21 @@
+schema = "doctrine.requirement"
+version = 1
+
+id = 12
+slug = "batch-add-files"
+title = "Batch add files"
+status = "pending"
+kind = "functional"
+
+# description — the requirement statement (structured, queryable; `show` renders
+# it as the statement line — the storage rule forbids deriving it from prose).
+# Rationale and extended discussion stay in the sister `.md`. Add as:
+#   description = "…"
+description = "The user can enrol a selected set of Org files at document level into a queue, in canonical path order, appended as a batch by default, with a report of additions, existing memberships and failures."
+tags = []
+acceptance_criteria = [
+  "The same file set always yields the same resulting order.",
+  "Files already in the queue are reported as existing and unchanged.",
+  "A failure on one file is reported; other files are still processed and partial completion is reported.",
+  "The operation is not presented as atomic.",
+]

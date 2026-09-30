@@ -1,0 +1,16 @@
+schema = "doctrine.adr"
+version = 1
+
+id = 1
+slug = "entry-resident-state"
+title = "Queue state lives on the entry"
+status = "accepted"
+created = "2026-09-30"
+updated = "2026-09-30"
+tags = ["architecture"]
+
+[relationships]
+# `supersedes` stays typed — author with `doctrine supersede ADR-NNN <previous>`.
+# `related` edges are uniform `[[relation]]` rows — author with `doctrine link ADR-NNN related <target>`.
+supersedes    = []
+superseded_by = []   # set on the old ADR by `doctrine supersede`; reverse link is derived

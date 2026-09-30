@@ -1,0 +1,19 @@
+schema = "doctrine.requirement"
+version = 1
+
+id = 25
+slug = "standalone-metadata-legibility"
+title = "Standalone metadata legibility"
+status = "pending"
+kind = "quality"
+
+# description — the requirement statement (structured, queryable; `show` renders
+# it as the statement line — the storage rule forbids deriving it from prose).
+# Rationale and extended discussion stay in the sister `.md`. Add as:
+#   description = "…"
+description = "Queue metadata in source files is concise and comprehensible without the package installed: one property per membership, no opaque encodings, no auxiliary files."
+tags = []
+acceptance_criteria = [
+  "No review log, external queue file, persistent index or recovery journal is created.",
+  "A reader can determine an entry's queues and relative order from its properties alone.",
+]

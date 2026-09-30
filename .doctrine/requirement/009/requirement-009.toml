@@ -1,0 +1,21 @@
+schema = "doctrine.requirement"
+version = 1
+
+id = 9
+slug = "placement-forms"
+title = "Placement forms"
+status = "pending"
+kind = "functional"
+
+# description — the requirement statement (structured, queryable; `show` renders
+# it as the statement line — the storage rule forbids deriving it from prose).
+# Rationale and extended discussion stay in the sister `.md`. Add as:
+#   description = "…"
+description = "Placement supports fixed depth (after n other entries), fractional depth (floor(f*N), 0<=f<=1, N = remaining entries) and end (after all remaining entries), computed after removing the target and clamped to the available length, with depth zero meaning the front."
+tags = []
+acceptance_criteria = [
+  "Fixed depth 2 in a queue of 5 others places the target 3rd.",
+  "Fractional 0.5 with N=5 remaining yields depth 2.",
+  "Fixed depth 10 with N=3 clamps to the end.",
+  "Depth zero places the target first, even if that reopens the same entry.",
+]

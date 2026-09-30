@@ -1,0 +1,21 @@
+schema = "doctrine.requirement"
+version = 1
+
+id = 14
+slug = "visit-next"
+title = "Visit next"
+status = "pending"
+kind = "functional"
+
+# description — the requirement statement (structured, queryable; `show` renders
+# it as the statement line — the storage rule forbids deriving it from prose).
+# Rationale and extended discussion stay in the sister `.md`. Add as:
+#   description = "…"
+description = "Visit next opens the first entry of a chosen queue without changing any queue state, retains the entry ID and queue ID as the session context, and shows that context visibly."
+tags = []
+acceptance_criteria = [
+  "Visiting does not change rank, membership, or file modification state.",
+  "Repeated Visit next without Continue opens the same first entry.",
+  "Navigating to other buffers or entries does not change the retained target.",
+  "The retained queue and entry are visible to the user (e.g. mode line or header).",
+]

@@ -1,0 +1,21 @@
+schema = "doctrine.requirement"
+version = 1
+
+id = 1
+slug = "membership-property-format"
+title = "Membership property format"
+status = "pending"
+kind = "functional"
+
+# description — the requirement statement (structured, queryable; `show` renders
+# it as the statement line — the storage rule forbids deriving it from prose).
+# Rationale and extended discussion stay in the sister `.md`. Add as:
+#   description = "…"
+description = "An entry's membership in a queue is expressed solely by an Org property IW_<QUEUE-ID> on that entry, whose value is a signed decimal integer rank; absence means no membership."
+tags = []
+acceptance_criteria = [
+  "A property IW_ESSAYS: 3584 on an entry is read as membership of queue essays with rank 3584.",
+  "Negative ranks (e.g. IW_ESSAYS: -1024) are valid memberships.",
+  "An entry may carry several IW_<QUEUE-ID> properties; each is an independent membership.",
+  "Entry ID plus canonical queue ID identifies a membership.",
+]

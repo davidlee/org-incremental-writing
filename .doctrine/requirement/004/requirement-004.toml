@@ -1,0 +1,20 @@
+schema = "doctrine.requirement"
+version = 1
+
+id = 4
+slug = "preservation-of-unrelated-data"
+title = "Preservation of unrelated data"
+status = "pending"
+kind = "functional"
+
+# description — the requirement statement (structured, queryable; `show` renders
+# it as the statement line — the storage rule forbids deriving it from prose).
+# Rationale and extended discussion stay in the sister `.md`. Add as:
+#   description = "…"
+description = "Every write changes only the targeted membership property (and adds an ID when enrolling), preserving all other properties, other memberships, reserved IW_AFTER_<Q> metadata and entry content."
+tags = []
+acceptance_criteria = [
+  "Adding, moving or removing membership in queue A leaves IW_B, IW_AFTER_A and all non-IW properties byte-identical.",
+  "No operation writes IW_AFTER_<Q> in v1.",
+  "No operation copies, archives or deletes entry content, or changes TODO state or priority.",
+]

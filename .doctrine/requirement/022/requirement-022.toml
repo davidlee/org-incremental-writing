@@ -1,0 +1,19 @@
+schema = "doctrine.requirement"
+version = 1
+
+id = 22
+slug = "ordinary-undo"
+title = "Ordinary undo"
+status = "pending"
+kind = "functional"
+
+# description — the requirement statement (structured, queryable; `show` renders
+# it as the statement line — the storage rule forbids deriving it from prose).
+# Rationale and extended discussion stay in the sister `.md`. Add as:
+#   description = "…"
+description = "Single-entry queue operations are undoable with normal buffer undo, and queue views reflect the undone state on refresh."
+tags = []
+acceptance_criteria = [
+  "Undo in the source buffer after a move restores the previous rank.",
+  "No cross-file undo log is created.",
+]

@@ -1,0 +1,19 @@
+schema = "doctrine.requirement"
+version = 1
+
+id = 23
+slug = "exact-integer-ranks"
+title = "Exact integer ranks"
+status = "pending"
+kind = "quality"
+
+# description — the requirement statement (structured, queryable; `show` renders
+# it as the statement line — the storage rule forbids deriving it from prose).
+# Rationale and extended discussion stay in the sister `.md`. Add as:
+#   description = "…"
+description = "Rank arithmetic is exact integer arithmetic with no floating-point fallback, and values the implementation cannot represent exactly are rejected with a diagnostic."
+tags = []
+acceptance_criteria = [
+  "Ranks beyond fixnum range are either handled exactly or rejected; never rounded.",
+  "Midpoint allocation uses floor((left+right)/2) only when strictly between neighbours.",
+]

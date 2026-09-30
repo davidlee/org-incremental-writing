@@ -1,0 +1,22 @@
+schema = "doctrine.requirement"
+version = 1
+
+id = 15
+slug = "continue"
+title = "Continue"
+status = "pending"
+kind = "functional"
+
+# description — the requirement statement (structured, queryable; `show` renders
+# it as the statement line — the storage rule forbids deriving it from prose).
+# Rationale and extended discussion stay in the sister `.md`. Add as:
+#   description = "…"
+description = "Continue applies a chosen reinsertion placement to the retained membership, recomputing the queue from source state first, then opens the first entry of the resulting queue; it offers a low-friction default and a chooser of the queue's alternatives."
+tags = []
+acceptance_criteria = [
+  "Continue acts on the retained entry even if point or the queue front has changed.",
+  "If the retained target was removed or is unresolvable, Continue reports it and neither recreates it nor navigates as if successful.",
+  "Continuing the sole entry leaves it in place and reports that there is no other entry.",
+  "Continuing on an empty queue reports that it is empty.",
+  "After success, the new first entry becomes the retained context.",
+]

@@ -1,0 +1,21 @@
+schema = "doctrine.requirement"
+version = 1
+
+id = 21
+slug = "save-policy"
+title = "Save policy"
+status = "pending"
+kind = "functional"
+
+# description — the requirement statement (structured, queryable; `show` renders
+# it as the statement line — the storage rule forbids deriving it from prose).
+# Rationale and extended discussion stay in the sister `.md`. Add as:
+#   description = "…"
+description = "A buffer that was clean before an operation is saved automatically after it; an already-modified buffer is left unsaved with a clear report that its queue change remains unsaved; files are never written behind live buffers."
+tags = []
+acceptance_criteria = [
+  "Operating on a clean buffer leaves it saved and unmodified afterwards.",
+  "Operating on a dirty buffer leaves it modified and the user is told the queue change is unsaved.",
+  "Unrelated draft edits are never saved silently.",
+  "Batch operations apply the same policy per file.",
+]

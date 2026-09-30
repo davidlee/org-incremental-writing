@@ -1,0 +1,21 @@
+schema = "doctrine.requirement"
+version = 1
+
+id = 10
+slug = "minimal-rank-mutation"
+title = "Minimal rank mutation"
+status = "pending"
+kind = "functional"
+
+# description — the requirement statement (structured, queryable; `show` renders
+# it as the statement line — the storage rule forbids deriving it from prose).
+# Rationale and extended discussion stay in the sister `.md`. Add as:
+#   description = "…"
+description = "An ordinary add, move or continue changes only the target's rank; a placement that changes no relative order does not rewrite the rank; if no integer rank exists between the intended neighbours, the operation stops before any mutation and offers redistribution."
+tags = []
+acceptance_criteria = [
+  "Moving rank 1024 between 3072 and 4096 writes 3584 to the moved entry only.",
+  "A move to the entry's current position leaves the file unmodified.",
+  "A move between adjacent ranks 5 and 6 makes no change and offers redistribution.",
+  "Tail rotation (continue to End) never exhausts internal gaps.",
+]

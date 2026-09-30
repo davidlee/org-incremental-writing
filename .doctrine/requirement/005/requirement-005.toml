@@ -1,0 +1,20 @@
+schema = "doctrine.requirement"
+version = 1
+
+id = 5
+slug = "configurable-discovery-sources"
+title = "Configurable discovery sources"
+status = "pending"
+kind = "functional"
+
+# description — the requirement statement (structured, queryable; `show` renders
+# it as the statement line — the storage rule forbids deriving it from prose).
+# Rationale and extended discussion stay in the sister `.md`. Add as:
+#   description = "…"
+description = "Entries are discovered only from user-configured Org files and directories, with documented recursion and exclusion rules, deduplicating files that are reached more than once."
+tags = []
+acceptance_criteria = [
+  "With no configuration, no files outside configured sources are scanned.",
+  "org-roam, Denote and org-agenda-files are not required; a user may configure them as sources.",
+  "A file reachable via two configured sources (including via symlink) is scanned once.",
+]
