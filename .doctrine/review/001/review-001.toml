@@ -27,7 +27,7 @@ ref   = "SL-001"
 
 [[finding]]
 id = "F-1"
-status = "answered"
+status = "verified"
 severity = "blocker"
 title = "locate resolves non-member headings and case-insensitive IDs"
 detail = "[reviewer F-1] org-find-entry-with-id returns the first :ID: match, case-insensitively, including headings without IW properties. A copied subtree makes Continue write IW_<Q> onto the copy (verified: find x1 -> Copy; find 'abc' -> :ID: ABC). Violates I2/I4, REQ-004, REQ-007."
@@ -77,9 +77,14 @@ response = """
 Prose fix stands: id-count with key case-insensitive, value case-sensitive, org-at-property-p, in the widened base buffer; resolve never uses org-find-entry-with-id. Probe: must hold against a copied subtree carrying the same ID in the same file (with and without memberships), a case-variant ID value only, a lowercase id key, and a copy hidden by narrowing or seen through an indirect buffer; need not hold against a copy of the ID on a non-member heading in another file, which resolve never looks at. Criterion must assert that resolve refuses (ambiguous or not found) in each adversary case and that Continue then writes nothing. Host phase constraint: the phase that lands resolve, after the scan and id-count exist.
 """
 
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Transcription verified (not repair): PHASE-04/EX-3 and PHASE-07/EX-5 in plan.toml cites RV-001 F-1 with the response's criterion sketch and placement constraint."
+
 [[finding]]
 id = "F-2"
-status = "answered"
+status = "verified"
 severity = "major"
 title = "Add can write to an ID shared with an existing member"
 detail = "[reviewer F-2] A non-member heading sharing an ID with a scanned member passes the duplicate check; after the write both are excluded as duplicates, silently dropping the member (REQ-007 AC3)."
@@ -118,9 +123,14 @@ response = """
 Prose fix stands: Add step 6 refuses unless id-count is 1 in the widened base buffer and no scanned entry with the ID lives in another file. Control: the incorrect candidate the check must reject is Add on a non-member heading whose existing ID equals that of a current queue member (once in the same file, once in another file); the check must refuse with ID shared with another heading, and the existing member must remain in the queue with its rank unchanged. Host phase constraint: the phase that lands org-iw-add, after resolve and the scan duplicate-id rule.
 """
 
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Transcription verified (not repair): PHASE-06/EX-3 in plan.toml cites RV-001 F-2 with the response's criterion sketch and placement constraint."
+
 [[finding]]
 id = "F-3"
-status = "answered"
+status = "verified"
 severity = "blocker"
 title = "Emacs lock files .#x.org break directory scans"
 detail = '[reviewer F-3] create-lockfiles makes .#a.org dangling symlinks that match \.org$ (verified); insert-file-contents signals file-missing, so Continue fails right after editing the visited entry.'
@@ -159,9 +169,14 @@ response = """
 Prose fix stands: file selection skips names starting with .# and anything not a regular file after file-truename; a read error becomes an unreadable problem. Probe: must hold against the Emacs lock-file symlink created by a modified buffer inside a directory source, a dangling symlink ending in .org, and an unreadable file; need not hold against a regular file that is deliberately named foo.org but is not Org text. Criterion must assert that a directory scan with a modified visited buffer succeeds and Continue completes, reporting unsaved. Host phase constraint: file selection phase for the unit case; the command-level case needs Continue and the corpus fixture.
 """
 
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Transcription verified (not repair): PHASE-03/EX-6 and PHASE-07/EX-4 in plan.toml cites RV-001 F-3 with the response's criterion sketch and placement constraint."
+
 [[finding]]
 id = "F-4"
-status = "answered"
+status = "verified"
 severity = "major"
 title = "Clean buffer stale against disk; unwritable files; errors mid-write"
 detail = "[reviewer F-4] verify-visited-file-modtime nil makes org-entry-put prompt / error in batch (verified). Reverting would stale the scan's ranks; forcing would overwrite external changes (ADR-002). Wrapper leaves no defined state if fn signals; unwritable file prompts on save."
@@ -211,9 +226,14 @@ response = """
 Prose fix stands: preflight on the base buffer refuses changed on disk and not writable without prompting; atomic-change-group restores text and modified flag; save failure yields save-failed with the edit standing. Control: the incorrect candidate the check must reject is a put-rank on a clean buffer whose file was modified externally after visiting (also reached via an indirect buffer), and one on a read-only file; each must refuse in batch without a prompt, leaving buffer text, modified flag and disk unchanged. Separable second arm (atomicity when the edit function signals) is carried by the I7 test in section 9. Host phase constraint: the write-layer phase, after the raw IW-line reader exists.
 """
 
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Transcription verified (not repair): PHASE-05/EX-3 in plan.toml cites RV-001 F-4 with the response's criterion sketch and placement constraint."
+
 [[finding]]
 id = "F-5"
-status = "answered"
+status = "verified"
 severity = "major"
 title = "Live-buffer lookup by truename misses symlink-visited buffers"
 detail = "[reviewer F-5] get-file-buffer on truename returns nil when visited via symlink path; find-buffer-visiting finds it. Indirect buffers have nil buffer-file-name, so Add refuses wrongly. REQ-006."
@@ -252,9 +272,14 @@ response = """
 Prose fix stands: live lookup uses find-buffer-visiting; source-file checks use the base buffer. Demonstrate: a thin end-to-end run must show the scan reading unsaved text from a buffer visited through a symlinked path, and Add succeeding from an indirect buffer of a source file. Compiling is not the bar; the criterion must assert the unsaved rank beats disk for the symlink visit and that Add writes through the base buffer from the indirect one. Host phase constraint: discovery phase for the symlink half; the indirect-buffer Add half needs org-iw-add.
 """
 
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Transcription verified (not repair): PHASE-03/EX-7 and PHASE-06/EX-4 in plan.toml cites RV-001 F-5 with the response's criterion sketch and placement constraint."
+
 [[finding]]
 id = "F-6"
-status = "answered"
+status = "verified"
 severity = "major"
 title = "IW properties in unrecognised drawers are silently ignored"
 detail = "[reviewer F-6] #+title before the drawer, or a drawer after body text, fails org-at-property-p and is dropped with no problem recorded, contrary to 'surface, don't repair' / REQ-007."
@@ -314,6 +339,11 @@ route = "control"
 response = """
 Prose fix stands: an IW line where org-at-property-p fails records misplaced-property, except lines inside blocks (found via org-element-lineage, including dynamic-block), which are skipped silently. Control: the incorrect candidates the check must reject are a property drawer placed after a title keyword and a drawer after body text; each must produce a misplaced-property problem rather than a silent drop, while the same lines inside quote, src, special and dynamic blocks produce no problem. Host phase constraint: the scan phase.
 """
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Transcription verified (not repair): PHASE-03/EX-5 in plan.toml cites RV-001 F-6 with the response's criterion sketch and placement constraint."
 
 [[finding]]
 id = "F-7"
@@ -444,7 +474,7 @@ note = "Prose repair re-read in design.md; route review settled in this pass."
 
 [[finding]]
 id = "F-10"
-status = "answered"
+status = "verified"
 severity = "major"
 title = "Makefile gate can pass while violating POL-001"
 detail = "[reviewer F-10] Stale .elc loaded by test; checkdoc-file exits 0 on warnings; test-file lint scope unstated."
@@ -493,6 +523,11 @@ route = "control"
 response = """
 Prose fix stands: compile runs one emacs -Q batch process per file with byte-compile-error-on-warn and dest in a temp directory; checkdoc-batch exits non-zero on any diagnostic; package-lint on sources with org-iw.el as main file. Control: the incorrect candidates make lint must reject are a source file that calls a function whose require only appears in a sibling file, a docstring checkdoc warns about, and a stale elc left in the tree shadowing edited source; each must make the gate fail (or, for the elc, never exist). Host phase constraint: the first phase, which lands the Makefile and tools, before any other gate relies on it.
 """
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Transcription verified (not repair): PHASE-01/EX-6 in plan.toml cites RV-001 F-10 with the response's criterion sketch and placement constraint."
 
 [[finding]]
 id = "F-11"
