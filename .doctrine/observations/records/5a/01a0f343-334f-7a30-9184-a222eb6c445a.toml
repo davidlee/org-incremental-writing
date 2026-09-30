@@ -1,0 +1,18 @@
+schema = "doctrine.observation"
+schema_version = 1
+uid = "01a0f343-334f-7a30-9184-a222eb6c445a"
+recorded_at = "2026-09-30T17:01:02.67167736Z"
+kind = "friction"
+summary = "verify-vt has no working-tree mode"
+detail = "SL-001 PHASE-05/06 workers: verify-vt credits keywords only from committed files, so a worker handing back an uncommitted delta cannot confirm its VT rows; they read UNATTRIBUTABLE until the orchestrator commits."
+
+[facets.execution]
+schema_version = 1
+interface = "cli"
+interface_origin = "automatic"
+product_surface = "doctrine"
+product_surface_origin = "automatic"
+command = "observation record"
+command_origin = "automatic"
+repository_context = "primary"
+repository_context_origin = "automatic"

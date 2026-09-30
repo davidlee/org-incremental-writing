@@ -1,0 +1,18 @@
+schema = "doctrine.observation"
+schema_version = 1
+uid = "01a0f343-3352-77e1-8f89-637bcedb3db6"
+recorded_at = "2026-09-30T17:01:02.67406894Z"
+kind = "friction"
+summary = "verify-vt literal keywords break when helpers move to shared files"
+detail = "SL-001 PHASE-05/06 planners: moving a helper (e.g. one calling make-indirect-buffer / set-file-modes) into test helpers removes the literal keyword from the VT test_file; mandates then fail silently unless the keyword is restated in a docstring/comment."
+
+[facets.execution]
+schema_version = 1
+interface = "cli"
+interface_origin = "automatic"
+product_surface = "doctrine"
+product_surface_origin = "automatic"
+command = "observation record"
+command_origin = "automatic"
+repository_context = "primary"
+repository_context_origin = "automatic"
