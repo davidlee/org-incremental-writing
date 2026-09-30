@@ -50,8 +50,8 @@ Revision candidates: none.
 ## Thread 2 — API facts (probes, Emacs 31.1 / Org 9.8.10)
 
 - **T2-1 ✓** Keyword `sort` (`:key`, `:lessp`) and `value<` exist
-  (`raw/api-probe.out` line "sort-kw"). Both are Emacs 30.1 features. This
-  is unverified on 30 because no Emacs 30 is in the shell.
+  (`raw/api-probe.out` line "sort-kw"). Both are Emacs 30.1 features;
+  confirmed on 30.2 by T2-13.
 - **T2-2 ✓** Integers promote to bignums exactly (`fixnump` nil past
   `most-positive-fixnum`), so rank arithmetic never needs a float.
 - **T2-3 ✓** At `point-min`, `org-entry-get nil "IW_ESSAYS" nil` reads the
@@ -101,6 +101,14 @@ Revision candidates: none.
 
 Naming precedents: none in the repo. The ecosystem uses `org-id`-style
 `-find` / `-get` verbs.
+- **T2-13 ✓** (2026-10-01, rebuilt shell) `emacs-30` is Emacs 30.2 with
+  **Org 9.7.11** (31.1 has 9.8.10). On 30.2: keyword `sort` and `value<`
+  work; three-argument `org-element-lineage` finds `quote-block` from a line
+  inside a quote; `org-back-to-heading-or-point-min`,
+  `org-get-property-block` and `org-fold-reveal` are defined. Other Org
+  behaviour is probed only on 9.8.10, so every phase gates on `just
+  test-all` (plan.md). `just`, relint 2.2 (+ xr 2.2) and undercover are on
+  the 31.1 `-Q` load path; 30.2 carries none of the lint packages.
 
 ## Cross-thread findings
 
