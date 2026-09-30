@@ -42,7 +42,7 @@ exit_criteria = [
   { id = "EX-4", text = ".gitignore gains *.elc." },
   { id = "EX-5", text = "flake.nix gains the pinned nixpkgs-emacs30 (nixos-26.05) input and an emacs-30 wrapper in projectPkgs (DEC-006). just is added to projectPkgs by the user." },
   { id = "EX-6", text = "RV-001 F-10 (control): just lint is observed to FAIL on each named incorrect candidate — (a) a source file calling a function whose require appears only in a sibling file, (b) a docstring checkdoc warns about, (c) a byte-compile warning — and no *.elc exists in the tree after a failed compile. Candidates are temporary and removed after observation." },
-  { id = "EX-7", text = "just lint and just test are green on the skeleton." },
+  { id = "EX-7", text = "just lint and just test are green on the skeleton; the test recipe tolerates an empty test/ (no test files yet)." },
 ]
 verification = [
   { id = "VA-1", text = "Agent runs just lint and just test in the rebuilt shell; both exit 0 with zero warnings (EX-1, EX-2, EX-7)." },
@@ -63,7 +63,7 @@ exit_criteria = [
   { id = "EX-1", text = "org-iw-core.el requires only cl-lib, seq, subr-x and exposes exactly the API of design § 5.2 (constants, org-iw-refusal, org-iw-entry, org-iw-problem, queue-id, classify-property, parse-rank, rank, queue-order, queue-ids, append-rank)." },
   { id = "EX-2", text = "Queue IDs are validated raw with case-fold-search nil before upcasing; classification follows the § 5.2 table, including IW_AFTER-X as member and IW_straße invalid." },
   { id = "EX-3", text = "parse-rank accepts ^[+-]?[0-9]+$ after trimming within ±(2^53 − 1); append-rank returns nil past the limit." },
-  { id = "EX-4", text = "I6: org-iw-core.el loads and its suite passes in a child emacs -Q --batch with (featurep 'org) nil afterwards." },
+  { id = "EX-4", text = "I6: org-iw-core.el loads and its suite passes in a child emacs -Q --batch with (featurep 'org) nil afterwards. The child selects the core suite with an ERT selector that excludes the child-launching test itself (no recursion)." },
   { id = "EX-5", text = "just lint and just test green." },
 ]
 verification = [
@@ -95,8 +95,8 @@ exit_criteria = [
 verification = [
   { id = "VT-1", expects = "file selection: hidden and symlinked dirs skipped, dedupe across overlapping sources, exclude regexp, lock file ignored, dangling symlink skipped (F-3)", test_file = "test/org-iw-discovery-test.el", keywords = ["org-iw-discovery-files", "make-symbolic-link", ".#", "org-iw-exclude-regexp"], waived = false },
   { id = "VT-2", expects = "each problem type produced with membership or entry excluded: missing-id, invalid-rank, invalid-property, misplaced-property (F-6), duplicate-property incl. IW_ESSAYS+ and iw_essays, duplicate-id across files and same-file non-member copy, unreadable (F-3)", test_file = "test/org-iw-discovery-test.el", keywords = ["missing-id", "invalid-rank", "invalid-property", "misplaced-property", "duplicate-property", "duplicate-id", "unreadable", "IW_ESSAYS+"], waived = false },
-  { id = "VT-3", expects = "block-skip: :IW_ lines in src, example, quote, special and dynamic blocks produce no problem (F-6 negative side)", test_file = "test/org-iw-discovery-test.el", keywords = ["#+begin_quote", "#+begin_src", "#+begin_special", "#+BEGIN: "], waived = false },
-  { id = "VT-4", expects = "no inheritance; document drawer read; live unsaved rank beats disk incl. symlink-visited buffer (F-5); unvisited file read without creating a buffer; IW_AFTER_ not a membership", test_file = "test/org-iw-discovery-test.el", keywords = ["org-iw-discovery-scan", "find-buffer-visiting", "IW_AFTER_ESSAYS", "get-file-buffer"], waived = false },
+  { id = "VT-3", expects = "block-skip: :IW_ lines in src, example, quote, special and dynamic blocks produce no problem (F-6 negative side)", test_file = "test/org-iw-discovery-test.el", keywords = ["#+begin_quote", "#+begin_src", "#+begin_example", "#+BEGIN: "], waived = false },
+  { id = "VT-4", expects = "no inheritance; document drawer read; live unsaved rank beats disk incl. symlink-visited buffer (F-5); unvisited file read without creating a buffer; IW_AFTER_ not a membership", test_file = "test/org-iw-discovery-test.el", keywords = ["org-iw-discovery-scan", "find-buffer-visiting", "IW_AFTER_ESSAYS"], waived = false },
   { id = "VT-5", expects = "fixture isolates org-id, releases lock files, asserts I8", test_file = "test/org-iw-test-helpers.el", keywords = ["org-iw-test-with-corpus", "org-id-locations-file", "org-id-track-globally", "org-iw-test-changed-lines"], waived = false },
 ]
 specs        = []
@@ -138,7 +138,7 @@ exit_criteria = [
 ]
 verification = [
   { id = "VT-1", expects = "put-rank changes only the target line (I4); clean buffer saved; dirty buffer unsaved and disk unchanged (I5); ensure-id adds one ID; undo restores previous rank", test_file = "test/org-iw-write-test.el", keywords = ["org-iw-write-put-rank", "org-iw-test-changed-lines", "'saved", "'unsaved", ":ensure-id", "undo"], waived = false },
-  { id = "VT-2", expects = "refusals leave everything unchanged: stale expected, changed on disk incl. via indirect buffer, unwritable file (F-4, I7)", test_file = "test/org-iw-write-test.el", keywords = ["set-file-times", "make-indirect-buffer", "set-file-modes", ":expected"], waived = false },
+  { id = "VT-2", expects = "refusals leave everything unchanged: stale expected, changed on disk incl. via indirect buffer, unwritable file (F-4, I7)", test_file = "test/org-iw-write-test.el", keywords = ["org-iw-refusal", "make-indirect-buffer", "set-file-modes", ":expected"], waived = false },
   { id = "VT-3", expects = "error inside the edit restores text and modified flag (I7); failing before-save-hook yields save-failed with edit applied", test_file = "test/org-iw-write-test.el", keywords = ["before-save-hook", "save-failed", "buffer-modified-p"], waived = false },
 ]
 specs        = []
@@ -152,7 +152,7 @@ entrance_criteria = [
   { id = "EN-1", text = "PHASE-05 completed; just lint and just test green." },
 ]
 exit_criteria = [
-  { id = "EX-1", text = "org-iw-add refuses in order: not a source file; before first heading; invalid typed queue ID; malformed drawer; existing local IW_<Q> (no-op if a scanned member, else refuse naming the problem type); shared ID; rank limit. Otherwise put-rank with :expected :absent :ensure-id t and report M+1/M+1 plus save status and problems suffix." },
+  { id = "EX-1", text = "org-iw-add refuses in order: not a source file; before first heading; invalid typed queue ID; malformed drawer; existing local IW_<Q> (no-op if a scanned member, else refuse naming the problem type); shared ID; rank limit. Otherwise put-rank with :expected :absent :ensure-id t and report M+1/M+1 plus save status and problems suffix. org-iw-add is autoloaded; org-iw.el requires the three layer files." },
   { id = "EX-2", text = "Only org-iw.el reads defcustoms; completion offers configured and discovered queue IDs with display-name annotations (DEC-002)." },
   { id = "EX-3", text = "RV-001 F-2 (control): Add on a non-member heading whose existing ID equals a current queue member's — once in the same file, once in another file — refuses \"ID shared with another heading\", and the existing member stays in the queue with its rank unchanged." },
   { id = "EX-4", text = "RV-001 F-5 (demonstrate, indirect half): Add from an indirect buffer of a source file succeeds and writes through the base buffer." },
