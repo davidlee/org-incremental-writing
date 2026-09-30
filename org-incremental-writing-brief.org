@@ -1,0 +1,241 @@
+#+title: org-incremental-writing — implementation brief
+#+date: 2026-09-30
+#+startup: overview
+
+* Purpose
+
+Build a small Emacs Lisp library for incremental writing, with some incremental reading and general resurfacing of unfinished work. The placeholder package name is =org-incremental-writing=.
+
+The core is a named, ordered queue of existing Org documents or headings. The user pulls from a queue when inclined to work, edits the original material, then places the entry elsewhere in the queue or removes it. Time-based scheduling is optional future behaviour, not the foundation.
+
+Keep the interaction small and the annotations concise and meaningful. Adopt complexity only when actual use calls for it. This is a standalone implementation informed by existing packages, not an SRS integration project.
+
+* Motivating uses
+
+- Revisit past Org/Denote day journals.
+- Develop notes, articles and ideas across multiple encounters until sufficiently done.
+- Return to worthwhile, potentially ill-defined tasks without deadlines.
+- Occasionally resume a skill or project: practise Zig, inspect an unfinished repository, or reacquaint oneself with a topic.
+
+Native targets are Org documents and headings. An Org entry may link to a Denote note, URL, repository or other file; no native adapters for these targets are required.
+
+* Core concepts and invariants
+
+- A queue has a stable identifier and a relative ordering.
+- An entry is a whole Org document or a heading, identified by an Org ID.
+- A membership associates an entry with a queue and its rank in that queue.
+- Position is not importance. Org TODO state and priority remain independent.
+- Visiting an entry does not consume it, mark it reviewed or change its rank.
+- Only an explicit operation changes membership or order.
+- Content remains in place. Do not copy notes into a managed archive.
+- Membership and rank live on the entry, not in a separate authoritative database.
+- Queue views are derived from the source entries.
+- Reading and writing have the same queue mechanics; no required maturity stages, recall scores or encounter taxonomy.
+- Scope the first implementation to one active Emacs writer. Do not claim multi-instance or distributed transaction guarantees.
+
+* First-version interactions
+
+** Inspect
+
+Choose a queue using completion and display its actual ordering. Show ordinal position, entry title and sufficient file/outline context to distinguish entries. Stored ranks need not dominate the presentation.
+
+Allow opening any entry, moving it up/down, placing it before/after a chosen entry and removing its membership. Refresh from authoritative source state. Opening an entry from this view establishes the same queue context as visiting the first entry.
+
+** Add
+
+Add the current heading, or the document when before the first heading. Provide an explicit command or prefix to target the whole document from anywhere.
+
+Choose a queue and append by default. Permit another placement. Ensure the target has an Org ID when enrolling it. Adding an existing membership is a no-op, not an implicit move.
+
+Initial commands may restrict enrolment to one membership, but must preserve all other memberships and read the future-compatible format below. They must never overwrite an unrelated queue property.
+
+** Batch add files
+
+Support enrolling a selected set of Org files at document level. A journal corpus should be usable without manually visiting every file.
+
+Use an explicit deterministic order, initially canonical path order, and report additions, existing memberships and failures. Append as a batch by default. Exact file-selection UI can be chosen locally; do not build a general query language. Batch heading enrolment is deferred.
+
+** Visit next
+
+Open the first entry. This is read-only with respect to queue state. Retain the entry ID and queue ID as the interaction context, and show that context where the user can see it.
+
+Repeated visits without a response open the same first entry. Unrelated buffer navigation does not silently change the retained target.
+
+** Continue
+
+Apply a chosen reinsertion placement to the visited membership, then open the first entry in the resulting queue.
+
+Provide a low-friction default command and a chooser for alternatives. Queue-specific labels and placements are configurable. Suggested defaults are Soon, Later and End; the precise default depths are configuration choices, not storage semantics.
+
+Recompute the current queue before applying the operation, but act on the retained entry and queue, not whatever is now at the front or beneath point. If the target was removed or cannot be resolved, report that and do not recreate it silently.
+
+** Move and remove
+
+Move changes one membership's position. It can be used from the queue view or source entry. Outside an established session, ask for the queue if ambiguous.
+
+Remove deletes only the selected membership. It never deletes content or marks a TODO complete. Removal may appear alongside Continue choices, but is a distinct action.
+
+An empty queue reports that it is empty. Continuing the sole entry leaves it in place and reports that there is no other entry. A placement that changes no relative order should not rewrite the rank.
+
+* Reinsertion vocabulary
+
+Each queue can override the labels, placement specifications and default used by Continue. For example:
+
+| Queue    | Label        | Placement                    |
+|----------+--------------+------------------------------|
+| Articles | Soon         | After 2 remaining entries    |
+| Articles | Later        | Halfway through              |
+| Articles | End          | Tail                         |
+| Tweets   | Another pass | After 5 remaining entries    |
+| Tweets   | Later        | Three-quarters through       |
+
+Support three placement forms initially:
+
+- Fixed depth: after n other entries.
+- Fractional depth: floor(f * N), where N is the number of remaining entries and 0 <= f <= 1.
+- End: after all remaining entries.
+
+Depth is calculated after removing the target from the current ordering and is clamped to the available length. Depth zero means the front. A deliberate front placement may reopen the same entry; do not silently modify that choice.
+
+Coefficients, adaptive movement and memory scheduling are deferred. A one-off coefficient that merely selects a depth adds no capability beyond placement. Persistent policies would govern subsequent encounters and need separate justification.
+
+* Persistent representation
+
+Use a property per queue, with its signed decimal integer rank as the value:
+
+#+begin_example
+:PROPERTIES:
+:ID:        <stable-org-id>
+:IW_ESSAYS: 3584
+:IW_REVIEW: 8192
+:END:
+#+title: An evolving article
+
+* A particular argument
+:PROPERTIES:
+:ID:        <another-org-id>
+:IW_ESSAYS: 5120
+:END:
+#+end_example
+
+The document drawer precedes the title; heading drawers belong directly to their headings. Both represent the same kind of target.
+
+Conventions:
+
+- Queue IDs consist of ASCII letters, digits and hyphens, with at least one character. They are case-insensitive; property suffixes are canonical uppercase.
+- Underscores are forbidden in queue IDs. This makes =IW_AFTER_ESSAYS= distinguishable from membership in a queue called =after-essays=.
+- =IW_<QUEUE-ID>= expresses both explicit membership and rank. Absence means no membership.
+- Read these properties locally, never through property inheritance. A document's membership does not enrol its headings.
+- Entry ID plus canonical queue ID identifies a membership.
+- Multiple membership properties are valid from day one, even if full multi-queue command UX is deferred.
+- Reserve =IW_AFTER_<QUEUE-ID>= for possible future snoozing; do not write or implement it in v1. Do not mistake reserved metadata for a membership or erase it as unrelated data.
+- Human-facing queue labels can change without touching entries. Renaming a stable queue ID requires an explicit future rewrite operation.
+
+Queue definitions belong in Elisp configuration: stable ID, display name, reinsertion labels/specifications and default choice. Encountered unconfigured queues remain inspectable with standard defaults. Final variable names and exact configuration syntax are local implementation decisions.
+
+No required review log, external queue file, persistent index or recovery journal. An in-memory index/cache is allowed if source buffers remain authoritative.
+
+* Discovery and identity
+
+Use configurable Org files/directories. Do not implicitly require org-roam, Denote, or =org-agenda-files=; users can configure those sources if desired.
+
+Respect live buffer contents, including unsaved queue changes. A disk-only scan must not overwrite or conceal them. Deduplicate discovered files. Specify recursion and exclusions in configuration/documentation rather than scanning arbitrary parts of the filesystem.
+
+Org IDs provide persistent identity; markers can accelerate navigation within a live session. Handle refiled entries by resolving identity. Missing targets, invalid rank values and duplicate IDs should produce actionable diagnostics rather than arbitrary writes. Duplicate IDs are an ambiguity, not a sorting rule.
+
+Equal ranks may arise through manual edits or merges. Sort them deterministically by entry ID. Offer explicit normalization; if a requested placement cannot be represented between tied ranks, use the redistribution process.
+
+* Ordering implementation
+
+Use sparse integer ranks, ascending. Displayed ordinal positions are derived.
+
+Recommended initial spacing: 1,024. Allocate:
+
+- Empty queue: 1,024.
+- Before the first: first rank minus 1,024.
+- After the last: last rank plus 1,024.
+- Between neighbours: floor((left + right) / 2), only if strictly between them.
+
+Negative ranks are valid. Integer comparisons must remain exact. Select/document a compatible Emacs baseline and guard against unsupported numeric values; do not fall back to floating-point ranking.
+
+Example: moving rank 1,024 between ranks 3,072 and 4,096 produces rank 3,584. Only the moved entry changes.
+
+If no integer gap exists, stop before mutation and offer redistribution. Repeated subdivision of the same gap consumes spacing; total Continue count is not a maintenance timer. Tail rotation does not exhaust internal gaps.
+
+Local redistribution and variable-length fractional indexing are unnecessary initially. A whole-queue redistribution may assign 1,024, 2,048, 3,072, etc., preserving the intended order including the pending move.
+
+* Ordinary writes and undo
+
+Perform changes in visiting Org buffers, preserving unrelated content and properties.
+
+Accepted save policy:
+
+- Automatically save a buffer that was clean before the operation.
+- Leave an already-modified buffer unsaved and clearly report that its queue change remains unsaved.
+- Do not write files behind live buffers or silently save unrelated draft edits.
+
+Ordinary single-entry operations use normal editing undo. Undo changes buffer contents; saving the reverted state follows normal Emacs behaviour. Do not introduce a cross-file undo log. Refresh queue views from source state after undo.
+
+Batch addition is explicitly multi-file work: apply the same saving principles and report partial completion. Do not pretend it is atomic.
+
+* Redistribution as explicit maintenance
+
+Redistribution is intentionally unsurprising rather than frictionless. A blocked move pauses without changing ranks.
+
+1. Compute the proposed ordering and all affected entries/files.
+2. Present counts and a browsable affected-file list, identify the pending operation, flag unsaved buffers and unwritable files, and explain that writes span files and are not atomic.
+3. Strongly recommend saving and committing the affected files to Git first. The user's corpus is expected to be almost entirely Git-managed. Do not automatically commit, require a clean repository, or build a Git integration subsystem.
+4. Resolve unsaved edits explicitly and preflight all affected targets for writability. Keeping clean buffers open is fine; closing buffers is not required or inherently safer.
+5. Ask for explicit approval. Cancelling applies neither redistribution nor the pending move.
+6. Revalidate the plan against live state before applying it. If the queue changed during preparation, regenerate the preview and obtain approval for the changed plan.
+7. Apply and save the approved changes through visiting buffers. Only after success finish Continue's navigation.
+
+If a write fails, stop, report which files were saved, which have modified buffers and which were untouched. Do not navigate onward as though Continue succeeded. Recovery is manual using Git and normal buffer tools.
+
+No recovery records, automatic rollback or claims of transactionality. Approval of redistribution does not authorize discarding unsaved writing or saving an unseen changed plan.
+
+* Deferred features
+
+- Snoozing until a date; this would temporarily skip an entry without making dates the queue's ordering model.
+- Batch enrolment of headings/interior nodes.
+- Continuously maintained query queues, tag-driven membership and a query DSL. A query defines membership but requires additional decisions about ordering and exclusions.
+- Full multi-membership UX; the representation must already support it.
+- FSRS/flashcards, A-factor scheduling, recall ratings and adaptive policies.
+- Review statistics, encounter histories and maturity taxonomies.
+- Native non-Org content adapters.
+- Automated extract/merge/refile workflows beyond normal Org editing.
+- Agent-generated suggestions and corpus correlation. Later integrations can create ordinary linked Org entries and enrol them through the same commands.
+- Multi-writer concurrency and automatic Git operations.
+
+* Implementation freedom and validation
+
+Keep a small conceptual separation between discovery/resolution, pure ordering calculations, Org mutation, and interactive commands/view. Do not turn this into a generic workflow framework or lock down a public data API before the interactions work.
+
+Choose the Emacs/Org baseline, queue-buffer implementation, bindings, configuration syntax and file-picker UX in the local repository. A standard Emacs list buffer is sufficient; elaborate visualization is unnecessary.
+
+Meaningful automated checks should cover ordering and preservation risks:
+
+- Fixed/fractional/end placement, clamping, negative ranks, empty/singleton queues and no-op moves.
+- Repeated gap subdivision, collision detection and deterministic ties.
+- Document versus heading properties; no inherited enrolment.
+- Preservation of unrelated properties and memberships.
+- Continue targeting the visited membership after navigation or queue changes.
+- Cancellation before redistribution changes nothing; stale approved plans are rejected.
+- Save policy with initially clean versus dirty buffers, and partial-write failure reporting.
+- Deterministic batch file enrolment and existing-membership no-ops.
+
+A first manual walkthrough should enrol a journal batch, add an article heading, inspect and reorder both queues, edit a visited entry, Continue using multiple placements, remove a membership, and exercise redistribution cancellation/approval on disposable Git-backed fixtures.
+
+* Prior art and rationale
+
+These are inspiration and reference sources, not mandatory dependencies. Assess compatibility locally before borrowing code; retain applicable licensing notices.
+
+- [[https://github.com/bjsi/incremental-writing][bjsi/incremental-writing]]: closest interaction precedent, used successfully by the user. Its Simple mode rotates entries through an ordered queue. [[https://github.com/bjsi/incremental-writing/blob/master/src/scheduler.ts][scheduler.ts]] appends and redistributes numerical priorities; the proposed library instead usually changes one sparse rank and makes redistribution explicit.
+- [[https://github.com/gvalson/mir.el][mir.el]]: queue inspection, prioritization and incremental reading. Its managed import/archive model does not fit existing notes in place.
+- [[https://github.com/chrisbarrett/nursery/blob/main/lisp/org-roam-review.el][org-roam-review]]: useful browsable note-development interaction, but maturity/SRS and org-roam assumptions are unnecessary here.
+- [[https://github.com/bohonghuang/org-srs][org-srs]]: extensible inline Org review infrastructure, but its item annotations and recall-oriented model do not match the desired concise domain representation.
+- [[https://supermemo.guru/wiki/Incremental_writing][Incremental writing]]: conceptual background for revisiting, decomposing and consolidating writing. The library need not encode those phases.
+
+* Delivery goal
+
+A user should be able to open a named queue, choose something worth working on, edit it where it already lives, and put it back with one short interaction. The source metadata should remain comprehensible without the package. Everything beyond that must earn its complexity.

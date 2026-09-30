@@ -1,0 +1,39 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "additionalContextLimit": 1200,
+            "command": "/nix/store/p4r89h46hvapyf300ab61312r4ha8a4z-doctrine-0.46.5/bin/doctrine memory surface --input codex",
+            "timeout": 5,
+            "type": "command"
+          }
+        ],
+        "matcher": "Bash"
+      },
+      {
+        "hooks": [
+          {
+            "additionalContextLimit": 1200,
+            "command": "/nix/store/p4r89h46hvapyf300ab61312r4ha8a4z-doctrine-0.46.5/bin/doctrine memory surface --input codex",
+            "timeout": 5,
+            "type": "command"
+          }
+        ],
+        "matcher": "apply_patch"
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "command": "/nix/store/p4r89h46hvapyf300ab61312r4ha8a4z-doctrine-0.46.5/bin/doctrine prompt resolve --role orchestrator",
+            "type": "command"
+          }
+        ],
+        "matcher": "startup|resume|clear|compact"
+      }
+    ]
+  }
+}

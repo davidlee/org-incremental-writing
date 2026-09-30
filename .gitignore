@@ -1,0 +1,11 @@
+.doctrine/state/
+.doctrine/slice/*/phases
+.doctrine/**/handover.md
+.doctrine/slice/*/inquisition.md
+.doctrine/memory/index/*
+.doctrine/memory/embeddings/*
+.doctrine/memory/state/*
+.doctrine/memory/shipped/
+.doctrine/dispatch/
+.doctrine/skills/*
+.doctrine/observations/**/.tmp.*
