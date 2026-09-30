@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 3
+slug = "discovery-strategy-rescan-with-raw-text-prefilter"
+title = "Discovery strategy: rescan with raw-text prefilter"
+record_kind = "decision"
+status = "accepted"
+created = "2026-09-30"
+updated = "2026-09-30"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "ADR-001 forbids an authoritative index; PRD-001 OQ-1 asked whether rescans are fast enough. research T2-6: 10 ms prefilter over 112 files with no members; 0.65 s with all 1,840 headings members (~0.33 ms per membership read, dominated by org-entry-properties)."
+choice = 'Every operation rescans org-iw-sources (design § 5.2 file-selection rules). Visited files are read from their buffer (find-buffer-visiting); others via insert-file-contents into a temp buffer, org-mode enabled (delay-mode-hooks) only if a case-insensitive ^[ \t]*:IW_ prefilter hits. Entries (headings and file-level drawers) are collected from IW_ property lines; problems are returned alongside entries and affected memberships/entries are excluded. No cache.'
+alternatives = ["org-map-entries over every file", "in-memory index with invalidation", "org-id-locations-driven resolution"]
+rationale = "Cheapest correct option; keeps source authority trivially true. Revisit at journal scale in SL-004 (RFC-001)."
+consequences = ["Scan cost grows ~0.33 ms per membership; a 3", "000-document journal is ~1 s", " SL-004 must measure and may add a cheaper read path"]
+decided_by = "agent, reviewed by user"
+decided_on = "2026-09-30"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-001"

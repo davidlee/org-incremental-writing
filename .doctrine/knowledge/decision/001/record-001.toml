@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 1
+slug = "org-iw-module-layout"
+title = "org-iw module layout"
+record_kind = "decision"
+status = "accepted"
+created = "2026-09-30"
+updated = "2026-09-30"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "ADR-003 requires four layers with fixed dependency direction."
+choice = "org-iw-core.el (pure: queue-id rules, property classification, rank parse, entry struct, ordering, rank allocation); org-iw-discovery.el (sources, reads, resolution by ID, problems); org-iw-write.el (one-property writes, ID ensure, ADR-002 save policy); org-iw.el (package header, defcustoms, session, commands). Each requires only files beneath it; org-iw-core requires no org."
+alternatives = ["single file with sections", "finer split (config/session files) now"]
+rationale = "One file per layer makes ADR-003 checkable by require graph; finer split is premature (POL-003)."
+consequences = []
+decided_by = "agent, reviewed by user"
+decided_on = "2026-09-30"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-001"

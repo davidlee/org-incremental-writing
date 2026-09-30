@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 5
+slug = "session-context-held-in-memory-shown-in-the-mode-line"
+title = "Session context held in memory, shown in the mode line"
+record_kind = "decision"
+status = "accepted"
+created = "2026-09-30"
+updated = "2026-09-30"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "PRD-001 OQ-4; REQ-014 requires the retained (queue, entry) be visible."
+choice = "A single global session (queue ID, entry ID, title) in memory, set by visit/continue/opening from a view, cleared by org-iw-end-session. Shown via global-mode-string as IW[<queue name>: <title>]; visit also echoes position N/M. Not persisted across restarts."
+alternatives = ["header-line in the visited buffer only", "echo area only", "persist to a file"]
+rationale = "Mode line stays visible across buffer navigation, which is exactly when the retained target differs from point. Persistence would add a state file ADR-001 discourages."
+consequences = []
+decided_by = "agent, reviewed by user"
+decided_on = "2026-09-30"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-001"

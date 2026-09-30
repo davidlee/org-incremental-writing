@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 6
+slug = "emacs-30-test-binary-from-pinned-nixos-2605"
+title = "Emacs 30 test binary from pinned nixos-26.05"
+record_kind = "decision"
+status = "accepted"
+created = "2026-09-30"
+updated = "2026-09-30"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "REQ-024 needs tests on Emacs 30; nixos-unstable and emacs-overlay no longer ship a Linux Emacs 30 (research T2-11)."
+choice = 'flake.nix gains input nixpkgs-emacs30 = github:NixOS/nixpkgs/nixos-26.05; an emacs-30 wrapper around its emacs30-nox (30.2) joins projectPkgs. Makefile takes EMACS= and provides test-all over emacs and emacs-30. The 30.1 floor is held by byte-compile/package-lint against (emacs "30.1").'
+alternatives = ["build 30.1 from source via override", "drop Emacs 30 testing"]
+rationale = "One extra pinned input, no custom derivations; 30.2 is the maintained 30.x."
+consequences = []
+decided_by = "agent, reviewed by user"
+decided_on = "2026-09-30"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-001"

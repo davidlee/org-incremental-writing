@@ -1,7 +1,7 @@
 id = 1
 slug = "walking-skeleton"
 title = "Walking skeleton"
-status = "proposed"
+status = "plan"
 created = "2026-09-30"
 updated = "2026-09-30"
 tags = ["roadmap"]
@@ -20,11 +20,55 @@ intent = "scope-relevant"
 
 [[selector]]
 selector = "Makefile"
-intent = "scope-relevant"
+intent = "design-target"
 
 [[selector]]
 selector = "flake.nix"
-intent = "scope-relevant"
+intent = "design-target"
+
+[[selector]]
+selector = "org-iw-core.el"
+intent = "design-target"
+
+[[selector]]
+selector = "org-iw-discovery.el"
+intent = "design-target"
+
+[[selector]]
+selector = "org-iw-write.el"
+intent = "design-target"
+
+[[selector]]
+selector = "org-iw.el"
+intent = "design-target"
+
+[[selector]]
+selector = "test/org-iw-test-helpers.el"
+intent = "design-target"
+
+[[selector]]
+selector = "test/org-iw-core-test.el"
+intent = "design-target"
+
+[[selector]]
+selector = "test/org-iw-discovery-test.el"
+intent = "design-target"
+
+[[selector]]
+selector = "test/org-iw-write-test.el"
+intent = "design-target"
+
+[[selector]]
+selector = "test/org-iw-test.el"
+intent = "design-target"
+
+[[selector]]
+selector = ".gitignore"
+intent = "design-target"
+
+[[selector]]
+selector = "tools/checkdoc-batch.el"
+intent = "design-target"
 
 [[relation]]
 label = "governed_by"
@@ -57,6 +101,30 @@ target = "PRD-001"
 [[relation]]
 label = "related"
 target = "RFC-001"
+
+[[relation]]
+label = "related"
+target = "DEC-001"
+
+[[relation]]
+label = "related"
+target = "DEC-002"
+
+[[relation]]
+label = "related"
+target = "DEC-003"
+
+[[relation]]
+label = "related"
+target = "DEC-004"
+
+[[relation]]
+label = "related"
+target = "DEC-005"
+
+[[relation]]
+label = "related"
+target = "DEC-006"
 
 # STRUCTURAL relations are uniform `[[relation]]` rows, never a typed
 # `[relationships]` axis. Slices carry no typed STRUCTURAL

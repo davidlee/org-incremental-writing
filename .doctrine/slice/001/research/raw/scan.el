@@ -1,0 +1,28 @@
+;;; -*- lexical-binding: t -*-
+(require 'org)
+(setq org-id-locations-file (make-temp-file "ids"))
+(let* ((files (directory-files-recursively "/workspace/notes" "\\.org\\'"))
+       (n 0) (hits 0) t0)
+  (setq t0 (float-time))
+  (dolist (f files)
+    (with-temp-buffer
+      (insert-file-contents f)
+      (goto-char (point-min))
+      (when (re-search-forward "^[ \t]*:IW_" nil t) (cl-incf hits))))
+  (message "prefilter raw read %d files: %.3fs hits=%d" (length files) (- (float-time) t0) hits)
+  (setq t0 (float-time))
+  (dolist (f files)
+    (with-temp-buffer
+      (insert-file-contents f)
+      (delay-mode-hooks (org-mode))
+      (org-map-entries (lambda () (cl-incf n) (org-entry-properties nil 'standard)) nil nil)))
+  (message "org-mode + map+props all entries: %.3fs entries=%d" (- (float-time) t0) n)
+  (setq t0 (float-time))
+  (dolist (f files)
+    (with-temp-buffer
+      (insert-file-contents f)
+      (delay-mode-hooks (org-mode))
+      (goto-char (point-min))
+      (while (re-search-forward "^[ \t]*:IW_[A-Za-z0-9-]+:" nil t)
+        (save-excursion (org-back-to-heading-or-point-min t) (org-entry-properties nil 'standard)))))
+  (message "org-mode + regex-targeted props: %.3fs" (- (float-time) t0)))

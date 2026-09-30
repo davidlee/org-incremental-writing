@@ -1,0 +1,889 @@
+id    = 1
+slug  = "design-review-of-sl-001"
+title = "design review of SL-001"
+# no status — a review's status is DERIVED from its findings, so
+# it is never stored (the storage rule forbids derived data in authored files).
+
+[review]
+facet     = "design"     # scope|design|plan|phase-plan|implementation|code-review|reconciliation
+raiser    = "raiser"
+responder = "responder"
+rounds_base = 0
+contests_base = 0
+concluded = true
+
+[[review.turn]]
+act = "conclude"
+role = "raiser"
+note = "Adversarial agent pass (4 rounds) over design.md vs PRD-001, ADR-001..003, POL-001..003, DEC-001..006, research; 24 findings, all verified."
+
+[[review.turn]]
+act = "conclude"
+role = "raiser"
+note = "Route backfill over the 9 blocker/major findings; original adversarial pass (4 rounds) over design.md vs PRD-001, ADR-001..003, POL-001..003, DEC-001..006, research stands. Instrument-routed F-1..F-6, F-10 left answered for plan-time transcription; F-9, F-11 (review) verified."
+
+[target]                   # the outbound `reviews` edge: RV-NNN ──reviews──▶ <ref>
+ref   = "SL-001"
+
+[[finding]]
+id = "F-1"
+status = "answered"
+severity = "blocker"
+title = "locate resolves non-member headings and case-insensitive IDs"
+detail = "[reviewer F-1] org-find-entry-with-id returns the first :ID: match, case-insensitively, including headings without IW properties. A copied subtree makes Continue write IW_<Q> onto the copy (verified: find x1 -> Copy; find 'abc' -> :ID: ABC). Violates I2/I4, REQ-004, REQ-007."
+disposition = "fix-now"
+response = """
+Prose fix stands: id-count with key case-insensitive, value case-sensitive, org-at-property-p, in the widened base buffer; resolve never uses org-find-entry-with-id. Probe: must hold against a copied subtree carrying the same ID in the same file (with and without memberships), a case-variant ID value only, a lowercase id key, and a copy hidden by narrowing or seen through an indirect buffer; need not hold against a copy of the ID on a non-member heading in another file, which resolve never looks at. Criterion must assert that resolve refuses (ambiguous or not found) in each adversary case and that Continue then writes nothing. Host phase constraint: the phase that lands resolve, after the scan and id-count exist.
+"""
+route = "probe"
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "§5.2 resolve: single owner, case-sensitive exact :ID: count via org-at-property-p; refuses 0/>1; put-rank compare-and-set on EXPECTED. Verified reproduction."
+
+[[finding.turn]]
+act = "contest"
+role = "raiser"
+note = "Reviewer pass 2: PARTIAL: id-count key case (:id:) and narrowing unaddressed."
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "id-count: key case-insensitive, value case-sensitive, org-at-property-p, widened base buffer (org-with-wide-buffer); tests for :id: and narrowing. Verified :id: reproduction."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Reviewer pass 3: VERIFIED."
+
+[[finding.turn]]
+act = "reopen"
+role = "raiser"
+note = "Route backfill: the lock requires a route on every severe finding; the prior fix stands, no change of mind."
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+route = "probe"
+response = """
+Prose fix stands: id-count with key case-insensitive, value case-sensitive, org-at-property-p, in the widened base buffer; resolve never uses org-find-entry-with-id. Probe: must hold against a copied subtree carrying the same ID in the same file (with and without memberships), a case-variant ID value only, a lowercase id key, and a copy hidden by narrowing or seen through an indirect buffer; need not hold against a copy of the ID on a non-member heading in another file, which resolve never looks at. Criterion must assert that resolve refuses (ambiguous or not found) in each adversary case and that Continue then writes nothing. Host phase constraint: the phase that lands resolve, after the scan and id-count exist.
+"""
+
+[[finding]]
+id = "F-2"
+status = "answered"
+severity = "major"
+title = "Add can write to an ID shared with an existing member"
+detail = "[reviewer F-2] A non-member heading sharing an ID with a scanned member passes the duplicate check; after the write both are excluded as duplicates, silently dropping the member (REQ-007 AC3)."
+disposition = "fix-now"
+response = """
+Prose fix stands: Add step 6 refuses unless id-count is 1 in the widened base buffer and no scanned entry with the ID lives in another file. Control: the incorrect candidate the check must reject is Add on a non-member heading whose existing ID equals that of a current queue member (once in the same file, once in another file); the check must refuse with ID shared with another heading, and the existing member must remain in the queue with its rank unchanged. Host phase constraint: the phase that lands org-iw-add, after resolve and the scan duplicate-id rule.
+"""
+route = "control"
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "§5.4 Add step 5: refuse unless id-count=1 in buffer and no scanned entry with the ID lives in another file."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Reviewer pass 2: VERIFIED."
+
+[[finding.turn]]
+act = "reopen"
+role = "raiser"
+note = "Route backfill: the lock requires a route on every severe finding; the prior fix stands, no change of mind."
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+route = "control"
+response = """
+Prose fix stands: Add step 6 refuses unless id-count is 1 in the widened base buffer and no scanned entry with the ID lives in another file. Control: the incorrect candidate the check must reject is Add on a non-member heading whose existing ID equals that of a current queue member (once in the same file, once in another file); the check must refuse with ID shared with another heading, and the existing member must remain in the queue with its rank unchanged. Host phase constraint: the phase that lands org-iw-add, after resolve and the scan duplicate-id rule.
+"""
+
+[[finding]]
+id = "F-3"
+status = "answered"
+severity = "blocker"
+title = "Emacs lock files .#x.org break directory scans"
+detail = '[reviewer F-3] create-lockfiles makes .#a.org dangling symlinks that match \.org$ (verified); insert-file-contents signals file-missing, so Continue fails right after editing the visited entry.'
+disposition = "fix-now"
+response = """
+Prose fix stands: file selection skips names starting with .# and anything not a regular file after file-truename; a read error becomes an unreadable problem. Probe: must hold against the Emacs lock-file symlink created by a modified buffer inside a directory source, a dangling symlink ending in .org, and an unreadable file; need not hold against a regular file that is deliberately named foo.org but is not Org text. Criterion must assert that a directory scan with a modified visited buffer succeeds and Continue completes, reporting unsaved. Host phase constraint: file selection phase for the unit case; the command-level case needs Continue and the corpus fixture.
+"""
+route = "probe"
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "§5.2 file selection skips .# names and non-regular truenames; unreadable -> problem; command-level dirty-buffer Continue test added. Verified reproduction."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Reviewer pass 2: VERIFIED."
+
+[[finding.turn]]
+act = "reopen"
+role = "raiser"
+note = "Route backfill: the lock requires a route on every severe finding; the prior fix stands, no change of mind."
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+route = "probe"
+response = """
+Prose fix stands: file selection skips names starting with .# and anything not a regular file after file-truename; a read error becomes an unreadable problem. Probe: must hold against the Emacs lock-file symlink created by a modified buffer inside a directory source, a dangling symlink ending in .org, and an unreadable file; need not hold against a regular file that is deliberately named foo.org but is not Org text. Criterion must assert that a directory scan with a modified visited buffer succeeds and Continue completes, reporting unsaved. Host phase constraint: file selection phase for the unit case; the command-level case needs Continue and the corpus fixture.
+"""
+
+[[finding]]
+id = "F-4"
+status = "answered"
+severity = "major"
+title = "Clean buffer stale against disk; unwritable files; errors mid-write"
+detail = "[reviewer F-4] verify-visited-file-modtime nil makes org-entry-put prompt / error in batch (verified). Reverting would stale the scan's ranks; forcing would overwrite external changes (ADR-002). Wrapper leaves no defined state if fn signals; unwritable file prompts on save."
+disposition = "fix-now"
+response = """
+Prose fix stands: preflight on the base buffer refuses changed on disk and not writable without prompting; atomic-change-group restores text and modified flag; save failure yields save-failed with the edit standing. Control: the incorrect candidate the check must reject is a put-rank on a clean buffer whose file was modified externally after visiting (also reached via an indirect buffer), and one on a read-only file; each must refuse in batch without a prompt, leaving buffer text, modified flag and disk unchanged. Separable second arm (atomicity when the edit function signals) is carried by the I7 test in section 9. Host phase constraint: the write-layer phase, after the raw IW-line reader exists.
+"""
+route = "control"
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "§5.2 put-rank preflight (verify-visited-file-modtime, writable, EXPECTED), atomic-change-group with modified-flag restore; discovery-buffer prefers find-buffer-visiting. I7 added. Verified reproduction."
+
+[[finding.turn]]
+act = "contest"
+role = "raiser"
+note = "Reviewer pass 2: PARTIAL: indirect buffers bypass preflight; I7 overclaims on save failure; org-id registration not rolled back."
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Preflight and save on base buffer; I7 narrowed with save-failed status and org-id registration exception; restore-buffer-modified-p removed (undo restores flag, reviewer e8/e9). Verified indirect reproduction."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Reviewer pass 3: VERIFIED."
+
+[[finding.turn]]
+act = "reopen"
+role = "raiser"
+note = "Route backfill: the lock requires a route on every severe finding; the prior fix stands, no change of mind."
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+route = "control"
+response = """
+Prose fix stands: preflight on the base buffer refuses changed on disk and not writable without prompting; atomic-change-group restores text and modified flag; save failure yields save-failed with the edit standing. Control: the incorrect candidate the check must reject is a put-rank on a clean buffer whose file was modified externally after visiting (also reached via an indirect buffer), and one on a read-only file; each must refuse in batch without a prompt, leaving buffer text, modified flag and disk unchanged. Separable second arm (atomicity when the edit function signals) is carried by the I7 test in section 9. Host phase constraint: the write-layer phase, after the raw IW-line reader exists.
+"""
+
+[[finding]]
+id = "F-5"
+status = "answered"
+severity = "major"
+title = "Live-buffer lookup by truename misses symlink-visited buffers"
+detail = "[reviewer F-5] get-file-buffer on truename returns nil when visited via symlink path; find-buffer-visiting finds it. Indirect buffers have nil buffer-file-name, so Add refuses wrongly. REQ-006."
+disposition = "fix-now"
+response = """
+Prose fix stands: live lookup uses find-buffer-visiting; source-file checks use the base buffer. Demonstrate: a thin end-to-end run must show the scan reading unsaved text from a buffer visited through a symlinked path, and Add succeeding from an indirect buffer of a source file. Compiling is not the bar; the criterion must assert the unsaved rank beats disk for the symlink visit and that Add writes through the base buffer from the indirect one. Host phase constraint: discovery phase for the symlink half; the indirect-buffer Add half needs org-iw-add.
+"""
+route = "demonstrate"
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "find-buffer-visiting for live lookup; org-iw--source-file-p uses base buffer; symlink-visited and indirect-buffer tests added."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Reviewer pass 2: VERIFIED."
+
+[[finding.turn]]
+act = "reopen"
+role = "raiser"
+note = "Route backfill: the lock requires a route on every severe finding; the prior fix stands, no change of mind."
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+route = "demonstrate"
+response = """
+Prose fix stands: live lookup uses find-buffer-visiting; source-file checks use the base buffer. Demonstrate: a thin end-to-end run must show the scan reading unsaved text from a buffer visited through a symlinked path, and Add succeeding from an indirect buffer of a source file. Compiling is not the bar; the criterion must assert the unsaved rank beats disk for the symlink visit and that Add writes through the base buffer from the indirect one. Host phase constraint: discovery phase for the symlink half; the indirect-buffer Add half needs org-iw-add.
+"""
+
+[[finding]]
+id = "F-6"
+status = "answered"
+severity = "major"
+title = "IW properties in unrecognised drawers are silently ignored"
+detail = "[reviewer F-6] #+title before the drawer, or a drawer after body text, fails org-at-property-p and is dropped with no problem recorded, contrary to 'surface, don't repair' / REQ-007."
+disposition = "fix-now"
+response = """
+Prose fix stands: an IW line where org-at-property-p fails records misplaced-property, except lines inside blocks (found via org-element-lineage, including dynamic-block), which are skipped silently. Control: the incorrect candidates the check must reject are a property drawer placed after a title keyword and a drawer after body text; each must produce a misplaced-property problem rather than a silent drop, while the same lines inside quote, src, special and dynamic blocks produce no problem. Host phase constraint: the scan phase.
+"""
+route = "control"
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "misplaced-property problem type; tests for #+title-first and drawer-after-body."
+
+[[finding.turn]]
+act = "contest"
+role = "raiser"
+note = "Reviewer pass 2: PARTIAL: block-quoted :IW_ lines become misplaced-property noise."
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Lines inside blocks/fixed-width skipped silently via org-element-at-point type; test added."
+
+[[finding.turn]]
+act = "contest"
+role = "raiser"
+note = "Reviewer pass 3: PARTIAL: org-element-at-point innermost; quote/special/dynamic blocks not skipped (e12)."
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Block skip via org-element-lineage with dynamic-block added (verified: quote -> paragraph at point, quote-block via lineage); tests for quote/special/dynamic."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Reviewer pass 4: VERIFIED."
+
+[[finding.turn]]
+act = "reopen"
+role = "raiser"
+note = "Route backfill: the lock requires a route on every severe finding; the prior fix stands, no change of mind."
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+route = "control"
+response = """
+Prose fix stands: an IW line where org-at-property-p fails records misplaced-property, except lines inside blocks (found via org-element-lineage, including dynamic-block), which are skipped silently. Control: the incorrect candidates the check must reject are a property drawer placed after a title keyword and a drawer after body text; each must produce a misplaced-property problem rather than a silent drop, while the same lines inside quote, src, special and dynamic blocks produce no problem. Host phase constraint: the scan phase.
+"""
+
+[[finding]]
+id = "F-7"
+status = "verified"
+severity = "minor"
+title = "Upcasing before validation admits non-ASCII queue IDs"
+detail = '[reviewer F-7] (upcase "straße") = "STRASSE" passes [A-Za-z0-9-]+ (verified). Validate the raw string case-sensitively before canonicalising (REQ-003 AC2).'
+disposition = "fix-now"
+response = "Prefixes IW_/AFTER_ case-insensitive, suffix raw then upcased; iw_essays test."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "queue-id and classify validate raw string case-sensitively before upcase; straße tests. Verified reproduction."
+
+[[finding.turn]]
+act = "contest"
+role = "raiser"
+note = "Reviewer pass 2: CONTEST: org-entry-properties upcases names before classification; fix validates wrong string (e11)."
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Accepted contest (verified: props returned IW_STRASSE). Scan now reads IW names/values raw from org-get-property-block; classification on raw name; discovery-level straße test."
+
+[[finding.turn]]
+act = "contest"
+role = "raiser"
+note = "Reviewer pass 3: PARTIAL: IW_ prefix case unspecified; iw_essays silently ignored."
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Prefixes IW_/AFTER_ case-insensitive, suffix raw then upcased; iw_essays test."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Reviewer pass 4: VERIFIED."
+
+[[finding]]
+id = "F-8"
+status = "verified"
+severity = "minor"
+title = "Mode-line title not %-escaped"
+detail = "[reviewer F-8] A title containing % is interpreted as a mode-line construct; escape with %%."
+disposition = "fix-now"
+response = "mode line escapes % in name and title; test via format-mode-line."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "mode line escapes % in name and title; test via format-mode-line."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Reviewer pass 2: VERIFIED."
+
+[[finding]]
+id = "F-9"
+status = "verified"
+severity = "major"
+title = "Invariant-to-test mapping incomplete"
+detail = "[reviewer F-9] I6, command-level I2/I4/I5, REQ-025 no-auxiliary-file, command-level refusals, invalid typed queue ID, prefix visit, problems suffix have no named tests despite 'each has a test in § 9'."
+disposition = "fix-now"
+response = """
+Repaired in prose: section 9 now names a test for every invariant I1 to I8, including I6 in two layers (per-file compile plus a child Emacs asserting org is not loaded) and I8 via the fixture, which kills buffers to release lock files before comparing the listing; command-level refusals, invalid typed queue ID, prefix visit and problems suffix have named cases.
+"""
+route = "review"
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "§5.5 invariants I1-I8 each named in a § 9 test; fixture asserts I8 (no new files); command-level refusal, prefix, suffix tests added."
+
+[[finding.turn]]
+act = "contest"
+role = "raiser"
+note = "Reviewer pass 2: PARTIAL: I8 fixture trips on .# lock files; I6 test weak."
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Fixture kills buffers (releasing .# locks) before asserting I8; I6 = per-file compile + child-Emacs featurep test."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Reviewer pass 3: VERIFIED."
+
+[[finding.turn]]
+act = "reopen"
+role = "raiser"
+note = "Route backfill: the lock requires a route on every severe finding; the prior fix stands, no change of mind."
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+route = "review"
+response = """
+Repaired in prose: section 9 now names a test for every invariant I1 to I8, including I6 in two layers (per-file compile plus a child Emacs asserting org is not loaded) and I8 via the fixture, which kills buffers to release lock files before comparing the listing; command-level refusals, invalid typed queue ID, prefix visit and problems suffix have named cases.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Prose repair re-read in design.md; route review settled in this pass."
+
+[[finding]]
+id = "F-10"
+status = "answered"
+severity = "major"
+title = "Makefile gate can pass while violating POL-001"
+detail = "[reviewer F-10] Stale .elc loaded by test; checkdoc-file exits 0 on warnings; test-file lint scope unstated."
+disposition = "fix-now"
+response = """
+Prose fix stands: compile runs one emacs -Q batch process per file with byte-compile-error-on-warn and dest in a temp directory; checkdoc-batch exits non-zero on any diagnostic; package-lint on sources with org-iw.el as main file. Control: the incorrect candidates make lint must reject are a source file that calls a function whose require only appears in a sibling file, a docstring checkdoc warns about, and a stale elc left in the tree shadowing edited source; each must make the gate fail (or, for the elc, never exist). Host phase constraint: the first phase, which lands the Makefile and tools, before any other gate relies on it.
+"""
+route = "control"
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "compile removes .elc after checking; test runs from source with load-prefer-newer; tools/checkdoc-batch.el fails on diagnostics; lint scope stated (tests: compile+checkdoc; package-lint: source)."
+
+[[finding.turn]]
+act = "contest"
+role = "raiser"
+note = "Reviewer pass 2: PARTIAL: shared compile process masks missing requires; .elc left on failure."
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "compile: one emacs -Q process per file, dest in temp dir; no .elc in tree on failure. Verified masking reproduction."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Reviewer pass 3: VERIFIED."
+
+[[finding.turn]]
+act = "reopen"
+role = "raiser"
+note = "Route backfill: the lock requires a route on every severe finding; the prior fix stands, no change of mind."
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+route = "control"
+response = """
+Prose fix stands: compile runs one emacs -Q batch process per file with byte-compile-error-on-warn and dest in a temp directory; checkdoc-batch exits non-zero on any diagnostic; package-lint on sources with org-iw.el as main file. Control: the incorrect candidates make lint must reject are a source file that calls a function whose require only appears in a sibling file, a docstring checkdoc warns about, and a stale elc left in the tree shadowing edited source; each must make the gate fail (or, for the elc, never exist). Host phase constraint: the first phase, which lands the Makefile and tools, before any other gate relies on it.
+"""
+
+[[finding]]
+id = "F-11"
+status = "verified"
+severity = "major"
+title = "Refusal checks and point-bound enrol API invite duplication in later slices"
+detail = "[reviewer F-11] Resolution refusals live per-command; enrol-at-point has no point for SL-004 document/batch add. POL-002."
+disposition = "fix-now"
+response = """
+Repaired in prose: resolve in discovery is the sole ID-resolution owner; the write API is the marker-based put-rank with expected and ensure-id, so SL-004 passes a point-min marker; every refusal is an org-iw-refusal signal. Later slices reuse both owners (POL-002).
+"""
+route = "review"
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "resolve in discovery is the sole resolution owner; write API is marker-based put-rank with :expected/:ensure-id; all refusals via org-iw-refusal."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Reviewer pass 2: VERIFIED."
+
+[[finding.turn]]
+act = "reopen"
+role = "raiser"
+note = "Route backfill: the lock requires a route on every severe finding; the prior fix stands, no change of mind."
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+route = "review"
+response = """
+Repaired in prose: resolve in discovery is the sole ID-resolution owner; the write API is the marker-based put-rank with expected and ensure-id, so SL-004 passes a point-min marker; every refusal is an org-iw-refusal signal. Later slices reuse both owners (POL-002).
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Prose repair re-read in design.md; route review settled in this pass."
+
+[[finding]]
+id = "F-12"
+status = "verified"
+severity = "minor"
+title = "end-rank duplicates append-rank arithmetic"
+detail = "[reviewer F-12] Both compute last + spacing; SL-002 End placement would be a third copy."
+disposition = "fix-now"
+response = "end-rank removed; Continue End = append-rank over order minus target, guarded by already-last."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "end-rank removed; Continue End = append-rank over order minus target, guarded by already-last."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Reviewer pass 2: VERIFIED."
+
+[[finding]]
+id = "F-13"
+status = "verified"
+severity = "minor"
+title = "Speculative fields without SL-001 callers"
+detail = "[reviewer F-13] outline (SL-003), problem :pos/:detail (SL-005); problems as plists contradict struct rationale. POL-003."
+disposition = "fix-now"
+response = "outline, problem pos/detail dropped (arrive with SL-003/SL-005); problems are a struct."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "outline, problem pos/detail dropped (arrive with SL-003/SL-005); problems are a struct."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Reviewer pass 2: VERIFIED."
+
+[[finding]]
+id = "F-14"
+status = "verified"
+severity = "minor"
+title = "Huge ranks overflow arithmetic"
+detail = "[reviewer F-14] 30000-digit rank parses, (+ v 1024) signals overflow-error (verified); REQ-023 requires rejection with a diagnostic."
+disposition = "fix-now"
+response = "Repair differs from reviewer's options: fixed rank limit 2^53-1 in parse and allocation (nil -> redistribution refusal). Chosen for JSON/float exactness and structural overflow impossibility. Verified reproduction."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Repair differs from reviewer's options: fixed rank limit 2^53-1 in parse and allocation (nil -> redistribution refusal). Chosen for JSON/float exactness and structural overflow impossibility. Verified reproduction."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Reviewer pass 2: VERIFIED."
+
+[[finding]]
+id = "F-15"
+status = "verified"
+severity = "minor"
+title = "Visit navigation: narrowing and unlocatable targets"
+detail = "[reviewer F-15] goto-char in a narrowed buffer clamps; no branch for locate returning nil for front/next entry."
+disposition = "fix-now"
+response = "Scan tallies ID lines per buffer; in-file copies -> duplicate-id, entry excluded (no wedge); refusals name ID and file; visit takes SCAN."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "org-iw--visit widens when marker is outside narrowing; resolve refusal reported, session unchanged."
+
+[[finding.turn]]
+act = "contest"
+role = "raiser"
+note = "Reviewer pass 2: PARTIAL: non-member ID copy wedges queue front; visit lacks SCAN arg."
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Scan tallies ID lines per buffer; in-file copies -> duplicate-id, entry excluded (no wedge); refusals name ID and file; visit takes SCAN."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Reviewer pass 3: VERIFIED."
+
+[[finding]]
+id = "F-16"
+status = "verified"
+severity = "minor"
+title = "Add 'already a member' misreports excluded memberships; duplicate keys hidden"
+detail = "[reviewer F-16] IW_<Q> with missing ID or invalid rank is not a membership yet Add says it is; duplicate IW_<Q> keys in one drawer resolve silently."
+disposition = "fix-now"
+response = "Duplicate-property now counted case-insensitively over raw lines; test IW_ESSAYS + iw_essays."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Add step 4 distinguishes member vs excluded local property; duplicate-property detection by raw count within the property block. Missing-ID case refused rather than auto-repaired (surface, don't repair)."
+
+[[finding.turn]]
+act = "contest"
+role = "raiser"
+note = "Reviewer pass 2: PARTIAL: duplicate-property misses case variants (see F-7)."
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Duplicate-property now counted case-insensitively over raw lines; test IW_ESSAYS + iw_essays."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Reviewer pass 3: VERIFIED."
+
+[[finding]]
+id = "F-17"
+status = "verified"
+severity = "minor"
+title = "Diagrams and messages disagree with prose"
+detail = "[reviewer F-17] ses->cmd edge reversed; cmd->files and cmd->queue-id edges missing; already-last Continue reports 'Moved ... (saved)'."
+disposition = "fix-now"
+response = "Diagram edges corrected (cmd->ses, cmd->files, cmd->queue-id); already-last branch with its own message in sequence diagram."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Diagram edges corrected (cmd->ses, cmd->files, cmd->queue-id); already-last branch with its own message in sequence diagram."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Reviewer pass 2: VERIFIED."
+
+[[finding]]
+id = "F-18"
+status = "verified"
+severity = "minor"
+title = "Human trial omits edit-in-place and load instructions"
+detail = "[reviewer F-18] Trial never edits+saves the visited entry before Continue; no load-path/require instructions."
+disposition = "fix-now"
+response = "Trial now includes edit+save then Continue, unsaved-edit Continue, and load instructions."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Trial now includes edit+save then Continue, unsaved-edit Continue, and load instructions."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Reviewer pass 2: VERIFIED."
+
+[[finding]]
+id = "F-19"
+status = "verified"
+severity = "minor"
+title = "DEC-003 timing evidence measured with zero hits"
+detail = "[reviewer F-19] scan-timing.out shows hits=0; property-read cost with members present unmeasured."
+disposition = "fix-now"
+response = "Re-measured with 1,840 members: 0.650 s (raw/scan2.el, raw/scan-timing-members.out); research T2-6 and design § 8 updated; SL-004 to measure journals."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Re-measured with 1,840 members: 0.650 s (raw/scan2.el, raw/scan-timing-members.out); research T2-6 and design § 8 updated; SL-004 to measure journals."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Reviewer pass 2: VERIFIED."
+
+[[finding]]
+id = "F-20"
+status = "verified"
+severity = "minor"
+title = "Recursion rules undocumented"
+detail = "[reviewer F-20] directory-files-recursively skips symlinked dirs, descends hidden dirs (.git); exclude regexp matches truename. REQ-005 requires documentation."
+disposition = "fix-now"
+response = "Hidden-dir skip stated as below a configured root."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Rules chosen and stated: skip hidden dirs, do not follow symlinked dirs, skip .# and non-regular, exclude matches truename; docstrings carry them."
+
+[[finding.turn]]
+act = "contest"
+role = "raiser"
+note = "Reviewer pass 2: VERIFIED with nit: hidden-dir skip should apply below configured root."
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Hidden-dir skip stated as below a configured root."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Reviewer pass 3: VERIFIED."
+
+[[finding]]
+id = "F-21"
+status = "verified"
+severity = "nit"
+title = "DEC-001..006 still proposed"
+detail = "[reviewer F-21] Design cites them as durable; accept at lock."
+disposition = "fix-now"
+response = "DEC-001..006 will be accepted at lock; § 7 says so."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "DEC-001..006 will be accepted at lock; § 7 says so."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Reviewer pass 2: VERIFIED."
+
+[[finding]]
+id = "F-22"
+status = "verified"
+severity = "minor"
+title = "Malformed drawer makes Add insert a second drawer"
+detail = "[reviewer pass 3 NEW-1] :IW_ESSAYS:5120 (no space) makes Org reject the drawer; org-entry-get nil so Add's org-entry-put inserts a second drawer (e12)."
+disposition = "fix-now"
+response = "Add step 4: refuse when org-get-property-block is nil but the heading section has a :PROPERTIES: line; test added."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Add step 4: refuse when org-get-property-block is nil but the heading section has a :PROPERTIES: line; test added."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Reviewer pass 4: VERIFIED."
+
+[[finding]]
+id = "F-23"
+status = "verified"
+severity = "minor"
+title = "save-failed path discards the error and is under-specified"
+detail = "[reviewer pass 3 NEW-3] condition-case nil drops the error; save-failed missing from signature, diagram, messages; navigation rule unstated."
+disposition = "fix-now"
+response = "put-rank returns (save-failed . ERROR); listed in signature, diagram, messages; Continue navigates since the edit stands."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "put-rank returns (save-failed . ERROR); listed in signature, diagram, messages; Continue navigates since the edit stands."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Reviewer pass 4: VERIFIED."
+
+[[finding]]
+id = "F-24"
+status = "verified"
+severity = "minor"
+title = "IW_<Q>+ line leaves a membership whose preflight always refuses"
+detail = '[reviewer pass 3 NEW-4] :IW_ESSAYS: 1 + :IW_ESSAYS+: 2 keeps ESSAYS=1 in scan while Org reads "1 2"; preflight reader unspecified.'
+disposition = "fix-now"
+response = "IW_<Q>+ counts as a second occurrence -> duplicate-property; one raw-line reader (org-iw-discovery--iw-lines) shared by scan, preflight and Add; test added."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "IW_<Q>+ counts as a second occurrence -> duplicate-property; one raw-line reader (org-iw-discovery--iw-lines) shared by scan, preflight and Add; test added."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Reviewer pass 4: VERIFIED."
+
+# Findings are append-only `[[finding]]` tables, added by `review raise`.
+# Empty here at creation — a fresh review is Active, awaiting the raiser.

@@ -1,0 +1,28 @@
+Warning (files): Missing `lexical-binding' cookie in "~/work/probe.el".
+You can add one with `M-x elisp-enable-lexical-binding RET'.
+See `(elisp)Selecting Lisp Dialect' and `(elisp)Converting to Lexical Binding'
+for more information.
+emacs 31.1 org 9.8.10
+sort-kw: (1 2 3) value<: t
+bignum: 9223372036854775804 fixnump-big: nil
+pkg-lint: "/nix/store/ad82p8217ddjx5vvp9kj9wqpi8vc49zq-emacs-packages-deps/share/emacs/site-lisp/elpa/package-lint-20260903.2119/package-lint.elc"
+checkdoc: "/nix/store/hmbjsiq5vrri665d49r29qkbkh8n15zw-emacs-unstable-pgtk-31.1/share/emacs/31.1/lisp/emacs-lisp/checkdoc.elc"
+doc-level get: "3584" / before-first-heading: t
+doc props: (("IW_AFTER_ESSAYS" . "99") ("IW_ESSAYS" . "3584"))
+H1a local: nil inherit: "5120"
+Could not read `org-id-locations' from ~/.emacs.d/.org-id-locations, setting it to nil
+H2 id-create: "5cf85973-1262-4cba-9009-8fea09e3079d" modified: t
+H2 after put:
+:IW_ESSAYS: 5120
+:END:
+** H1a
+body
+* H2
+:PROPERTIES:
+:ID:       5cf85973-1262-4cba-9009-8fea09e3079d
+:IW_ESSAYS: 6144
+:END:
+
+map: (("h1" . "5120") ("5cf85973-1262-4cba-9009-8fea09e3079d" . "6144"))
+lowercase get: "5120"
+org-id-find h1: #<marker at 90 in iwAyWHbo.org>

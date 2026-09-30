@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 2
+slug = "org-iw-queues-configuration-shape"
+title = "org-iw-queues configuration shape"
+record_kind = "decision"
+status = "accepted"
+created = "2026-09-30"
+updated = "2026-09-30"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "Queue definitions live in Elisp config (PRD-001 §4); SL-002 adds vocabulary."
+choice = "defcustom org-iw-queues: list of (QUEUE-ID . PLIST), PLIST keys open-ended; SL-001 reads only :name. IDs canonicalised on read. Queues found in sources but unconfigured get :name = ID."
+alternatives = ["list of cl-defstruct queue objects", "separate defcustoms per aspect"]
+rationale = "Plist values extend to :placements/:default in SL-002 without migrating user config."
+consequences = []
+decided_by = "agent, reviewed by user"
+decided_on = "2026-09-30"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-001"

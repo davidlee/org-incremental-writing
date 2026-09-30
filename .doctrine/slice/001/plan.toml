@@ -1,0 +1,208 @@
+# Implementation plan for SL-001 — the authored, durable phase plan.
+#
+# This is the single source of each phase's objective, criteria, verification,
+# and links. Runtime status lives separately under .doctrine/state/ (phase
+# tracking) — never record progress here. Hand-edit freely: the tool reads this
+# file but does not rewrite it.
+schema  = "doctrine.plan.overview"
+version = 1
+slice   = "SL-001"
+
+# Canonical spec/requirement links — cite ids, never restate what they say. The
+# plan reader does not model these yet, so nothing downstream consumes them.
+[specs]
+primary       = []
+collaborators = []
+
+[requirements]
+targets      = []
+dependencies = []
+
+# One [[phase]] per ordered phase, in execution order — the authored array order
+# IS the order; never sort by id. Ids are PHASE-NN (zero-padded), immutable and
+# never reused once authored — edits append, they never renumber. Criterion ids
+# are local to their phase, bare, and equally immutable
+# (`lib:reference/glossary.md` § reference forms). Reference a criterion from
+# another phase phase-qualified (PHASE-03/EX-8).
+#
+# Every phase after PHASE-01 has the implicit entrance "previous phase
+# completed; just lint and just test green" (stated once, as EN-1).
+
+[[phase]]
+id        = "PHASE-01"
+name      = "Tooling and package skeleton"
+objective = "Land the POL-001 gate (design § 9 Tooling, as a justfile — see plan.md) and the org-iw.el package skeleton it lints, so every later phase runs TDD against a gate that cannot pass while violating POL-001. Add the Emacs 30 binary to the dev shell (DEC-006)."
+entrance_criteria = [
+  { id = "EN-1", text = "Design locked (run rev 38); DEC-001..006 accepted." },
+]
+exit_criteria = [
+  { id = "EX-1", text = "justfile defines emacs and emacs30 variables (overridable from the EMACS / EMACS30 environment, defaulting to emacs and emacs-30) and recipes compile, checkdoc, package-lint, lint, test, test-all, clean, per design § 9 (Makefile targets there map one-to-one). compile byte-compiles each source and test file in its own emacs -Q --batch process with byte-compile-error-on-warn and byte-compile-dest-file-function into a temp directory; clean removes any stray *.elc." },
+  { id = "EX-2", text = "tools/checkdoc-batch.el runs checkdoc over the named files and exits non-zero on any diagnostic." },
+  { id = "EX-3", text = "org-iw.el exists with package header (Package-Requires ((emacs \"30.1\")), Version, URL, Keywords), lexical-binding, the defcustoms org-iw-sources, org-iw-exclude-regexp and org-iw-queues with docstrings stating the file-selection rules of design § 5.2 (REQ-005) and the (QUEUE-ID . PLIST) shape (DEC-002), and provide. No commands yet." },
+  { id = "EX-4", text = ".gitignore gains *.elc." },
+  { id = "EX-5", text = "flake.nix gains the pinned nixpkgs-emacs30 (nixos-26.05) input and an emacs-30 wrapper in projectPkgs (DEC-006). just is added to projectPkgs by the user." },
+  { id = "EX-6", text = "RV-001 F-10 (control): just lint is observed to FAIL on each named incorrect candidate — (a) a source file calling a function whose require appears only in a sibling file, (b) a docstring checkdoc warns about, (c) a byte-compile warning — and no *.elc exists in the tree after a failed compile. Candidates are temporary and removed after observation." },
+  { id = "EX-7", text = "just lint and just test are green on the skeleton." },
+]
+verification = [
+  { id = "VA-1", text = "Agent runs just lint and just test in the rebuilt shell; both exit 0 with zero warnings (EX-1, EX-2, EX-7)." },
+  { id = "VA-2", text = "Agent performs the F-10 negative controls of EX-6 and records the observed non-zero exits and the absence of *.elc in the phase sheet." },
+  { id = "VH-1", text = "User runs nix flake lock / rebuilds the dev shell and re-enters the jail; which just and which emacs-30 resolve and emacs-30 --version reports 30.2. HARD GATE: the gate cannot be run in the jail until just resolves; PHASE-01 cannot exit (nor PHASE-02 start) until this holds." },
+]
+specs        = []
+requirements = []
+
+[[phase]]
+id        = "PHASE-02"
+name      = "Pure ordering core"
+objective = "Implement org-iw-core.el per design § 5.2: entry and problem structs, the org-iw-refusal error, queue-ID rules, property classification, rank parse and limit, queue order, queue IDs and append rank. No Org, no buffers (I6)."
+entrance_criteria = [
+  { id = "EN-1", text = "PHASE-01 completed and its VH-1 gate held; just lint and just test green." },
+]
+exit_criteria = [
+  { id = "EX-1", text = "org-iw-core.el requires only cl-lib, seq, subr-x and exposes exactly the API of design § 5.2 (constants, org-iw-refusal, org-iw-entry, org-iw-problem, queue-id, classify-property, parse-rank, rank, queue-order, queue-ids, append-rank)." },
+  { id = "EX-2", text = "Queue IDs are validated raw with case-fold-search nil before upcasing; classification follows the § 5.2 table, including IW_AFTER-X as member and IW_straße invalid." },
+  { id = "EX-3", text = "parse-rank accepts ^[+-]?[0-9]+$ after trimming within ±(2^53 − 1); append-rank returns nil past the limit." },
+  { id = "EX-4", text = "I6: org-iw-core.el loads and its suite passes in a child emacs -Q --batch with (featurep 'org) nil afterwards." },
+  { id = "EX-5", text = "just lint and just test green." },
+]
+verification = [
+  { id = "VT-1", expects = "queue ID and property classification cases of design § 9 Core, incl. straße, underscores, empty string, IW_AFTER_ reserved, IW_AFTER-X member, lowercase iw_ prefix", test_file = "test/org-iw-core-test.el", keywords = ["org-iw-core-queue-id", "org-iw-core-classify-property", "straße", "IW_AFTER-X", "iw_essays"], waived = false },
+  { id = "VT-2", expects = "rank parsing accepts negative, +5, 007; rejects 1.5, soon, empty, 1e3, beyond-limit", test_file = "test/org-iw-core-test.el", keywords = ["org-iw-core-parse-rank", "org-iw-core-rank-limit", "\"007\"", "\"1e3\""], waived = false },
+  { id = "VT-3", expects = "queue order by rank then ID, members only; append rank 1024 empty, last+1024, after negative last, nil at limit", test_file = "test/org-iw-core-test.el", keywords = ["org-iw-core-queue-order", "org-iw-core-append-rank", "org-iw-core-queue-ids", "-2048"], waived = false },
+  { id = "VT-4", expects = "I6 child-Emacs test: core suite runs without loading org", test_file = "test/org-iw-core-test.el", keywords = ["featurep 'org", "--batch"], waived = false },
+]
+specs        = []
+requirements = []
+
+[[phase]]
+id        = "PHASE-03"
+name      = "Discovery: file selection and scan"
+objective = "Implement org-iw-discovery-files and org-iw-discovery-scan with the raw IW-line reader (org-iw-discovery--iw-lines) and every problem type of design § 5.2/§ 5.4, plus the corpus test fixture (design § 9)."
+entrance_criteria = [
+  { id = "EN-1", text = "PHASE-02 completed; just lint and just test green." },
+]
+exit_criteria = [
+  { id = "EX-1", text = "discovery-files applies the § 5.2 rules: recursive *.org under directory sources, hidden subdirectories skipped below a root (a hidden root still works), symlinked directories not followed, names starting with .# and non-regular truenames skipped, exclude regexp against the truename, sorted and deduplicated by truename." },
+  { id = "EX-2", text = "discovery-scan follows § 5.4 steps 1–5: live buffer read widened (via find-buffer-visiting), otherwise temp-buffer read without visiting and org-mode only on prefilter hit; ID tally per buffer; block-skip via org-element-lineage over the eight block types; local raw IW reads; duplicate-id across files and within a file." },
+  { id = "EX-3", text = "org-iw-discovery--iw-lines is the only reader of IW values (write and Add reuse it later)." },
+  { id = "EX-4", text = "test/org-iw-test-helpers.el provides org-iw-test-with-corpus (temp dir, org-iw-sources, org-iw-queues nil, org-id isolation; kills corpus buffers then asserts I8 before deleting), org-iw-test-file-string, org-iw-test-visit, org-iw-test-changed-lines." },
+  { id = "EX-5", text = "RV-001 F-6 (control): a property drawer after a #+title keyword and a drawer after body text each yield a misplaced-property problem, not a silent drop; the same :IW_ lines inside quote, src, special and dynamic blocks yield no problem." },
+  { id = "EX-6", text = "RV-001 F-3 (probe, unit half): a directory scan holding the .# lock-file symlink of a modified visited buffer, a dangling *.org symlink, and an unreadable file succeeds — lock file and dangling link skipped, unreadable recorded as a problem. Need not hold against a regular foo.org that is not Org text." },
+  { id = "EX-7", text = "RV-001 F-5 (demonstrate, symlink half): a buffer visited through a symlinked path is found by the scan and its unsaved rank beats disk — an end-to-end scan, not merely a compiling lookup." },
+  { id = "EX-8", text = "just lint and just test green." },
+]
+verification = [
+  { id = "VT-1", expects = "file selection: hidden and symlinked dirs skipped, dedupe across overlapping sources, exclude regexp, lock file ignored, dangling symlink skipped (F-3)", test_file = "test/org-iw-discovery-test.el", keywords = ["org-iw-discovery-files", "make-symbolic-link", ".#", "org-iw-exclude-regexp"], waived = false },
+  { id = "VT-2", expects = "each problem type produced with membership or entry excluded: missing-id, invalid-rank, invalid-property, misplaced-property (F-6), duplicate-property incl. IW_ESSAYS+ and iw_essays, duplicate-id across files and same-file non-member copy, unreadable (F-3)", test_file = "test/org-iw-discovery-test.el", keywords = ["missing-id", "invalid-rank", "invalid-property", "misplaced-property", "duplicate-property", "duplicate-id", "unreadable", "IW_ESSAYS+"], waived = false },
+  { id = "VT-3", expects = "block-skip: :IW_ lines in src, example, quote, special and dynamic blocks produce no problem (F-6 negative side)", test_file = "test/org-iw-discovery-test.el", keywords = ["#+begin_quote", "#+begin_src", "#+begin_special", "#+BEGIN: "], waived = false },
+  { id = "VT-4", expects = "no inheritance; document drawer read; live unsaved rank beats disk incl. symlink-visited buffer (F-5); unvisited file read without creating a buffer; IW_AFTER_ not a membership", test_file = "test/org-iw-discovery-test.el", keywords = ["org-iw-discovery-scan", "find-buffer-visiting", "IW_AFTER_ESSAYS", "get-file-buffer"], waived = false },
+  { id = "VT-5", expects = "fixture isolates org-id, releases lock files, asserts I8", test_file = "test/org-iw-test-helpers.el", keywords = ["org-iw-test-with-corpus", "org-id-locations-file", "org-id-track-globally", "org-iw-test-changed-lines"], waived = false },
+]
+specs        = []
+requirements = []
+
+[[phase]]
+id        = "PHASE-04"
+name      = "Discovery: ID resolution"
+objective = "Implement org-iw-discovery-buffer, org-iw-discovery-id-count and org-iw-discovery-resolve — the sole owner of ID resolution (design § 5.2), never using org-find-entry-with-id."
+entrance_criteria = [
+  { id = "EN-1", text = "PHASE-03 completed; just lint and just test green." },
+]
+exit_criteria = [
+  { id = "EX-1", text = "id-count counts ID property lines (key case-insensitive, value case-sensitive, org-at-property-p) in the widened base buffer; discovery-buffer returns find-buffer-visiting else find-file-noselect; the scan's step-3 tally and id-count share one ID-line definition (POL-002)." },
+  { id = "EX-2", text = "resolve refuses with org-iw-refusal naming ID and file when the scan excluded the ID as duplicate, when id-count is 0, or when it exceeds 1; otherwise returns a marker at org-back-to-heading-or-point-min." },
+  { id = "EX-3", text = "RV-001 F-1 (probe): resolve holds against a copied subtree carrying the same ID in the same file (with and without memberships), a case-variant ID value only, a lowercase :id: key, and a copy hidden by narrowing or seen through an indirect buffer — refusing ambiguous or not found in each case. Need not hold against a copy on a non-member heading in another file (resolve never looks there)." },
+  { id = "EX-4", text = "just lint and just test green." },
+]
+verification = [
+  { id = "VT-1", expects = "resolve finds a unique ID in visited and unvisited files; refuses not found, same-file non-member copy, case-variant value only, scan-excluded duplicate (F-1)", test_file = "test/org-iw-discovery-test.el", keywords = ["org-iw-discovery-resolve", "org-iw-refusal", "should-error"], waived = false },
+  { id = "VT-2", expects = "id-count counts lowercase :id: key; resolve sees target and copies in a narrowed buffer and via an indirect buffer (F-1)", test_file = "test/org-iw-discovery-test.el", keywords = ["org-iw-discovery-id-count", ":id:", "narrow-to-region", "make-indirect-buffer"], waived = false },
+]
+specs        = []
+requirements = []
+
+[[phase]]
+id        = "PHASE-05"
+name      = "Write path"
+objective = "Implement org-iw-write.el: org-iw-write-put-rank with preflight, atomic edit and the ADR-002 save policy (design § 5.2), the one write path for all current and planned operations."
+entrance_criteria = [
+  { id = "EN-1", text = "PHASE-04 completed; just lint and just test green." },
+]
+exit_criteria = [
+  { id = "EX-1", text = "put-rank MARKER QUEUE RANK &key EXPECTED ENSURE-ID returns saved | unsaved | (save-failed . ERROR); preflight on the base buffer; EXPECTED compared via the raw IW-line reader and parse-rank (007 equals 7; duplicated or accumulated key refuses)." },
+  { id = "EX-2", text = "Atomic edit via atomic-change-group; on a signal, text and modified flag are restored and the error propagates (I7). A save failure leaves the edit and returns save-failed." },
+  { id = "EX-3", text = "RV-001 F-4 (control): put-rank on a clean buffer whose file was modified externally after visiting (directly and via an indirect buffer), and on a read-only file, each refuse in batch with no prompt, leaving buffer text, modified flag and disk unchanged." },
+  { id = "EX-4", text = "I4/I5: only the IW_<Q> line changes; other IW_* and IW_AFTER_* lines byte-identical; a dirty buffer is left modified and disk unchanged." },
+  { id = "EX-5", text = "just lint and just test green." },
+]
+verification = [
+  { id = "VT-1", expects = "put-rank changes only the target line (I4); clean buffer saved; dirty buffer unsaved and disk unchanged (I5); ensure-id adds one ID; undo restores previous rank", test_file = "test/org-iw-write-test.el", keywords = ["org-iw-write-put-rank", "org-iw-test-changed-lines", "'saved", "'unsaved", ":ensure-id", "undo"], waived = false },
+  { id = "VT-2", expects = "refusals leave everything unchanged: stale expected, changed on disk incl. via indirect buffer, unwritable file (F-4, I7)", test_file = "test/org-iw-write-test.el", keywords = ["set-file-times", "make-indirect-buffer", "set-file-modes", ":expected"], waived = false },
+  { id = "VT-3", expects = "error inside the edit restores text and modified flag (I7); failing before-save-hook yields save-failed with edit applied", test_file = "test/org-iw-write-test.el", keywords = ["before-save-hook", "save-failed", "buffer-modified-p"], waived = false },
+]
+specs        = []
+requirements = []
+
+[[phase]]
+id        = "PHASE-06"
+name      = "Add command"
+objective = "Implement org-iw-add in org-iw.el with the design § 5.4 refusal order, queue completion, and the private helpers it needs (org-iw--files, org-iw--scan, org-iw--queue-name, org-iw--read-queue, org-iw--source-file-p), plus the message format."
+entrance_criteria = [
+  { id = "EN-1", text = "PHASE-05 completed; just lint and just test green." },
+]
+exit_criteria = [
+  { id = "EX-1", text = "org-iw-add refuses in order: not a source file; before first heading; invalid typed queue ID; malformed drawer; existing local IW_<Q> (no-op if a scanned member, else refuse naming the problem type); shared ID; rank limit. Otherwise put-rank with :expected :absent :ensure-id t and report M+1/M+1 plus save status and problems suffix." },
+  { id = "EX-2", text = "Only org-iw.el reads defcustoms; completion offers configured and discovered queue IDs with display-name annotations (DEC-002)." },
+  { id = "EX-3", text = "RV-001 F-2 (control): Add on a non-member heading whose existing ID equals a current queue member's — once in the same file, once in another file — refuses \"ID shared with another heading\", and the existing member stays in the queue with its rank unchanged." },
+  { id = "EX-4", text = "RV-001 F-5 (demonstrate, indirect half): Add from an indirect buffer of a source file succeeds and writes through the base buffer." },
+  { id = "EX-5", text = "I2/I4: a successful Add changes only that heading's drawer." },
+  { id = "EX-6", text = "just lint and just test green." },
+]
+verification = [
+  { id = "VT-1", expects = "add appends and changes only that heading's drawer (I2, I4); existing membership is a no-op; works from indirect and narrowed buffers (F-5)", test_file = "test/org-iw-test.el", keywords = ["org-iw-add", "org-iw-test-changed-lines", "make-indirect-buffer", "narrow-to-region"], waived = false },
+  { id = "VT-2", expects = "add refuses: outside sources, before first heading, invalid typed queue ID, excluded local property, shared ID same-file and cross-file with member rank unchanged (F-2), malformed drawer", test_file = "test/org-iw-test.el", keywords = ["not under org-iw-sources", "document targets are not yet supported", "ID shared with another heading", "property drawer Org doesn't recognise"], waived = false },
+]
+specs        = []
+requirements = []
+
+[[phase]]
+id        = "PHASE-07"
+name      = "Visit, session and Continue to End"
+objective = "Implement the session and mode line (DEC-005), org-iw--visit, org-iw-visit-next, org-iw-continue and org-iw-end-session per design § 5.3/§ 5.4, completing the trial loop."
+entrance_criteria = [
+  { id = "EN-1", text = "PHASE-06 completed; just lint and just test green." },
+]
+exit_criteria = [
+  { id = "EX-1", text = "org-iw--visit is the one navigation owner: resolve, pop-to-buffer-same-window, widen if outside narrowing, reveal, set session, echo IW Name N/M: Title. Session set only by visit, cleared by end-session; mode line renders with % escaped." },
+  { id = "EX-2", text = "visit-next writes nothing (I1) and uses the session queue unless none or prefix arg; empty queue reports and changes nothing." },
+  { id = "EX-3", text = "continue follows the § 5.4 sequence: retained ID not in order refuses with no write or navigation; only entry left in place; already last navigates without writing; else append-rank over order minus retained, resolve, put-rank with expected old rank, then visit head of order minus retained without rescanning (I3)." },
+  { id = "EX-4", text = "RV-001 F-3 (probe, command half): Continue after the visited entry was edited and left unsaved in a directory source (lock file present) succeeds, reports unsaved, and disk is unchanged (I5)." },
+  { id = "EX-5", text = "RV-001 F-1 (probe, command half): with a same-file copy of the retained ID, Continue refuses and writes nothing." },
+  { id = "EX-6", text = "All four commands are autoloaded; just lint and just test green." },
+]
+verification = [
+  { id = "VT-1", expects = "visit-next modifies nothing and repeats the same entry (I1); prefix prompts; narrowed buffer widened; mode line %-escaped; end-session clears", test_file = "test/org-iw-test.el", keywords = ["org-iw-visit-next", "org-iw-end-session", "org-iw--mode-line", "global-mode-string", "%%"], waived = false },
+  { id = "VT-2", expects = "continue changes one line in one file (I2); targets retained entry after point moves (I3); survives front edited in another file; only entry; already last; removed or duplicated target no write no navigation (F-1)", test_file = "test/org-iw-test.el", keywords = ["org-iw-continue", "only entry in queue", "already at end", "no longer in queue"], waived = false },
+  { id = "VT-3", expects = "continue with the visited entry dirty in a directory source: unsaved reported, disk unchanged (F-3, I5); problems suffix shown", test_file = "test/org-iw-test.el", keywords = ["queue change not saved", "source problems ignored"], waived = false },
+]
+specs        = []
+requirements = []
+
+[[phase]]
+id        = "PHASE-08"
+name      = "Emacs 30 gate and human trial"
+objective = "Close the POL-001 two-version gate and the POL-003 human trial (design § 9)."
+entrance_criteria = [
+  { id = "EN-1", text = "PHASE-07 completed; just lint and just test green on Emacs 31.1." },
+]
+exit_criteria = [
+  { id = "EX-1", text = "just test-all passes on Emacs 30.2 and 31.1; any 30-only failure is fixed at its owning layer." },
+  { id = "EX-2", text = "Human trial steps 1–4 of design § 9 pass on a Git-committed copy of real notes." },
+]
+verification = [
+  { id = "VA-1", text = "Agent runs just lint and just test-all (both Emacs versions) in the rebuilt shell; zero warnings, all tests pass." },
+  { id = "VH-1", text = "User performs the design § 9 human trial: one queue, three headings across two files; visit, edit, save, Continue — git diff shows the edit plus exactly one IW_ line; a full cycle; an unsaved edit then Continue gives the not-saved message and disk unchanged." },
+]
+specs        = []
+requirements = []

@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 4
+slug = "buffers-opened-only-to-write-stay-open"
+title = "Buffers opened only to write stay open"
+record_kind = "decision"
+status = "accepted"
+created = "2026-09-30"
+updated = "2026-09-30"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "PRD-001 OQ-2; ADR-002 says keeping clean buffers open is fine."
+choice = "A file org-iw had to visit to write is left open (clean, saved). Revisit in SL-004 when batch add may open many files."
+alternatives = ["kill buffers org-iw opened after a clean save"]
+rationale = "Simplest; killing needs bookkeeping of which buffers org-iw created and risks killing one the user started using meanwhile."
+consequences = []
+decided_by = "agent, reviewed by user"
+decided_on = "2026-09-30"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-001"

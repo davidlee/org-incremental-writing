@@ -1,0 +1,3 @@
+prefilter raw read 112 files: 0.004s hits=0
+org-mode + map+props all entries: 0.584s entries=1840
+org-mode + regex-targeted props: 0.036s
