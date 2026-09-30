@@ -75,6 +75,7 @@ per-file compile catches it. Gotcha: package-lint in batch needs
 `(require 'compile)` first or prints an autoload error (harmless).
 Licence: GPL-3.0-or-later (user, LICENSE.md; headers 31e311c). URL header confirmed against origin (davidlee/org-incremental-writing).
 
+## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
 fresh-as-of: 2026-10-01 · started · PHASE-01 completed; PHASE-02 next · 4eae0e7
 
