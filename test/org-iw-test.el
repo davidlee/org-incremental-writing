@@ -736,6 +736,26 @@ Other `global-mode-string' items stay; a second call is harmless."
     (should (equal (org-iw-end-session) "No org-iw session"))
     (should (equal global-mode-string '("x")))))
 
+(ert-deftest org-iw-cmd-test-mode-line-item-with-non-list-global-mode-string ()
+  "A bare-string or nil `global-mode-string' takes and sheds our item.
+The string is kept as a one-element list; repeated cycles add one item."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (setq global-mode-string "user")
+    (dotimes (_ 2)
+      (org-iw-visit-next "ESSAYS")
+      (should (member org-iw--mode-line-construct global-mode-string))
+      (should (member "user" global-mode-string))
+      (should (= 1 (cl-count org-iw--mode-line-construct
+                             global-mode-string :test #'equal)))
+      (org-iw-end-session)
+      (should-not (member org-iw--mode-line-construct global-mode-string))
+      (should (member "user" global-mode-string)))
+    (setq global-mode-string nil)
+    (org-iw-visit-next "ESSAYS")
+    (should (equal global-mode-string (list org-iw--mode-line-construct)))
+    (org-iw-end-session)
+    (should-not global-mode-string)))
+
 ;;;; Continue to End (EX-3, VT-2, I2, I3)
 
 (defun org-iw-cmd-test--disks ()

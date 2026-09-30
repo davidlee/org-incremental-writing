@@ -343,6 +343,8 @@ Return the message shown."
                            :queue queue
                            :id (org-iw-entry-id entry)
                            :title (org-iw-entry-title entry)))
+    (unless (listp global-mode-string)
+      (setq global-mode-string (list global-mode-string)))
     (add-to-list 'global-mode-string org-iw--mode-line-construct)
     (force-mode-line-update t)
     (org-iw--report scan "IW %s %d/%d: %s" (org-iw--queue-name queue)
@@ -448,8 +450,9 @@ Return the message shown."
   (interactive)
   (let ((ended org-iw--session))
     (setq org-iw--session nil)
-    (setq global-mode-string (delete org-iw--mode-line-construct
-                                     global-mode-string))
+    (when (listp global-mode-string)
+      (setq global-mode-string (delete org-iw--mode-line-construct
+                                       global-mode-string)))
     (force-mode-line-update t)
     (message (if ended "org-iw session ended" "No org-iw session"))))
 
