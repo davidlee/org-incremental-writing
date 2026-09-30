@@ -1,0 +1,18 @@
+schema = "doctrine.observation"
+schema_version = 1
+uid = "01a0f2f6-219c-7810-a8ac-80cd4b4a9796"
+recorded_at = "2026-09-30T15:36:51.868808987Z"
+kind = "friction"
+summary = "doctrine install does not ship capsule-driver agent defs into .claude/agents"
+detail = "doctrine 0.46.5: install -a claude places only dispatch-worker.md; capsule-orchestrator, capsule-phase-planner, capsule-worker exist in the library (lib:integration/agents/claude/) but must be copied by hand before /capsule-driver can run. The skill's preconditions do not mention this step."
+
+[facets.execution]
+schema_version = 1
+interface = "cli"
+interface_origin = "automatic"
+product_surface = "doctrine"
+product_surface_origin = "automatic"
+command = "observation record"
+command_origin = "automatic"
+repository_context = "primary"
+repository_context_origin = "automatic"

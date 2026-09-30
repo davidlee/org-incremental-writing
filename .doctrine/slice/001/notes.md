@@ -90,7 +90,7 @@ fresh-as-of: 2026-10-01 · started · PHASE-01 completed; PHASE-02 next · 4eae0
 - No Linux Emacs 30 in nixos-unstable / emacs-overlay; nixos-26.05 has 30.2 (research T2-11)
 
 ### Open
-- PHASE-02..08 via /capsule-driver (agents in .claude/agents/agents/, spawn depth 2 in settings); PHASE-08 VH-1 human trial is the user's
+- PHASE-02..08 via /capsule-driver (agents in .claude/agents/, spawn depth 2 in settings); PHASE-08 VH-1 human trial is the user's
 - /reconcile: Makefile→justfile, `clean` recipe (plan.md § Deltas)
 - Post-implementation /code-review (user intent)
 - `just test-all` on 30.2 needs the rebuilt shell (PHASE-08)
