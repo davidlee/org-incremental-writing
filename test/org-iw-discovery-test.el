@@ -34,19 +34,6 @@
 
 ;;;; Helpers
 
-(defun org-iw-discovery-test--org (&rest lines)
-  "Return LINES as Org text, each ending in a newline."
-  (mapconcat (lambda (line) (concat line "\n")) lines ""))
-
-(defun org-iw-discovery-test--heading (title id &rest properties)
-  "Return a heading TITLE with a drawer holding ID and PROPERTIES.
-ID nil omits the ID line; PROPERTIES are whole drawer lines."
-  (apply #'org-iw-discovery-test--org
-         (concat "* " title) ":PROPERTIES:"
-         (append (and id (list (concat ":ID: " id)))
-                 properties
-                 '(":END:"))))
-
 (defun org-iw-discovery-test--relative (file)
   "Return FILE relative to the corpus."
   (file-relative-name file org-iw-test-dir))
@@ -85,15 +72,8 @@ ENTRIES and PROBLEMS are as returned by
       (should (equal (org-iw-discovery-test--entries scan) entries))
       (should (equal (org-iw-discovery-test--problems scan) problems)))))
 
-(defmacro org-iw-discovery-test--unless-root (&rest body)
-  "Run BODY, skipping the test when file modes cannot deny reading."
-  (declare (indent 0) (debug t))
-  `(progn
-     (skip-unless (not (zerop (user-uid))))
-     ,@body))
-
 (defconst org-iw-discovery-test--member
-  (org-iw-discovery-test--heading "Member" "m1" ":IW_ESSAYS: 1024")
+  (org-iw-test-heading "Member" "m1" ":IW_ESSAYS: 1024")
   "Text of a file holding one valid member of ESSAYS.")
 
 ;;;; Fixture (I8, org-id isolation)
@@ -208,7 +188,7 @@ ENTRIES and PROBLEMS are as returned by
 
 (ert-deftest org-iw-discovery-test-files-inaccessible-directory ()
   "A subdirectory that cannot be read is skipped without error."
-  (org-iw-discovery-test--unless-root
+  (org-iw-test-unless-root
     (org-iw-test-with-corpus '(("a.org" . "") ("locked/b.org" . ""))
       (org-iw-test-set-modes "locked" #o000)
       (should (equal (org-iw-discovery-test--files) '("a.org"))))))
@@ -227,7 +207,7 @@ ENTRIES and PROBLEMS are as returned by
   "A heading with an ID and a rank is an entry with its title and file."
   (org-iw-test-with-corpus
       `(("a.org" . ,(concat "Preamble.\n"
-                            (org-iw-discovery-test--heading
+                            (org-iw-test-heading
                              "TODO [#A] Argument :tag:" "a1"
                              ":IW_ESSAYS: 5120" ":IW_NOTES:  -3  "))))
     (let ((entry (car (org-iw-scan-entries (org-iw-discovery-test--scan)))))
@@ -240,10 +220,10 @@ ENTRIES and PROBLEMS are as returned by
 (ert-deftest org-iw-discovery-test-scan-document-entry ()
   "A document drawer is read; its title is #+title, else the file name."
   (org-iw-test-with-corpus
-      `(("titled.org" . ,(org-iw-discovery-test--org
+      `(("titled.org" . ,(org-iw-test-org
                           ":PROPERTIES:" ":ID: d1" ":IW_ESSAYS: 7" ":END:"
                           "#+title: The Doc" "* Heading"))
-        ("plain.org" . ,(org-iw-discovery-test--org
+        ("plain.org" . ,(org-iw-test-org
                          "# comment" ":PROPERTIES:" ":ID: d2"
                          ":IW_ESSAYS: 8" ":END:")))
     (let ((scan (org-iw-discovery-test--scan)))
@@ -257,13 +237,13 @@ ENTRIES and PROBLEMS are as returned by
   "Members' children are not members, nor do they inherit the ID."
   (let ((org-use-property-inheritance t))
     (org-iw-discovery-test--check
-     `(("a.org" . ,(concat (org-iw-discovery-test--heading
+     `(("a.org" . ,(concat (org-iw-test-heading
                             "Parent" "p1" ":IW_ESSAYS: 1")
                            "** Child\n"
                            ;; A leading star demotes to level 2.
-                           "*" (org-iw-discovery-test--heading
+                           "*" (org-iw-test-heading
                                 "Child with ID" "c1")
-                           "*" (org-iw-discovery-test--heading
+                           "*" (org-iw-test-heading
                                 "Child without ID" nil ":IW_NOTES: 2"))))
      '(("p1" ("ESSAYS" . 1)))
      '((missing-id "a.org" nil)))))
@@ -271,10 +251,10 @@ ENTRIES and PROBLEMS are as returned by
 (ert-deftest org-iw-discovery-test-scan-property-names ()
   "Lowercase iw_essays is a member of ESSAYS; IW_AFTER_ESSAYS never is."
   (org-iw-discovery-test--check
-   `(("a.org" . ,(concat (org-iw-discovery-test--heading
+   `(("a.org" . ,(concat (org-iw-test-heading
                           "Lower" "l1" ":iw_essays: 3"
                           ":IW_AFTER_ESSAYS: whatever")
-                         (org-iw-discovery-test--heading
+                         (org-iw-test-heading
                           "Reserved only" "r1" ":IW_AFTER_ESSAYS: 1"))))
    '(("l1" ("ESSAYS" . 3)))
    nil))
@@ -304,9 +284,9 @@ ENTRIES and PROBLEMS are as returned by
 (ert-deftest org-iw-discovery-test-scan-live-buffer-beats-disk ()
   "A visiting buffer's unsaved text is scanned whole, and left untouched."
   (org-iw-test-with-corpus
-      `(("a.org" . ,(concat (org-iw-discovery-test--heading
+      `(("a.org" . ,(concat (org-iw-test-heading
                              "One" "a1" ":IW_ESSAYS: 1024")
-                            (org-iw-discovery-test--heading
+                            (org-iw-test-heading
                              "Two" "a2" ":IW_ESSAYS: 2048"))))
     (with-current-buffer (org-iw-test-visit "a.org")
       (goto-char (point-min))
@@ -361,11 +341,11 @@ ENTRIES and PROBLEMS are as returned by
 (ert-deftest org-iw-discovery-test-scan-order ()
   "Results follow the order of the given files, then buffer order."
   (org-iw-test-with-corpus
-      `(("a.org" . ,(org-iw-discovery-test--heading "A1" nil ":IW_Q: 1"))
-        ("b.org" . ,(concat (org-iw-discovery-test--heading
+      `(("a.org" . ,(org-iw-test-heading "A1" nil ":IW_Q: 1"))
+        ("b.org" . ,(concat (org-iw-test-heading
                              "B1" "b1" ":IW_Q: 1")
-                            (org-iw-discovery-test--heading "B2" nil ":IW_Q: 2")
-                            (org-iw-discovery-test--heading
+                            (org-iw-test-heading "B2" nil ":IW_Q: 2")
+                            (org-iw-test-heading
                              "B3" "b3" ":IW_Q: 3"))))
     (let ((scan (org-iw-discovery-scan
                  (mapcar #'org-iw-test-path '("b.org" "a.org")))))
@@ -390,9 +370,9 @@ ENTRIES and PROBLEMS are as returned by
 (ert-deftest org-iw-discovery-test-problem-missing-id ()
   "IW properties without an ID give missing-id and no entry."
   (org-iw-discovery-test--check
-   `(("a.org" . ,(org-iw-discovery-test--heading
+   `(("a.org" . ,(org-iw-test-heading
                   "No ID" nil ":IW_ESSAYS: 1"))
-     ("b.org" . ,(org-iw-discovery-test--heading
+     ("b.org" . ,(org-iw-test-heading
                   "Blank ID" "" ":IW_ESSAYS: 1")))
    nil
    '((missing-id "a.org" nil) (missing-id "b.org" nil))))
@@ -400,9 +380,9 @@ ENTRIES and PROBLEMS are as returned by
 (ert-deftest org-iw-discovery-test-problem-invalid-rank ()
   "A bad or out-of-range rank gives invalid-rank and drops that membership."
   (org-iw-discovery-test--check
-   `(("a.org" . ,(concat (org-iw-discovery-test--heading
+   `(("a.org" . ,(concat (org-iw-test-heading
                           "Soon" "a1" ":IW_ESSAYS: soon" ":IW_NOTES: 4")
-                         (org-iw-discovery-test--heading
+                         (org-iw-test-heading
                           "Huge" "a2"
                           (format ":IW_ESSAYS: %d"
                                   (1+ org-iw-core-rank-limit))))))
@@ -412,7 +392,7 @@ ENTRIES and PROBLEMS are as returned by
 (ert-deftest org-iw-discovery-test-problem-invalid-property ()
   "Invalid IW names, including IW_straße and IW_ESSAYS+ alone, are problems."
   (org-iw-discovery-test--check
-   `(("a.org" . ,(org-iw-discovery-test--heading
+   `(("a.org" . ,(org-iw-test-heading
                   "Odd" "a1" ":IW_straße: 1" ":IW_ESSAYS+: 2"
                   ":IW_a_b: 3" ":IW_NOTES: 4")))
    '(("a1" ("NOTES" . 4)))
@@ -422,10 +402,10 @@ ENTRIES and PROBLEMS are as returned by
 (ert-deftest org-iw-discovery-test-problem-duplicate-property ()
   "A queue named twice, as iw_essays or IW_ESSAYS+, is a duplicate-property."
   (org-iw-discovery-test--check
-   `(("a.org" . ,(concat (org-iw-discovery-test--heading
+   `(("a.org" . ,(concat (org-iw-test-heading
                           "Case" "a1" ":IW_ESSAYS: 1" ":iw_essays: 2"
                           ":IW_NOTES: 3")
-                         (org-iw-discovery-test--heading
+                         (org-iw-test-heading
                           "Accumulate" "a2" ":IW_ESSAYS: 1"
                           ":IW_ESSAYS+: 2"))))
    '(("a1" ("NOTES" . 3)))
@@ -434,9 +414,9 @@ ENTRIES and PROBLEMS are as returned by
 (ert-deftest org-iw-discovery-test-problem-duplicate-id-across-files ()
   "An ID on entries in two files is one duplicate-id; both are dropped."
   (org-iw-discovery-test--check
-   `(("a.org" . ,(org-iw-discovery-test--heading "A" "x1" ":IW_ESSAYS: 1"))
-     ("b.org" . ,(org-iw-discovery-test--heading "B" "x1" ":IW_NOTES: 2"))
-     ("c.org" . ,(org-iw-discovery-test--heading "C" "c1" ":IW_NOTES: 3")))
+   `(("a.org" . ,(org-iw-test-heading "A" "x1" ":IW_ESSAYS: 1"))
+     ("b.org" . ,(org-iw-test-heading "B" "x1" ":IW_NOTES: 2"))
+     ("c.org" . ,(org-iw-test-heading "C" "c1" ":IW_NOTES: 3")))
    '(("c1" ("NOTES" . 3)))
    '((duplicate-id "a.org" "x1"))))
 
@@ -444,14 +424,14 @@ ENTRIES and PROBLEMS are as returned by
   "A non-member copy of the ID in the same file excludes the entry.
 Copies differing in case, or quoted in a block, do not count."
   (org-iw-discovery-test--check
-   `(("a.org" . ,(concat (org-iw-discovery-test--heading
+   `(("a.org" . ,(concat (org-iw-test-heading
                           "Member" "x1" ":IW_ESSAYS: 1")
-                         (org-iw-discovery-test--heading "Copy" nil
-                                                         ":id:   x1  ")
-                         (org-iw-discovery-test--heading
+                         (org-iw-test-heading "Copy" nil
+                                              ":id:   x1  ")
+                         (org-iw-test-heading
                           "Other" "Y1" ":IW_ESSAYS: 2")
-                         (org-iw-discovery-test--heading "Variant" "y1")
-                         (org-iw-discovery-test--org
+                         (org-iw-test-heading "Variant" "y1")
+                         (org-iw-test-org
                           "* Quoted" "#+begin_example" ":ID: Y1"
                           "#+end_example"))))
    '(("Y1" ("ESSAYS" . 2)))
@@ -460,9 +440,9 @@ Copies differing in case, or quoted in a block, do not count."
 (ert-deftest org-iw-discovery-test-problem-no-surviving-membership ()
   "An entry left with no valid membership is not an entry."
   (org-iw-discovery-test--check
-   `(("a.org" . ,(org-iw-discovery-test--heading
+   `(("a.org" . ,(org-iw-test-heading
                   "Bad" "a1" ":IW_ESSAYS: soon"))
-     ("b.org" . ,(org-iw-discovery-test--heading
+     ("b.org" . ,(org-iw-test-heading
                   "Also" "a1" ":IW_ESSAYS: 1")))
    '(("a1" ("ESSAYS" . 1)))
    '((invalid-rank "a.org" "a1"))))
@@ -472,10 +452,10 @@ Copies differing in case, or quoted in a block, do not count."
 (ert-deftest org-iw-discovery-test-problem-misplaced-property ()
   "A drawer after #+title or after body text is a misplaced-property."
   (org-iw-discovery-test--check
-   `(("title.org" . ,(org-iw-discovery-test--org
+   `(("title.org" . ,(org-iw-test-org
                       "#+title: T" ":PROPERTIES:" ":ID: t1"
                       ":IW_ESSAYS: 1" ":END:"))
-     ("body.org" . ,(org-iw-discovery-test--org
+     ("body.org" . ,(org-iw-test-org
                      "* H" "Body text." ":PROPERTIES:" ":ID: b1"
                      ":IW_ESSAYS: 2" ":END:")))
    nil
@@ -499,7 +479,7 @@ Copies differing in case, or quoted in a block, do not count."
     (ert-info ((car block) :prefix "Block: ")
       (org-iw-discovery-test--check
        `(("a.org" . ,(concat org-iw-discovery-test--member
-                             (org-iw-discovery-test--org
+                             (org-iw-test-org
                               "* Quoting" (car block)
                               ":PROPERTIES:" ":ID: q1" ":IW_ESSAYS: 1"
                               ":END:" ":IW_NOTES: 2" (cdr block)))))
@@ -510,9 +490,9 @@ Copies differing in case, or quoted in a block, do not count."
 
 (ert-deftest org-iw-discovery-test-scan-hostile-directory ()
   "Lock files and dangling links are skipped; unreadable is a problem (F-3)."
-  (org-iw-discovery-test--unless-root
+  (org-iw-test-unless-root
     (org-iw-test-with-corpus `(("a.org" . ,org-iw-discovery-test--member)
-                               ("good.org" . ,(org-iw-discovery-test--heading
+                               ("good.org" . ,(org-iw-test-heading
                                                "Good" "g1" ":IW_NOTES: 1"))
                                ("locked.org" . ,org-iw-discovery-test--member))
       (with-current-buffer (org-iw-test-visit "a.org")
@@ -579,10 +559,10 @@ excluded the ID; only `org-iw-discovery-id-count' can see the copy."
 (ert-deftest org-iw-discovery-test-id-count-lines ()
   "`org-iw-discovery-id-count' counts ID property lines: any key case, exact value."
   (org-iw-test-with-corpus
-      `(("a.org" . ,(concat (org-iw-discovery-test--heading "One" "a1")
-                            (org-iw-discovery-test--heading "Two" nil ":id: a1")
-                            (org-iw-discovery-test--heading "Three" "A1")
-                            (org-iw-discovery-test--org
+      `(("a.org" . ,(concat (org-iw-test-heading "One" "a1")
+                            (org-iw-test-heading "Two" nil ":id: a1")
+                            (org-iw-test-heading "Three" "A1")
+                            (org-iw-test-org
                              "* Quoted" "#+begin_example" ":ID: a1"
                              "#+end_example" "Body text." ":ID: a1"))))
     (with-current-buffer (org-iw-test-visit "a.org")
@@ -593,8 +573,8 @@ excluded the ID; only `org-iw-discovery-id-count' can see the copy."
 (ert-deftest org-iw-discovery-test-id-count-ignores-narrowing ()
   "A copy outside `narrow-to-region' is still counted, target or copy alike."
   (org-iw-test-with-corpus
-      `(("a.org" . ,(concat (org-iw-discovery-test--heading "Target" "t1")
-                            (org-iw-discovery-test--heading "Copy" "t1"))))
+      `(("a.org" . ,(concat (org-iw-test-heading "Target" "t1")
+                            (org-iw-test-heading "Copy" "t1"))))
     (with-current-buffer (org-iw-test-visit "a.org")
       (goto-char (point-min))
       (narrow-to-region (point-min) (line-end-position))
@@ -607,8 +587,8 @@ excluded the ID; only `org-iw-discovery-id-count' can see the copy."
 (ert-deftest org-iw-discovery-test-id-count-via-indirect-buffer ()
   "Called from a narrowed `make-indirect-buffer', the count is the base's."
   (org-iw-test-with-corpus
-      `(("a.org" . ,(concat (org-iw-discovery-test--heading "Target" "t1")
-                            (org-iw-discovery-test--heading "Copy" nil ":id: t1"))))
+      `(("a.org" . ,(concat (org-iw-test-heading "Target" "t1")
+                            (org-iw-test-heading "Copy" nil ":id: t1"))))
     (let* ((base (org-iw-test-visit "a.org"))
            (indirect (make-indirect-buffer base "*org-iw-indirect*")))
       (unwind-protect
@@ -624,9 +604,9 @@ excluded the ID; only `org-iw-discovery-id-count' can see the copy."
   "`org-iw-discovery-resolve' returns a marker at the heading, or point-min."
   (org-iw-test-with-corpus
       `(("a.org" . ,org-iw-discovery-test--member)
-        ("b.org" . ,(org-iw-discovery-test--heading "Other" "b1"
-                                                    ":IW_NOTES: 1"))
-        ("c.org" . ,(org-iw-discovery-test--org
+        ("b.org" . ,(org-iw-test-heading "Other" "b1"
+                                         ":IW_NOTES: 1"))
+        ("c.org" . ,(org-iw-test-org
                      ":PROPERTIES:" ":ID: d1" ":IW_ESSAYS: 7" ":END:"
                      "* Heading")))
     (let* ((scan (org-iw-discovery-test--scan))
@@ -644,8 +624,8 @@ excluded the ID; only `org-iw-discovery-id-count' can see the copy."
 (ert-deftest org-iw-discovery-test-resolve-not-found ()
   "Resolve refuses an ID absent from the file, or differing only in case."
   (org-iw-test-with-corpus
-      `(("a.org" . ,(org-iw-discovery-test--heading "Upper" "A1"
-                                                    ":IW_ESSAYS: 1"))
+      `(("a.org" . ,(org-iw-test-heading "Upper" "A1"
+                                         ":IW_ESSAYS: 1"))
         ("b.org" . ,org-iw-discovery-test--member))
     (let ((scan (org-iw-discovery-test--scan)))
       (org-iw-discovery-test--refuse "not found" scan "zz" "a.org")
@@ -656,23 +636,23 @@ excluded the ID; only `org-iw-discovery-id-count' can see the copy."
 
 (ert-deftest org-iw-discovery-test-resolve-scan-excluded-duplicate ()
   "Resolve refuses an ID the scan excluded as a duplicate, in either file."
-  (dolist (copy `(("no memberships" . ,(org-iw-discovery-test--heading
+  (dolist (copy `(("no memberships" . ,(org-iw-test-heading
                                         "Copy" "x1"))
-                  ("other queue" . ,(org-iw-discovery-test--heading
+                  ("other queue" . ,(org-iw-test-heading
                                      "Copy" "x1" ":IW_NOTES: 1"))
-                  ("lowercase key" . ,(org-iw-discovery-test--heading
+                  ("lowercase key" . ,(org-iw-test-heading
                                        "Copy" nil ":id: x1"))))
     (ert-info ((car copy) :prefix "Copy: ")
       (org-iw-test-with-corpus
-          `(("a.org" . ,(concat (org-iw-discovery-test--heading
+          `(("a.org" . ,(concat (org-iw-test-heading
                                  "Member" "x1" ":IW_ESSAYS: 1")
                                 (cdr copy))))
         (let ((scan (org-iw-discovery-test--scan)))
           (should-not (org-iw-scan-entries scan))
           (org-iw-discovery-test--refuse "duplicate" scan "x1" "a.org")))))
   (org-iw-test-with-corpus
-      `(("a.org" . ,(org-iw-discovery-test--heading "A" "x1" ":IW_ESSAYS: 1"))
-        ("b.org" . ,(org-iw-discovery-test--heading "B" "x1" ":IW_NOTES: 2")))
+      `(("a.org" . ,(org-iw-test-heading "A" "x1" ":IW_ESSAYS: 1"))
+        ("b.org" . ,(org-iw-test-heading "B" "x1" ":IW_NOTES: 2")))
     ;; The problem names only the first file; both must still be refused.
     (let ((scan (org-iw-discovery-test--scan)))
       (org-iw-discovery-test--refuse "duplicate" scan "x1" "a.org")
@@ -681,11 +661,11 @@ excluded the ID; only `org-iw-discovery-id-count' can see the copy."
 (ert-deftest org-iw-discovery-test-resolve-ambiguous-after-scan ()
   "Resolve refuses when a copy appeared after the scan, seen or hidden.
 The scan predates the copy, so this is `org-iw-discovery-id-count' alone."
-  (dolist (copy `(("no memberships" . ,(org-iw-discovery-test--heading
+  (dolist (copy `(("no memberships" . ,(org-iw-test-heading
                                         "Copy" "m1"))
-                  ("other queue" . ,(org-iw-discovery-test--heading
+                  ("other queue" . ,(org-iw-test-heading
                                      "Copy" "m1" ":IW_NOTES: 1"))
-                  ("lowercase key" . ,(org-iw-discovery-test--heading
+                  ("lowercase key" . ,(org-iw-test-heading
                                        "Copy" nil ":id: m1"))))
     (ert-info ((car copy) :prefix "Copy: ")
       (org-iw-test-with-corpus `(("a.org" . ,org-iw-discovery-test--member))
@@ -707,7 +687,7 @@ The scan predates the copy, so this is `org-iw-discovery-id-count' alone."
   "Resolve finds the target through narrowing and an indirect buffer.
 The marker is in the base buffer, whatever buffer is current."
   (org-iw-test-with-corpus
-      `(("a.org" . ,(concat (org-iw-discovery-test--heading "Front" "f1")
+      `(("a.org" . ,(concat (org-iw-test-heading "Front" "f1")
                             org-iw-discovery-test--member)))
     (let* ((scan (org-iw-discovery-test--scan))
            (file (org-iw-test-path "a.org"))

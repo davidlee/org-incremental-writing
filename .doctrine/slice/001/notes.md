@@ -99,7 +99,7 @@ filter, so the `.#` rule needs a regular `.#` file to test;
 `set-buffer-modified-p nil` alone releases a lock file. Deltas for /reconcile:
 `org-iw-scan-create` constructor; fixture FILES is an evaluated form.
 
-## PHASE-04 (2026-10-01) — completed, uncommitted at worker hand-back
+## PHASE-04 (2026-10-01) — completed, fec2d3c
 
 `org-iw-discovery-buffer`, `-id-count`, `-resolve` added to
 org-iw-discovery.el; 9 new tests (53 total), gate green on both Emacs.
@@ -121,6 +121,78 @@ buffer) exercise the "ambiguous" path. The indirect-buffer claim of design § 3
 holds on Emacs 30 and 31: `buffer-file-name` is nil and `find-buffer-visiting`
 returns the base. `org-back-to-heading-or-point-min` is passed `t`
 (invisible-ok) so a folded heading cannot fail the lookup. No design delta.
+
+## PHASE-05 (2026-10-01) — completed, uncommitted
+
+org-iw-write.el: `org-iw-write-put-rank` (the only public symbol) with
+private `--base`, `--refuse`, `--queue-lines`, `--expected-p`,
+`--preflight`, `--apply` (the design sketch). 23 new tests in
+test/org-iw-write-test.el (76 total); gate green on Emacs 31.1/Org 9.8.10
+and 30.2/Org 9.7.11; write-layer coverage 100%. T1 promoted the corpus
+builders `org-iw-test-org`, `org-iw-test-heading`, `org-iw-test-unless-root`
+from discovery-test into test/org-iw-test-helpers.el.
+
+Rulings (orchestrator): gap 1, write requires `org-iw-discovery` and
+reuses `--iw-lines`/`--line-class` (no second IW reader; grep-checked:
+no `org-entry-get`/`org-entry-properties`/regexp in org-iw-write.el);
+gap 2, private discovery readers called as they are; gap 3, edit in the
+marker's buffer; gap 4, `(cl-check-type expected (or integer (member
+:absent)))`, so omitting EXPECTED is `wrong-type-argument`; gap 5, QUEUE
+canonicalised with `org-iw-core-queue-id`, invalid -> refusal, RANK not
+range-checked (docstring says so); gap 6, no guard for a base without a
+file; gap 7, order queue -> modtime -> writable -> compare-and-set, each
+message is "FILE: reason" (the compare-and-set names `IW_<Q>`).
+
+Outcomes:
+- Gap 3 holds on both Emacs: in a cloned indirect buffer (`make-indirect-buffer
+  ... t`) the edit lands in the base's text, the base is saved, `saved` is
+  returned, and the indirect buffer's narrowing is kept. `save-buffer` in an
+  indirect buffer saves the base anyway (`basic-save-buffer` delegates).
+- The `widen` in `--apply` matters only for `org-id-get-create` (point-based);
+  `org-entry-put` given a marker widens by itself. Red proof: without `widen`,
+  :ensure-id from an indirect buffer narrowed away from the target fails.
+- Undo (T6): one `undo` after `undo-boundary` reverts the whole put-rank,
+  ensure-id insertion included; no amalgamation needed, since neither Org call
+  inserts a boundary. Red proof: an `undo-boundary` between the two calls fails
+  the test.
+- Key case (T3): `org-entry-put` rewrites a lowercase `:iw_essays:` line as
+  `:IW_ESSAYS:` on the same line (one removed, one added line).
+- atomic-change-group restores text, the unmodified flag and hence the lock
+  file on both Emacs (the design's RV-001 claim holds).
+- **`before-save-hook` errors cannot fail a save**: `basic-save-buffer` wraps
+  the hook in `with-demoted-errors` on 30.2 and 31.1. So `save-failed` is
+  proven through `write-file-functions` (not demoted), and a separate test pins
+  that a failing `before-save-hook` yields `saved`. PHASE-05 VT-3's wording
+  ("failing before-save-hook yields save-failed") is false as written; see
+  deltas.
+- F-4 red proofs: modtime checked on `(marker-buffer marker)` -> the indirect
+  case signals "Cannot resolve conflict in batch mode" (supersession), not a
+  refusal; writable check dropped -> the read-only case reaches a
+  `yes-or-no-p` save prompt. That prompt reads stdin: under a tool runner whose
+  stdin stays open, `just test` hangs instead of failing; run it with
+  `</dev/null`.
+- No Org 9.7/9.8 differences observed.
+
+## Design deltas for /reconcile
+
+- § 5.2 `org-iw-core-append-rank` takes `(ORDERED QUEUE)`, not `(ORDERED)`
+  (PHASE-02); the user accepted it in session 2026-10-01.
+- § 5.2 discovery: the scan struct has constructor `org-iw-scan-create`; § 9:
+  the fixture's FILES argument is an evaluated form (PHASE-03 entry).
+- § 5.2 says `org-iw-write.el` requires core, `org`, `org-id`, and § 5.1 draws
+  no write -> discovery edge; § 5.4 has preflight use the scan's raw-line
+  reader. Implemented: write requires `org-iw-discovery` (ADR-003 permits the
+  direction) and calls `org-iw-discovery--iw-lines` and `--line-class`.
+  Suggest making those two readers public discovery API, since three layers
+  now share them.
+- § 5.2 step 3 / § 9 / plan PHASE-05 VT-3: "a hook error" via
+  `before-save-hook` cannot fail `save-buffer` (errors demoted, Emacs 30 and
+  31). `save-failed` arises from `write-file-functions` /
+  `write-contents-functions` errors, `write-region` failures (full disk,
+  permissions) and the like. Suggest rewording to "a failing save (e.g. a
+  `write-file-functions` error)".
+- § 5.2: EXPECTED is required (integer or :absent); omitting it signals
+  `wrong-type-argument`.
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->

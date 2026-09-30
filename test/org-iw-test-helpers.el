@@ -183,5 +183,27 @@ reported together with the lines between them."
       (setq old (cdr old) new (cdr new)))
     (cons (nreverse old) (nreverse new))))
 
+;;;; Corpus text builders
+
+(defun org-iw-test-org (&rest lines)
+  "Return LINES as Org text, each ending in a newline."
+  (mapconcat (lambda (line) (concat line "\n")) lines ""))
+
+(defun org-iw-test-heading (title id &rest properties)
+  "Return a heading TITLE with a drawer holding ID and PROPERTIES.
+ID nil omits the ID line; PROPERTIES are whole drawer lines."
+  (apply #'org-iw-test-org
+         (concat "* " title) ":PROPERTIES:"
+         (append (and id (list (concat ":ID: " id)))
+                 properties
+                 '(":END:"))))
+
+(defmacro org-iw-test-unless-root (&rest body)
+  "Run BODY, skipping the test when file modes cannot deny access."
+  (declare (indent 0) (debug t))
+  `(progn
+     (skip-unless (not (zerop (user-uid))))
+     ,@body))
+
 (provide 'org-iw-test-helpers)
 ;;; org-iw-test-helpers.el ends here
