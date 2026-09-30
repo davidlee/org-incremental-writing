@@ -75,6 +75,30 @@ per-file compile catches it. Gotcha: package-lint in batch needs
 `(require 'compile)` first or prints an autoload error (harmless).
 Licence: GPL-3.0-or-later (user, LICENSE.md; headers 31e311c). URL header confirmed against origin (davidlee/org-incremental-writing).
 
+## PHASE-02 (2026-10-01) — completed, 72d1071
+
+org-iw-core landed, 11 tests; gate green on Emacs 31.1 and 30.2. I6 child-
+Emacs test shown red with a temporary `(require 'org)`. Design delta for
+/reconcile: § 5.2 `org-iw-core-append-rank` takes `(ORDERED QUEUE)`.
+
+## PHASE-03 (2026-10-01) — implemented, uncommitted at worker hand-back
+
+org-iw-discovery (files + scan) and the corpus fixture
+(test/org-iw-test-helpers.el); 33 new tests (44 total), gate green on both
+Emacs; discovery coverage 99%. Gap rulings: an entry with no surviving
+membership is not emitted; `duplicate-id` per in-file-skipped entry plus one
+per cross-entry shared ID; `IW_<Q>+` alone is `invalid-property`, with
+`IW_<Q>` a `duplicate-property`; missing sources skipped; exclude regexp
+case-sensitive. The ID-line owner (`org-iw-discovery--id-values`) exists for
+PHASE-04's id-count. Worker choices: a live buffer's widened text is copied
+into the temp buffer (one read path; the user's buffer untouched; non-Org-mode
+live buffers work); inaccessible subdirectories are skipped. Org 9.7.11 and
+9.8.10 agree on block lineage, `org-at-property-p` and document drawers.
+Gotchas: a dangling lock symlink is already dropped by the regular-file
+filter, so the `.#` rule needs a regular `.#` file to test;
+`set-buffer-modified-p nil` alone releases a lock file. Deltas for /reconcile:
+`org-iw-scan-create` constructor; fixture FILES is an evaluated form.
+
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
 fresh-as-of: 2026-10-01 · started · PHASE-01 completed; PHASE-02 next · 4eae0e7

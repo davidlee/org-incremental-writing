@@ -1,0 +1,535 @@
+;;; org-iw-discovery-test.el --- Tests for org-iw-discovery  -*- lexical-binding: t; -*-
+
+;; Copyright (C) 2026 David Lee
+
+;; Author: David Lee <david.lee@inlight.com.au>
+;; URL: https://github.com/davidlee/org-incremental-writing
+
+;; SPDX-License-Identifier: GPL-3.0-or-later
+
+;; This program is free software: you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+
+;; This program is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+
+;; You should have received a copy of the GNU General Public License
+;; along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+;;; Commentary:
+
+;; ERT tests for file selection and the discovery scan, and for the
+;; corpus fixture they run on.
+
+;;; Code:
+
+(require 'ert)
+(require 'seq)
+(require 'org-iw-test-helpers)
+(require 'org-iw-discovery)
+
+;;;; Helpers
+
+(defun org-iw-discovery-test--org (&rest lines)
+  "Return LINES as Org text, each ending in a newline."
+  (mapconcat (lambda (line) (concat line "\n")) lines ""))
+
+(defun org-iw-discovery-test--heading (title id &rest properties)
+  "Return a heading TITLE with a drawer holding ID and PROPERTIES.
+ID nil omits the ID line; PROPERTIES are whole drawer lines."
+  (apply #'org-iw-discovery-test--org
+         (concat "* " title) ":PROPERTIES:"
+         (append (and id (list (concat ":ID: " id)))
+                 properties
+                 '(":END:"))))
+
+(defun org-iw-discovery-test--relative (file)
+  "Return FILE relative to the corpus."
+  (file-relative-name file org-iw-test-dir))
+
+(defun org-iw-discovery-test--files ()
+  "Return the corpus-relative files selected by the user options."
+  (mapcar #'org-iw-discovery-test--relative
+          (org-iw-discovery-files org-iw-sources org-iw-exclude-regexp)))
+
+(defun org-iw-discovery-test--scan ()
+  "Scan the files selected by the user options."
+  (org-iw-discovery-scan
+   (org-iw-discovery-files org-iw-sources org-iw-exclude-regexp)))
+
+(defun org-iw-discovery-test--entries (scan)
+  "Return the entries of SCAN as (ID . MEMBERSHIPS)."
+  (mapcar (lambda (entry)
+            (cons (org-iw-entry-id entry) (org-iw-entry-memberships entry)))
+          (org-iw-scan-entries scan)))
+
+(defun org-iw-discovery-test--problems (scan)
+  "Return the problems of SCAN as (TYPE RELATIVE-FILE ID)."
+  (mapcar (lambda (problem)
+            (list (org-iw-problem-type problem)
+                  (org-iw-discovery-test--relative
+                   (org-iw-problem-file problem))
+                  (org-iw-problem-id problem)))
+          (org-iw-scan-problems scan)))
+
+(defun org-iw-discovery-test--check (files entries problems)
+  "Scan a corpus of FILES; assert its ENTRIES and PROBLEMS.
+ENTRIES and PROBLEMS are as returned by
+`org-iw-discovery-test--entries' and `org-iw-discovery-test--problems'."
+  (org-iw-test-with-corpus files
+    (let ((scan (org-iw-discovery-test--scan)))
+      (should (equal (org-iw-discovery-test--entries scan) entries))
+      (should (equal (org-iw-discovery-test--problems scan) problems)))))
+
+(defmacro org-iw-discovery-test--unless-root (&rest body)
+  "Run BODY, skipping the test when file modes cannot deny reading."
+  (declare (indent 0) (debug t))
+  `(progn
+     (skip-unless (not (zerop (user-uid))))
+     ,@body))
+
+(defconst org-iw-discovery-test--member
+  (org-iw-discovery-test--heading "Member" "m1" ":IW_ESSAYS: 1024")
+  "Text of a file holding one valid member of ESSAYS.")
+
+;;;; Fixture (I8, org-id isolation)
+
+(ert-deftest org-iw-discovery-test-fixture-isolates ()
+  "The fixture binds the options and org-id state, then cleans up."
+  (let (dir ids-file)
+    (org-iw-test-with-corpus '(("sub/a.org" . "* A\n"))
+      (setq dir org-iw-test-dir
+            ids-file org-id-locations-file)
+      (should (equal org-iw-sources (list org-iw-test-dir)))
+      (should-not org-iw-queues)
+      (should-not org-iw-exclude-regexp)
+      (should-not org-id-locations)
+      (should-not org-id-track-globally)
+      (should-not (string-prefix-p dir ids-file))
+      (should (equal (org-iw-test-file-string "sub/a.org") "* A\n")))
+    (should-not (file-exists-p dir))
+    (should-not (file-exists-p ids-file))))
+
+(ert-deftest org-iw-discovery-test-fixture-releases-lock-files ()
+  "Corpus buffers are killed, releasing a modified buffer's lock file."
+  (let (buffer)
+    (org-iw-test-with-corpus '(("a.org" . "* A\n"))
+      (setq buffer (org-iw-test-visit "a.org"))
+      (with-current-buffer buffer
+        (insert "x"))
+      (should (file-symlink-p (org-iw-test-path ".#a.org"))))
+    (should-not (buffer-live-p buffer))))
+
+(ert-deftest org-iw-discovery-test-fixture-i8-fails-on-stray-file ()
+  "An undeclared new file fails the test; a declared symlink does not."
+  (let ((err (should-error
+              (org-iw-test-with-corpus '(("a.org" . ""))
+                (write-region "" nil (org-iw-test-path "stray.org")))
+              :type 'ert-test-failed)))
+    (should (equal (plist-get (cdr (cadr err)) :created) '("stray.org"))))
+  (org-iw-test-with-corpus '(("a.org" . ""))
+    (org-iw-test-make-symlink "a.org" "alias.org")))
+
+(ert-deftest org-iw-discovery-test-fixture-keeps-body-error ()
+  "A failing body keeps its own error, and the corpus is still deleted."
+  (let* ((dir nil)
+         (err (should-error
+               (org-iw-test-with-corpus '(("a.org" . ""))
+                 (setq dir org-iw-test-dir)
+                 (write-region "" nil (org-iw-test-path "stray.org"))
+                 (error "Boom")))))
+    (should (equal err '(error "Boom")))
+    (should-not (file-exists-p dir))))
+
+(ert-deftest org-iw-discovery-test-fixture-changed-lines ()
+  "Changed lines are those left between the common head and tail."
+  (should (equal (org-iw-test-changed-lines "a\nb\nc\n" "a\nB\nc\n")
+                 '(("b") . ("B"))))
+  (should (equal (org-iw-test-changed-lines "a\nc\n" "a\nb\nc\n")
+                 '(nil . ("b"))))
+  (should (equal (org-iw-test-changed-lines "a\nb\nc\nd\n" "A\nb\nc\nD\n")
+                 '(("a" "b" "c" "d") . ("A" "b" "c" "D"))))
+  (should (equal (org-iw-test-changed-lines "same\n" "same\n")
+                 '(nil . nil))))
+
+;;;; File selection (`org-iw-discovery-files')
+
+(ert-deftest org-iw-discovery-test-files-directory-rules ()
+  "Directory search skips hidden, symlinked and irregular names."
+  (org-iw-test-with-corpus '(("a.org" . "") ("sub/b.org" . "")
+                             ("sub/notes.txt" . "") (".hidden/c.org" . "")
+                             ("dir.org/d.org" . "") (".#e.org" . ""))
+    ;; `org-iw-test-make-symlink' is `make-symbolic-link', declared for I8.
+    ;; Following linkdir would reach .hidden/c.org.
+    (org-iw-test-make-symlink ".hidden" "linkdir")
+    (org-iw-test-make-symlink "/nonexistent/x.org" "dangling.org")
+    (org-iw-test-make-symlink "user@host.1:2" ".#a.org")
+    ;; The .# test is on the link's own name, not its truename.
+    (org-iw-test-make-symlink "sub/notes.txt" ".#n.org")
+    (should (equal (org-iw-discovery-test--files)
+                   '("a.org" "dir.org/d.org" "sub/b.org")))))
+
+(ert-deftest org-iw-discovery-test-files-hidden-root ()
+  "A source directory that is itself hidden is still searched."
+  (org-iw-test-with-corpus '((".notes/a.org" . "") (".notes/.git/b.org" . ""))
+    (let ((org-iw-sources (list (org-iw-test-path ".notes"))))
+      (should (equal (org-iw-discovery-test--files) '(".notes/a.org"))))))
+
+(ert-deftest org-iw-discovery-test-files-deduplicated ()
+  "Overlapping sources and symlinks give each truename once, sorted."
+  (org-iw-test-with-corpus '(("a.org" . "") ("sub/b.org" . ""))
+    (org-iw-test-make-symlink "sub/b.org" "alias.org")
+    (let ((org-iw-sources (list (org-iw-test-path "sub")
+                                org-iw-test-dir
+                                (org-iw-test-path "a.org")
+                                (org-iw-test-path "alias.org"))))
+      (should (equal (org-iw-discovery-test--files) '("a.org" "sub/b.org"))))))
+
+(ert-deftest org-iw-discovery-test-files-exclude-regexp ()
+  "`org-iw-exclude-regexp' matches truenames, case-sensitively."
+  (org-iw-test-with-corpus '(("archive/old.org" . "") ("ARCHIVE/up.org" . "")
+                             ("new.org" . ""))
+    (org-iw-test-make-symlink "archive/old.org" "keep.org")
+    (let ((org-iw-exclude-regexp "/archive/"))
+      (should (equal (org-iw-discovery-test--files)
+                     '("ARCHIVE/up.org" "new.org"))))))
+
+(ert-deftest org-iw-discovery-test-files-lock-file-of-modified-buffer ()
+  "The real .# lock file of a modified visited buffer is not selected."
+  (org-iw-test-with-corpus '(("a.org" . "* A\n"))
+    (with-current-buffer (org-iw-test-visit "a.org")
+      (insert "x"))
+    (should (file-symlink-p (org-iw-test-path ".#a.org")))
+    (should (equal (org-iw-discovery-test--files) '("a.org")))))
+
+(ert-deftest org-iw-discovery-test-files-inaccessible-directory ()
+  "A subdirectory that cannot be read is skipped without error."
+  (org-iw-discovery-test--unless-root
+    (org-iw-test-with-corpus '(("a.org" . "") ("locked/b.org" . ""))
+      (org-iw-test-set-modes "locked" #o000)
+      (should (equal (org-iw-discovery-test--files) '("a.org"))))))
+
+(ert-deftest org-iw-discovery-test-files-missing-source ()
+  "A source that does not exist is ignored."
+  (org-iw-test-with-corpus '(("a.org" . ""))
+    (let ((org-iw-sources (list (org-iw-test-path "gone.org")
+                                (org-iw-test-path "gone/")
+                                org-iw-test-dir)))
+      (should (equal (org-iw-discovery-test--files) '("a.org"))))))
+
+;;;; Scan (`org-iw-discovery-scan')
+
+(ert-deftest org-iw-discovery-test-scan-heading-entry ()
+  "A heading with an ID and a rank is an entry with its title and file."
+  (org-iw-test-with-corpus
+      `(("a.org" . ,(concat "Preamble.\n"
+                            (org-iw-discovery-test--heading
+                             "TODO [#A] Argument :tag:" "a1"
+                             ":IW_ESSAYS: 5120" ":IW_NOTES:  -3  "))))
+    (let ((entry (car (org-iw-scan-entries (org-iw-discovery-test--scan)))))
+      (should (equal (org-iw-entry-id entry) "a1"))
+      (should (equal (org-iw-entry-title entry) "Argument"))
+      (should (equal (org-iw-entry-file entry) (org-iw-test-path "a.org")))
+      (should (equal (org-iw-entry-memberships entry)
+                     '(("ESSAYS" . 5120) ("NOTES" . -3)))))))
+
+(ert-deftest org-iw-discovery-test-scan-document-entry ()
+  "A document drawer is read; its title is #+title, else the file name."
+  (org-iw-test-with-corpus
+      `(("titled.org" . ,(org-iw-discovery-test--org
+                          ":PROPERTIES:" ":ID: d1" ":IW_ESSAYS: 7" ":END:"
+                          "#+title: The Doc" "* Heading"))
+        ("plain.org" . ,(org-iw-discovery-test--org
+                         "# comment" ":PROPERTIES:" ":ID: d2"
+                         ":IW_ESSAYS: 8" ":END:")))
+    (let ((scan (org-iw-discovery-test--scan)))
+      (should (equal (org-iw-discovery-test--entries scan)
+                     '(("d2" ("ESSAYS" . 8)) ("d1" ("ESSAYS" . 7)))))
+      (should (equal (mapcar #'org-iw-entry-title (org-iw-scan-entries scan))
+                     '("plain" "The Doc")))
+      (should-not (org-iw-scan-problems scan)))))
+
+(ert-deftest org-iw-discovery-test-scan-no-inheritance ()
+  "Members' children are not members, nor do they inherit the ID."
+  (let ((org-use-property-inheritance t))
+    (org-iw-discovery-test--check
+     `(("a.org" . ,(concat (org-iw-discovery-test--heading
+                            "Parent" "p1" ":IW_ESSAYS: 1")
+                           "** Child\n"
+                           ;; A leading star demotes to level 2.
+                           "*" (org-iw-discovery-test--heading
+                                "Child with ID" "c1")
+                           "*" (org-iw-discovery-test--heading
+                                "Child without ID" nil ":IW_NOTES: 2"))))
+     '(("p1" ("ESSAYS" . 1)))
+     '((missing-id "a.org" nil)))))
+
+(ert-deftest org-iw-discovery-test-scan-property-names ()
+  "Lowercase iw_essays is a member of ESSAYS; IW_AFTER_ESSAYS never is."
+  (org-iw-discovery-test--check
+   `(("a.org" . ,(concat (org-iw-discovery-test--heading
+                          "Lower" "l1" ":iw_essays: 3"
+                          ":IW_AFTER_ESSAYS: whatever")
+                         (org-iw-discovery-test--heading
+                          "Reserved only" "r1" ":IW_AFTER_ESSAYS: 1"))))
+   '(("l1" ("ESSAYS" . 3)))
+   nil))
+
+(ert-deftest org-iw-discovery-test-scan-without-buffers ()
+  "Scanning unvisited files creates, visits and keeps no buffer."
+  (org-iw-test-with-corpus `(("a.org" . ,org-iw-discovery-test--member)
+                             ("b.org" . "No properties.\n"))
+    (let ((buffers (buffer-list))
+          (scan (org-iw-discovery-test--scan)))
+      (should (equal (org-iw-discovery-test--entries scan)
+                     '(("m1" ("ESSAYS" . 1024)))))
+      (should (equal (buffer-list) buffers))
+      (should-not (find-buffer-visiting (org-iw-test-path "a.org"))))))
+
+(ert-deftest org-iw-discovery-test-scan-org-mode-only-on-iw-line ()
+  "Org mode is started only for text holding an IW_ line."
+  (org-iw-test-with-corpus `(("a.org" . ,org-iw-discovery-test--member)
+                             ("b.org" . "* Plain\n") ("c.org" . "* Plain\n"))
+    (let* ((calls 0)
+           (count (lambda (&rest _) (setq calls (1+ calls)))))
+      (advice-add 'org-mode :before count)
+      (unwind-protect (org-iw-discovery-test--scan)
+        (advice-remove 'org-mode count))
+      (should (= calls 1)))))
+
+(ert-deftest org-iw-discovery-test-scan-live-buffer-beats-disk ()
+  "A visiting buffer's unsaved text is scanned whole, and left untouched."
+  (org-iw-test-with-corpus
+      `(("a.org" . ,(concat (org-iw-discovery-test--heading
+                             "One" "a1" ":IW_ESSAYS: 1024")
+                            (org-iw-discovery-test--heading
+                             "Two" "a2" ":IW_ESSAYS: 2048"))))
+    (with-current-buffer (org-iw-test-visit "a.org")
+      (goto-char (point-min))
+      (search-forward "1024")
+      (replace-match "10")
+      (search-forward "* Two")
+      (narrow-to-region (line-beginning-position) (point-max))
+      (let ((point (point))
+            (bounds (cons (point-min) (point-max))))
+        (should (equal (org-iw-discovery-test--entries
+                        (org-iw-discovery-test--scan))
+                       '(("a1" ("ESSAYS" . 10)) ("a2" ("ESSAYS" . 2048)))))
+        (should (= (point) point))
+        (should (equal (cons (point-min) (point-max)) bounds))
+        (should (buffer-modified-p))
+        (should (derived-mode-p 'org-mode))))
+    (should (string-match-p "1024" (org-iw-test-file-string "a.org")))))
+
+(ert-deftest org-iw-discovery-test-scan-live-buffer-in-other-mode ()
+  "A visiting buffer outside Org mode is still read, and keeps its mode."
+  (org-iw-test-with-corpus `(("a.txt" . ,org-iw-discovery-test--member))
+    (with-current-buffer (org-iw-test-visit "a.txt")
+      (should-not (derived-mode-p 'org-mode))
+      (goto-char (point-min))
+      (search-forward "1024")
+      (replace-match "7")
+      (should (equal (org-iw-discovery-test--entries
+                      (org-iw-discovery-scan
+                       (list (org-iw-test-path "a.txt"))))
+                     '(("m1" ("ESSAYS" . 7)))))
+      (should-not (derived-mode-p 'org-mode)))))
+
+(ert-deftest org-iw-discovery-test-scan-symlink-visited-buffer ()
+  "A buffer visited through a symlink is found; its unsaved rank wins (F-5)."
+  (org-iw-test-with-corpus `(("real.org" . ,org-iw-discovery-test--member))
+    (let* ((truename (org-iw-test-path "real.org"))
+           (link (org-iw-test-make-symlink truename "link.org"))
+           (buffer (find-file-noselect link)))
+      (should (equal (buffer-file-name buffer) link))
+      ;; The trap: a lookup by the truename's name misses this buffer.
+      (should-not (get-file-buffer truename))
+      (should (eq (find-buffer-visiting truename) buffer))
+      (with-current-buffer buffer
+        (goto-char (point-min))
+        (search-forward "1024")
+        (replace-match "-5"))
+      (should (equal (org-iw-discovery-test--entries
+                      (org-iw-discovery-scan (list truename)))
+                     '(("m1" ("ESSAYS" . -5)))))
+      (should (string-match-p "1024" (org-iw-test-file-string "real.org"))))))
+
+(ert-deftest org-iw-discovery-test-scan-order ()
+  "Results follow the order of the given files, then buffer order."
+  (org-iw-test-with-corpus
+      `(("a.org" . ,(org-iw-discovery-test--heading "A1" nil ":IW_Q: 1"))
+        ("b.org" . ,(concat (org-iw-discovery-test--heading
+                             "B1" "b1" ":IW_Q: 1")
+                            (org-iw-discovery-test--heading "B2" nil ":IW_Q: 2")
+                            (org-iw-discovery-test--heading
+                             "B3" "b3" ":IW_Q: 3"))))
+    (let ((scan (org-iw-discovery-scan
+                 (mapcar #'org-iw-test-path '("b.org" "a.org")))))
+      (should (equal (org-iw-discovery-test--entries scan)
+                     '(("b1" ("Q" . 1)) ("b3" ("Q" . 3)))))
+      (should (equal (org-iw-discovery-test--problems scan)
+                     '((missing-id "b.org" nil) (missing-id "a.org" nil)))))))
+
+;;;; Problems
+
+(ert-deftest org-iw-discovery-test-classify-lines ()
+  "Raw IW lines classify into memberships and problem types."
+  (should (equal (org-iw-discovery--classify-lines
+                  '(("IW_A" . "1") ("iw_b" . "x") ("IW_AFTER_A" . "?")
+                    ("IW_c_d" . "1") ("IW_E" . "1") ("IW_e+" . "2")
+                    ("IW_F+" . "1") ("IW_G" . "2") ("iw_g" . "2")))
+                 '((("A" . 1))
+                   invalid-property invalid-rank duplicate-property
+                   invalid-property duplicate-property)))
+  (should (equal (org-iw-discovery--classify-lines nil) '(nil))))
+
+(ert-deftest org-iw-discovery-test-problem-missing-id ()
+  "IW properties without an ID give missing-id and no entry."
+  (org-iw-discovery-test--check
+   `(("a.org" . ,(org-iw-discovery-test--heading
+                  "No ID" nil ":IW_ESSAYS: 1"))
+     ("b.org" . ,(org-iw-discovery-test--heading
+                  "Blank ID" "" ":IW_ESSAYS: 1")))
+   nil
+   '((missing-id "a.org" nil) (missing-id "b.org" nil))))
+
+(ert-deftest org-iw-discovery-test-problem-invalid-rank ()
+  "A bad or out-of-range rank gives invalid-rank and drops that membership."
+  (org-iw-discovery-test--check
+   `(("a.org" . ,(concat (org-iw-discovery-test--heading
+                          "Soon" "a1" ":IW_ESSAYS: soon" ":IW_NOTES: 4")
+                         (org-iw-discovery-test--heading
+                          "Huge" "a2"
+                          (format ":IW_ESSAYS: %d"
+                                  (1+ org-iw-core-rank-limit))))))
+   '(("a1" ("NOTES" . 4)))
+   '((invalid-rank "a.org" "a1") (invalid-rank "a.org" "a2"))))
+
+(ert-deftest org-iw-discovery-test-problem-invalid-property ()
+  "Invalid IW names, including IW_straße and IW_ESSAYS+ alone, are problems."
+  (org-iw-discovery-test--check
+   `(("a.org" . ,(org-iw-discovery-test--heading
+                  "Odd" "a1" ":IW_straße: 1" ":IW_ESSAYS+: 2"
+                  ":IW_a_b: 3" ":IW_NOTES: 4")))
+   '(("a1" ("NOTES" . 4)))
+   '((invalid-property "a.org" "a1") (invalid-property "a.org" "a1")
+     (invalid-property "a.org" "a1"))))
+
+(ert-deftest org-iw-discovery-test-problem-duplicate-property ()
+  "A queue named twice, as iw_essays or IW_ESSAYS+, is a duplicate-property."
+  (org-iw-discovery-test--check
+   `(("a.org" . ,(concat (org-iw-discovery-test--heading
+                          "Case" "a1" ":IW_ESSAYS: 1" ":iw_essays: 2"
+                          ":IW_NOTES: 3")
+                         (org-iw-discovery-test--heading
+                          "Accumulate" "a2" ":IW_ESSAYS: 1"
+                          ":IW_ESSAYS+: 2"))))
+   '(("a1" ("NOTES" . 3)))
+   '((duplicate-property "a.org" "a1") (duplicate-property "a.org" "a2"))))
+
+(ert-deftest org-iw-discovery-test-problem-duplicate-id-across-files ()
+  "An ID on entries in two files is one duplicate-id; both are dropped."
+  (org-iw-discovery-test--check
+   `(("a.org" . ,(org-iw-discovery-test--heading "A" "x1" ":IW_ESSAYS: 1"))
+     ("b.org" . ,(org-iw-discovery-test--heading "B" "x1" ":IW_NOTES: 2"))
+     ("c.org" . ,(org-iw-discovery-test--heading "C" "c1" ":IW_NOTES: 3")))
+   '(("c1" ("NOTES" . 3)))
+   '((duplicate-id "a.org" "x1"))))
+
+(ert-deftest org-iw-discovery-test-problem-duplicate-id-in-file ()
+  "A non-member copy of the ID in the same file excludes the entry.
+Copies differing in case, or quoted in a block, do not count."
+  (org-iw-discovery-test--check
+   `(("a.org" . ,(concat (org-iw-discovery-test--heading
+                          "Member" "x1" ":IW_ESSAYS: 1")
+                         (org-iw-discovery-test--heading "Copy" nil
+                                                         ":id:   x1  ")
+                         (org-iw-discovery-test--heading
+                          "Other" "Y1" ":IW_ESSAYS: 2")
+                         (org-iw-discovery-test--heading "Variant" "y1")
+                         (org-iw-discovery-test--org
+                          "* Quoted" "#+begin_example" ":ID: Y1"
+                          "#+end_example"))))
+   '(("Y1" ("ESSAYS" . 2)))
+   '((duplicate-id "a.org" "x1"))))
+
+(ert-deftest org-iw-discovery-test-problem-no-surviving-membership ()
+  "An entry left with no valid membership is not an entry."
+  (org-iw-discovery-test--check
+   `(("a.org" . ,(org-iw-discovery-test--heading
+                  "Bad" "a1" ":IW_ESSAYS: soon"))
+     ("b.org" . ,(org-iw-discovery-test--heading
+                  "Also" "a1" ":IW_ESSAYS: 1")))
+   '(("a1" ("ESSAYS" . 1)))
+   '((invalid-rank "a.org" "a1"))))
+
+;;;; RV-001 F-6: misplaced properties and blocks
+
+(ert-deftest org-iw-discovery-test-problem-misplaced-property ()
+  "A drawer after #+title or after body text is a misplaced-property."
+  (org-iw-discovery-test--check
+   `(("title.org" . ,(org-iw-discovery-test--org
+                      "#+title: T" ":PROPERTIES:" ":ID: t1"
+                      ":IW_ESSAYS: 1" ":END:"))
+     ("body.org" . ,(org-iw-discovery-test--org
+                     "* H" "Body text." ":PROPERTIES:" ":ID: b1"
+                     ":IW_ESSAYS: 2" ":END:")))
+   nil
+   '((misplaced-property "body.org" nil)
+     (misplaced-property "title.org" nil))))
+
+(defconst org-iw-discovery-test--blocks
+  '(("#+begin_src org" . "#+end_src")
+    ("#+begin_example" . "#+end_example")
+    ("#+begin_quote" . "#+end_quote")
+    ("#+begin_foo" . "#+end_foo")
+    ("#+BEGIN: clocktable :scope file" . "#+END:")
+    ("#+begin_verse" . "#+end_verse")
+    ("#+begin_export html" . "#+end_export")
+    ("#+begin_comment" . "#+end_comment"))
+  "Block delimiters (BEGIN . END) whose contents are quoted text.")
+
+(ert-deftest org-iw-discovery-test-scan-skips-blocks ()
+  "IW lines inside #+begin_quote, #+begin_src and other blocks are ignored."
+  (dolist (block org-iw-discovery-test--blocks)
+    (ert-info ((car block) :prefix "Block: ")
+      (org-iw-discovery-test--check
+       `(("a.org" . ,(concat org-iw-discovery-test--member
+                             (org-iw-discovery-test--org
+                              "* Quoting" (car block)
+                              ":PROPERTIES:" ":ID: q1" ":IW_ESSAYS: 1"
+                              ":END:" ":IW_NOTES: 2" (cdr block)))))
+       '(("m1" ("ESSAYS" . 1024)))
+       nil))))
+
+;;;; RV-001 F-3: hostile directory contents
+
+(ert-deftest org-iw-discovery-test-scan-hostile-directory ()
+  "Lock files and dangling links are skipped; unreadable is a problem (F-3)."
+  (org-iw-discovery-test--unless-root
+    (org-iw-test-with-corpus `(("a.org" . ,org-iw-discovery-test--member)
+                               ("good.org" . ,(org-iw-discovery-test--heading
+                                               "Good" "g1" ":IW_NOTES: 1"))
+                               ("locked.org" . ,org-iw-discovery-test--member))
+      (with-current-buffer (org-iw-test-visit "a.org")
+        (goto-char (point-max))
+        (insert "Unsaved.\n"))
+      (should (file-symlink-p (org-iw-test-path ".#a.org")))
+      (org-iw-test-make-symlink "user@host.123:456" ".#b.org")
+      (org-iw-test-make-symlink "/nonexistent/x.org" "dangling.org")
+      (org-iw-test-set-modes "locked.org" #o000)
+      (should-not (file-readable-p (org-iw-test-path "locked.org")))
+      (should (equal (org-iw-discovery-test--files)
+                     '("a.org" "good.org" "locked.org")))
+      (let ((scan (org-iw-discovery-test--scan)))
+        (should (equal (org-iw-discovery-test--entries scan)
+                       '(("m1" ("ESSAYS" . 1024)) ("g1" ("NOTES" . 1)))))
+        (should (equal (org-iw-discovery-test--problems scan)
+                       '((unreadable "locked.org" nil))))))))
+
+(provide 'org-iw-discovery-test)
+;;; org-iw-discovery-test.el ends here

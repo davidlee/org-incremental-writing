@@ -1,0 +1,323 @@
+;;; org-iw-discovery.el --- Find queue entries in Org sources  -*- lexical-binding: t; -*-
+
+;; Copyright (C) 2026 David Lee
+
+;; Author: David Lee <david.lee@inlight.com.au>
+;; URL: https://github.com/davidlee/org-incremental-writing
+
+;; SPDX-License-Identifier: GPL-3.0-or-later
+
+;; This program is free software: you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+
+;; This program is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+
+;; You should have received a copy of the GNU General Public License
+;; along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+;;; Commentary:
+
+;; Discovery for org-iw: select the source files, then scan them for
+;; queue entries and problems.  Source files are read, never visited
+;; or modified: a visiting buffer's text (unsaved edits included) wins
+;; over the file on disk.  Configuration arrives as arguments; this
+;; layer does not read the user options of `org-iw'.
+
+;;; Code:
+
+(require 'cl-lib)
+(require 'seq)
+(require 'subr-x)
+(require 'org)
+(require 'org-element)
+(require 'org-iw-core)
+
+(cl-defstruct (org-iw-scan (:constructor org-iw-scan-create)
+                           (:copier nil))
+  "The result of one discovery scan."
+  entries     ; list of `org-iw-entry'
+  problems)   ; list of `org-iw-problem'
+
+(defconst org-iw-discovery--block-types
+  '(src-block example-block export-block quote-block verse-block
+              special-block comment-block dynamic-block)
+  "Org element types whose contents are quoted text, not metadata.")
+
+(defconst org-iw-discovery--iw-line-regexp
+  "^[ \t]*:\\(IW_[^:\n]*\\):[ \t]*\\(.*?\\)[ \t]*$"
+  "Regexp for an IW_ property line: group 1 the name, group 2 the value.
+Match it case-insensitively.")
+
+(defconst org-iw-discovery--id-line-regexp
+  "^[ \t]*:ID:[ \t]+\\(.*?\\)[ \t]*$"
+  "Regexp for an ID property line, group 1 the value.
+Match it case-insensitively; compare values case-sensitively.")
+
+;;;; File selection
+
+(defun org-iw-discovery--descend-p (directory)
+  "Return non-nil if a source search should descend into DIRECTORY.
+Hidden and inaccessible directories are skipped."
+  (and (not (string-prefix-p "." (file-name-nondirectory directory)))
+       (file-accessible-directory-p directory)))
+
+(defun org-iw-discovery--candidates (source)
+  "Return the candidate file names for SOURCE, a file or directory."
+  (if (file-directory-p source)
+      (directory-files-recursively source "\\.org\\'" nil
+                                   #'org-iw-discovery--descend-p)
+    (list source)))
+
+(defun org-iw-discovery--selected-truename (file exclude-regexp)
+  "Return the truename of FILE if it is a usable source, else nil.
+A usable source is a regular file, not named as an Emacs lock file,
+whose truename EXCLUDE-REGEXP (if non-nil) does not match.  The lock
+file test uses FILE's own name, since a lock file is a dangling
+symlink whose target loses the .# prefix."
+  (unless (string-prefix-p ".#" (file-name-nondirectory file))
+    (let ((truename (file-truename file))
+          (case-fold-search nil))
+      (and (file-regular-p truename)
+           (not (and exclude-regexp
+                     (string-match-p exclude-regexp truename)))
+           truename))))
+
+(defun org-iw-discovery-files (sources exclude-regexp)
+  "Return the sorted, unique truenames of the files in SOURCES.
+SOURCES is a list of files and directories; see `org-iw-sources' for
+the selection rules.  Files whose truename matches EXCLUDE-REGEXP,
+case-sensitively, are left out; nil excludes nothing.  Sources that
+do not exist are ignored."
+  (sort (delete-dups
+         (seq-keep (lambda (file)
+                     (org-iw-discovery--selected-truename file exclude-regexp))
+                   (mapcan #'org-iw-discovery--candidates sources)))
+        #'string<))
+
+;;;; Reading entries
+
+(defun org-iw-discovery--tally (values)
+  "Return a hash table counting each of VALUES, compared with `equal'."
+  (let ((tally (make-hash-table :test #'equal)))
+    (dolist (value values tally)
+      (cl-incf (gethash value tally 0)))))
+
+(defun org-iw-discovery--id-values ()
+  "Return the values of the ID property lines in the current buffer.
+An ID property line matches `org-iw-discovery--id-line-regexp', key in
+any case, where `org-at-property-p' holds.  Values keep their case and
+come in buffer order.  Only the accessible portion is searched, so
+widen first to see the whole buffer."
+  (save-excursion
+    (goto-char (point-min))
+    (let ((values nil))
+      (while (let ((case-fold-search t))
+               (re-search-forward org-iw-discovery--id-line-regexp nil t))
+        (let ((value (match-string-no-properties 1)))
+          (save-excursion
+            (goto-char (match-beginning 0))
+            (when (org-at-property-p)
+              (push value values)))))
+      (nreverse values))))
+
+(defun org-iw-discovery--iw-lines ()
+  "Return the entry's IW_ property lines as an alist (NAME . VALUE).
+Point must be within the entry: at or below its heading and above
+the next, or before the first heading for the document entry.  Only
+the entry's own property drawer is read; nothing is inherited.  Names
+keep their original case and repeated names are all kept, in drawer
+order.  VALUE is the raw string, trimmed.
+
+This is the only reader of IW values, so every caller agrees on them."
+  (when-let* ((drawer (org-get-property-block)))
+    (save-excursion
+      (goto-char (car drawer))
+      (let ((lines nil))
+        (while (let ((case-fold-search t))
+                 (re-search-forward org-iw-discovery--iw-line-regexp
+                                    (cdr drawer) t))
+          (push (cons (match-string-no-properties 1)
+                      (match-string-no-properties 2))
+                lines))
+        (nreverse lines)))))
+
+(defun org-iw-discovery--line-class (name)
+  "Classify the IW property NAME like `org-iw-core-classify-property'.
+In addition, an accumulating IW_<Q>+ name, where IW_<Q> is a
+membership, is (accumulate . Q)."
+  (let ((class (org-iw-core-classify-property name)))
+    (if-let* (((eq class 'invalid))
+              ((string-suffix-p "+" name))
+              (base (org-iw-core-classify-property (substring name 0 -1)))
+              ((eq (car-safe base) 'member)))
+        (cons 'accumulate (cdr base))
+      class)))
+
+(defun org-iw-discovery--classify-lines (lines)
+  "Classify raw IW LINES, as from `org-iw-discovery--iw-lines'.
+Return (MEMBERSHIPS . PROBLEM-TYPES): MEMBERSHIPS is an alist
+\(QUEUE . RANK) and PROBLEM-TYPES a list of problem type symbols.  A
+queue named more than once, case-insensitively and counting IW_<Q>+
+lines, is a `duplicate-property'; an IW_<Q>+ line alone and any
+other invalid name are an `invalid-property'; a bad rank is an
+`invalid-rank'.  Reserved names are ignored."
+  (let ((groups nil)
+        (invalid nil))
+    (pcase-dolist (`(,name . ,value) lines)
+      (pcase (org-iw-discovery--line-class name)
+        ('invalid (push 'invalid-property invalid))
+        (`(,kind . ,queue)
+         (let ((group (assoc queue groups)))
+           (unless group
+             (setq group (list queue))
+             (push group groups))
+           (push (cons kind value) (cdr group))))))
+    (let ((memberships nil)
+          (problems nil))
+      (pcase-dolist (`(,queue . ,occurrences) (nreverse groups))
+        (pcase occurrences
+          (`((member . ,value))
+           (if-let* ((rank (org-iw-core-parse-rank value)))
+               (push (cons queue rank) memberships)
+             (push 'invalid-rank problems)))
+          (`((accumulate . ,_)) (push 'invalid-property problems))
+          (_ (push 'duplicate-property problems))))
+      (cons (nreverse memberships)
+            (append (nreverse invalid) (nreverse problems))))))
+
+(defun org-iw-discovery--title (file)
+  "Return the title of the entry at point in FILE.
+A heading's title is its text; the document's is its #+title, else
+the base name of FILE."
+  (if (org-at-heading-p)
+      (org-get-heading t t t t)
+    (or (cadr (assoc "TITLE" (org-collect-keywords '("TITLE"))))
+        (file-name-base file))))
+
+(defun org-iw-discovery--read-entry (file tally)
+  "Read the entry starting at point in FILE.
+TALLY counts the buffer's ID property line values.  Return (ENTRY
+. PROBLEMS), where ENTRY is nil unless a membership survives."
+  (let ((id (org-string-nw-p (org-entry-get nil "ID"))))
+    (cl-flet ((problem (type)
+                (org-iw-problem-create :type type :file file :id id)))
+      (cond
+       ((not id) (list nil (problem 'missing-id)))
+       ((> (gethash id tally 0) 1) (list nil (problem 'duplicate-id)))
+       (t
+        (pcase-let ((`(,memberships . ,types)
+                     (org-iw-discovery--classify-lines
+                      (org-iw-discovery--iw-lines))))
+          (cons (and memberships
+                     (org-iw-entry-create
+                      :id id :title (org-iw-discovery--title file)
+                      :file file :memberships memberships))
+                (mapcar #'problem types))))))))
+
+(defun org-iw-discovery--in-block-p ()
+  "Return non-nil if point is inside a block of quoted text."
+  (org-element-lineage (org-element-at-point)
+                       org-iw-discovery--block-types t))
+
+(defun org-iw-discovery--scan-buffer (file)
+  "Scan the current buffer, in Org mode, holding the text of FILE.
+Return (ENTRIES . PROBLEMS), each in buffer order."
+  (let ((tally (org-iw-discovery--tally (org-iw-discovery--id-values)))
+        (seen nil)
+        (entries nil)
+        (problems nil))
+    (goto-char (point-min))
+    (while (let ((case-fold-search t))
+             (re-search-forward org-iw-discovery--iw-line-regexp nil t))
+      (save-excursion
+        (goto-char (match-beginning 0))
+        (cond
+         ((org-iw-discovery--in-block-p))
+         ((not (org-at-property-p))
+          (push (org-iw-problem-create :type 'misplaced-property :file file)
+                problems))
+         (t
+          (org-back-to-heading-or-point-min)
+          (unless (memql (point) seen)
+            (push (point) seen)
+            (pcase-let ((`(,entry . ,found)
+                         (org-iw-discovery--read-entry file tally)))
+              (when entry
+                (push entry entries))
+              (setq problems (append (reverse found) problems))))))))
+    (cons (nreverse entries) (nreverse problems))))
+
+(defun org-iw-discovery--insert-text (file)
+  "Insert the current text of FILE at point; return nil if unreadable.
+A buffer visiting FILE supplies its whole text, unsaved edits
+included, and is left untouched.  Otherwise the file is read from
+disk without visiting it."
+  (condition-case nil
+      (progn
+        (if-let* ((live (find-buffer-visiting file)))
+            (insert (with-current-buffer live
+                      (save-restriction
+                        (widen)
+                        (buffer-substring-no-properties (point-min)
+                                                        (point-max)))))
+          (insert-file-contents file))
+        t)
+    (file-error nil)))
+
+(defun org-iw-discovery--has-iw-line-p ()
+  "Return non-nil if the current buffer contains an IW_ property line."
+  (save-excursion
+    (goto-char (point-min))
+    (let ((case-fold-search t))
+      (re-search-forward org-iw-discovery--iw-line-regexp nil t))))
+
+(defun org-iw-discovery--scan-file (file)
+  "Scan FILE; return (ENTRIES . PROBLEMS), each in buffer order.
+Org mode is enabled only for text containing an IW_ line."
+  (with-temp-buffer
+    (cond
+     ((not (org-iw-discovery--insert-text file))
+      (list nil (org-iw-problem-create :type 'unreadable :file file)))
+     ((org-iw-discovery--has-iw-line-p)
+      (delay-mode-hooks (org-mode))
+      (org-iw-discovery--scan-buffer file))
+     (t (list nil)))))
+
+(defun org-iw-discovery--drop-shared-ids (entries)
+  "Split ENTRIES on IDs carried by more than one of them.
+Return (KEPT . PROBLEMS): the entries whose ID is unique, and one
+`duplicate-id' problem per shared ID, naming the first file."
+  (let* ((tally (org-iw-discovery--tally (mapcar #'org-iw-entry-id entries)))
+         (shared-p (lambda (entry)
+                     (> (gethash (org-iw-entry-id entry) tally) 1))))
+    (cons (seq-remove shared-p entries)
+          (mapcar (lambda (entry)
+                    (org-iw-problem-create :type 'duplicate-id
+                                           :file (org-iw-entry-file entry)
+                                           :id (org-iw-entry-id entry)))
+                  (seq-uniq (seq-filter shared-p entries)
+                            (lambda (a b)
+                              (string= (org-iw-entry-id a)
+                                       (org-iw-entry-id b))))))))
+
+(defun org-iw-discovery-scan (files)
+  "Scan FILES for queue entries; return an `org-iw-scan'.
+FILES are truenames, as from `org-iw-discovery-files'.  Entries and
+problems come in the order of FILES, then buffer order; problems for
+IDs shared between entries come last.  No file is visited and no
+buffer is changed."
+  (let* ((results (mapcar #'org-iw-discovery--scan-file files))
+         (split (org-iw-discovery--drop-shared-ids
+                 (apply #'append (mapcar #'car results)))))
+    (org-iw-scan-create
+     :entries (car split)
+     :problems (append (apply #'append (mapcar #'cdr results))
+                       (cdr split)))))
+
+(provide 'org-iw-discovery)
+;;; org-iw-discovery.el ends here
