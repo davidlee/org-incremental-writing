@@ -73,7 +73,7 @@ relint on Emacs 31; test-all on 31.1 and 30.2; `check` / `gate` recipes for
 `just lint`; a shared-process compile masks the sibling-require fault, the
 per-file compile catches it. Gotcha: package-lint in batch needs
 `(require 'compile)` first or prints an autoload error (harmless).
-Licence: GPL-3.0-or-later (user, LICENSE.md; headers 31e311c). URL header is still a guess.
+Licence: GPL-3.0-or-later (user, LICENSE.md; headers 31e311c). URL header confirmed against origin (davidlee/org-incremental-writing).
 
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
 fresh-as-of: 2026-10-01 · started · PHASE-01 done (405af23)
@@ -89,7 +89,6 @@ fresh-as-of: 2026-10-01 · started · PHASE-01 done (405af23)
 - No Linux Emacs 30 in nixos-unstable / emacs-overlay; nixos-26.05 has 30.2 (research T2-11)
 
 ### Open
-- User: confirm URL header
 - /reconcile: Makefile→justfile, `clean` recipe (plan.md § Deltas)
 - Post-implementation /code-review (user intent)
 - `just test-all` on 30.2 needs the rebuilt shell (PHASE-08)
