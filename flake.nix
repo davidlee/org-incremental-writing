@@ -3,7 +3,7 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    # nixpkgs-stable.url = "github:NixOS/nixpkgs/nixos-26.05";
+    nixpkgs-stable.url = "github:NixOS/nixpkgs/nixos-26.05";
     flake-parts.url = "github:hercules-ci/flake-parts";
     devshell.url = "github:numtide/devshell";
     agents.url = "github:davidlee/nix-config?dir=flakes/agents";
@@ -33,6 +33,10 @@
       }: let
         inherit (pkgs) lib stdenv;
         inherit (stdenv) isLinux;
+        emacs30 = inputs.nixpkgs-stable.legacyPackages.${system}.emacs30-nox;
+        emacs-30 = pkgs.writeShellScriptBin "emacs-30" ''
+          exec ${emacs30}/bin/emacs "$@"
+        '';
 
         # jail.nix is Linux-only (bubblewrap). Darwin gets a plain devshell.
         jailLib =
@@ -56,6 +60,13 @@
         projectPkgs = with pkgs; [
           # Toolchain + dev deps available inside every jail.
           # e.g. go, gopls, rust-bin.stable.latest.default, uv, python3, nodejs_latest
+          just
+          shellcheck
+          ripgrep
+          bfs
+          fd
+          # emacs # 30, hopefully
+          emacs-30
           (agents.codex or codex) # mcp server slave — llm-agents build on linux
           doctrine-pkg
           wrappedEmacs
