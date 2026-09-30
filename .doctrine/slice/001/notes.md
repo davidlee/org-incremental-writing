@@ -54,13 +54,25 @@ each one's criterion sketch and host-phase constraint (on the RV) onto a
 phase criterion; the raiser verifies after `slice phases`.
 DEC-001..006 accepted. Slice → plan.
 
+## Plan (2026-09-30)
+
+8 phases (`plan.toml`; rationale and design deltas in `plan.md`). Planning
+found the jail has no `make`; user chose a justfile and added `just` to
+the flake — the Makefile→justfile swap is a recorded delta to reconcile into
+design § 9/§ 10 and slice scope. PHASE-01/VH-1 is a hard gate: the user
+rebuilds the dev shell (just + emacs-30) before the gate can run in-jail.
+RV-001 instrument findings transcribed and verified (transcription only);
+RV-001 now fully verified. verify-vt: all 23 mandates checkable (FAIL =
+files not yet written). Slice → ready.
+
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: 2026-09-30 · design/locked (run rev 38) → plan · 2ee8aa5 (design artefacts uncommitted)
+fresh-as-of: 2026-09-30 · ready · plan committed 2826cb1
 
 ### Produced
 - design.md (materialised, run dr-01a0f222…); DEC-001..DEC-006 (accepted)
-- RV-001 (24 findings; 7 instrument-routed answered, rest verified; re-concluded)
+- RV-001 (24 findings, all verified; instrument ones as transcriptions)
+- plan.toml / plan.md (8 phases); phase sheets materialised
 - research/research.md (+ raw/), T2-1..T2-12; DEC-003 evidence corrected (F-19)
 
 ### Learned
@@ -68,6 +80,7 @@ fresh-as-of: 2026-09-30 · design/locked (run rev 38) → plan · 2ee8aa5 (desig
 - No Linux Emacs 30 in nixos-unstable / emacs-overlay; nixos-26.05 has 30.2 (research T2-11)
 
 ### Open
-- /plan: transcribe RV-001 F-1..F-6, F-10 instrument criteria onto phases; raiser verifies after `slice phases`
+- User: rebuild shell with just + emacs-30 (PHASE-01/VH-1); optional relint / undercover pending user choice
+- /reconcile: Makefile→justfile, `clean` recipe (plan.md § Deltas)
 - Post-implementation /code-review (user intent)
-- flake.nix Emacs 30 change + `make test-all` need the user (no nix in jail)
+- `just test-all` on 30.2 needs the rebuilt shell (PHASE-08)
