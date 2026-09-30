@@ -77,6 +77,10 @@ The raiser verifies each after `slice phases` (transcription, not repair).
   phase that introduces it.
 - **Flake input name** is `nixpkgs-stable` (user), not DEC-006's
   `nixpkgs-emacs30`; same pin (nixos-26.05).
+- **relint in `just lint`, undercover as `just coverage`** (user installed
+  both, 2026-10-01). relint is stricter than POL-001 requires; it guards the
+  design's load-bearing regexps (raw IW-line reader, ID line, queue ID).
+  Coverage reports only, never gates. Both run on Emacs 31 only.
 - **`clean` recipe** is kept from the slice scope although design § 9 omits
   it (no `.elc` should ever land in the tree); it removes stray `*.elc`.
 
