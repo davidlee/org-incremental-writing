@@ -253,7 +253,9 @@ granularity cannot hide the change."
 
 (ert-deftest org-iw-write-test-refuses-changed-on-disk-indirect ()
   "The check is on the base buffer, reached through an indirect buffer.
-An indirect buffer has no file, so a check on it would pass."
+An indirect buffer has no file, so a check on it would pass.
+The indirect buffer is made by `make-indirect-buffer' (via
+`org-iw-test-call-with-indirect')."
   (org-iw-test-with-corpus `(("a.org" . ,org-iw-write-test--target))
     (let ((marker (org-iw-test-marker "a.org" "Target")))
       (org-iw-write-test--rewrite-behind "a.org")
@@ -277,7 +279,9 @@ An indirect buffer has no file, so a check on it would pass."
 
 (ert-deftest org-iw-write-test-writes-through-indirect-buffer ()
   "From a narrowed indirect buffer the edit lands in the base and saves.
-The indirect buffer's narrowing, excluding the target, is kept."
+The indirect buffer's narrowing, excluding the target, is kept.
+The indirect buffer is made by `make-indirect-buffer' (via
+`org-iw-test-call-with-indirect')."
   (org-iw-test-with-corpus `(("a.org" . ,org-iw-write-test--target))
     (let ((marker (org-iw-test-marker "a.org" "Target")))
       (org-iw-test-call-with-indirect

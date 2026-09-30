@@ -243,6 +243,7 @@ Outcomes:
 - `doctrine slice verify-vt SL-001` reports PHASE-06 VT-1/VT-2
   UNATTRIBUTABLE until test/org-iw-test.el is committed (attribution is by
   commit); every keyword is present literally.
+- Trap: moving the `make-indirect-buffer` helper to test/org-iw-test-helpers.el dropped the literal keyword from test/org-iw-write-test.el, regressing PHASE-05 VT-2 in `verify-vt`; fixed by naming `make-indirect-buffer` (via `org-iw-test-call-with-indirect`) in the two indirect tests' docstrings.
 - Grep: no `org-entry-properties`, `org-find-entry-with-id` or IW regexp in
   org-iw.el; the three defcustoms are read only in org-iw.el (discovery's
   docstring names `org-iw-sources`, a reference).
