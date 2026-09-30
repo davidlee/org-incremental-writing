@@ -249,7 +249,7 @@ Outcomes:
   docstring names `org-iw-sources`, a reference).
 - No Org 9.7/9.8 differences observed.
 
-## PHASE-07 (2026-10-01) — completed, uncommitted
+## PHASE-07 (2026-10-01) — completed, e315e8c
 
 org-iw.el: session struct `org-iw--session` (constructor
 `org-iw--session-create`), `defvar org-iw--session`, `defconst
@@ -363,6 +363,10 @@ For PHASE-08 (human trial):
 - VA-1 green: `just lint` 0 diagnostics/warnings; `just test-all` 135/135
   on Emacs 31.1 and 30.2. VH-1 (human trial) pending; phase stays
   `in_progress`.
+- README.md added at the user's request (2026-10-01), so the VH-1 trial
+  runs against their real corpus from documented usage: install,
+  configure, commands, write/save semantics, refusals, dev recipes.
+  Sandbox trial kit: /home/scratch/sl-001-trial/ (TRIAL.md).
 
 ## Design deltas for /reconcile
 
@@ -422,6 +426,8 @@ For PHASE-08 (human trial):
 - § 5.4 Visit step 2: "outside the narrowing" includes a marker at
   `point-max` (the heading line is then hidden); visit widens unless
   point-min <= marker < point-max.
+- Scope: README.md is not in the plan; added in PHASE-08 at the user's
+  request (2026-10-01).
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
