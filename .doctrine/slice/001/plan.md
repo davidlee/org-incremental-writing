@@ -72,6 +72,12 @@ The raiser verifies each after `slice phases` (transcription, not repair).
   the flake's `projectPkgs`; the agent adds the Emacs 30 input and wrapper
   (DEC-006). Not reopened at design: a runner swap changes no design
   content.
+- **Every phase gates on `just test-all`**, not only PHASE-08: the rebuilt
+  shell has `emacs-30` in-jail (30.2 ships Org 9.7.11 vs 9.8.10 on 31.1; the
+  research probes ran on 9.8.10 only), so Org-version drift surfaces in the
+  phase that introduces it.
+- **Flake input name** is `nixpkgs-stable` (user), not DEC-006's
+  `nixpkgs-emacs30`; same pin (nixos-26.05).
 - **`clean` recipe** is kept from the slice scope although design § 9 omits
   it (no `.elc` should ever land in the tree); it removes stray `*.elc`.
 
