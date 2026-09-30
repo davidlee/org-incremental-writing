@@ -1,0 +1,18 @@
+schema = "doctrine.observation"
+schema_version = 1
+uid = "01a0f355-fc4c-7650-915d-d09ea5fb92fb"
+recorded_at = "2026-09-30T17:21:33.772057293Z"
+kind = "friction"
+summary = "batch Emacs hides message/mode-line state from tests"
+detail = "SL-001 PHASE-07 worker: current-message is always nil and format-mode-line returns empty under --batch on 30.2/31.1, so echo and mode-line rendering are human-trial only (PHASE-08). Also: advising inlined cl-defstruct accessors for mutation checks silently does nothing."
+
+[facets.execution]
+schema_version = 1
+interface = "cli"
+interface_origin = "automatic"
+product_surface = "doctrine"
+product_surface_origin = "automatic"
+command = "observation record"
+command_origin = "automatic"
+repository_context = "primary"
+repository_context_origin = "automatic"
