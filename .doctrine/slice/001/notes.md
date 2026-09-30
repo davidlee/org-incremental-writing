@@ -65,9 +65,18 @@ RV-001 instrument findings transcribed and verified (transcription only);
 RV-001 now fully verified. verify-vt: all 23 mandates checkable (FAIL =
 files not yet written). Slice → ready.
 
-## Harvest
+## PHASE-01 (2026-10-01) — completed, 405af23
+
+Gate landed as a justfile (lint = compile + checkdoc + package-lint +
+relint on Emacs 31; test-all on 31.1 and 30.2; `check` / `gate` recipes for
+`doctrine check`). RV-001 F-10 controls observed: all four candidates fail
+`just lint`; a shared-process compile masks the sibling-require fault, the
+per-file compile catches it. Gotcha: package-lint in batch needs
+`(require 'compile)` first or prints an autoload error (harmless).
+Open for the user: licence line (none yet); URL header is a guess.
+
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: 2026-09-30 · ready · plan committed 2826cb1
+fresh-as-of: 2026-10-01 · started · PHASE-01 done (405af23)
 
 ### Produced
 - design.md (materialised, run dr-01a0f222…); DEC-001..DEC-006 (accepted)
@@ -80,7 +89,7 @@ fresh-as-of: 2026-09-30 · ready · plan committed 2826cb1
 - No Linux Emacs 30 in nixos-unstable / emacs-overlay; nixos-26.05 has 30.2 (research T2-11)
 
 ### Open
-- User: rebuild shell with just + emacs-30 (PHASE-01/VH-1); optional relint / undercover pending user choice
+- User: licence for org-iw.el header; confirm URL
 - /reconcile: Makefile→justfile, `clean` recipe (plan.md § Deltas)
 - Post-implementation /code-review (user intent)
 - `just test-all` on 30.2 needs the rebuilt shell (PHASE-08)
