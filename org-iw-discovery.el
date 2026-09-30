@@ -165,6 +165,17 @@ membership, is (accumulate . Q)."
         (cons 'accumulate (cdr base))
       class)))
 
+(defun org-iw-discovery--queue-lines (queue)
+  "Return the entry at point's IW lines for QUEUE as (KIND . VALUE).
+QUEUE is a canonical queue ID.  Lines are read by
+`org-iw-discovery--iw-lines' and classified by
+`org-iw-discovery--line-class', so KIND is `member' or `accumulate'.
+Lines come in drawer order."
+  (cl-loop for (name . value) in (org-iw-discovery--iw-lines)
+           for class = (org-iw-discovery--line-class name)
+           when (and (consp class) (equal (cdr class) queue))
+           collect (cons (car class) value)))
+
 (defun org-iw-discovery--classify-lines (lines)
   "Classify raw IW LINES, as from `org-iw-discovery--iw-lines'.
 Return (MEMBERSHIPS . PROBLEM-TYPES): MEMBERSHIPS is an alist
@@ -206,11 +217,16 @@ the base name of FILE."
     (or (cadr (assoc "TITLE" (org-collect-keywords '("TITLE"))))
         (file-name-base file))))
 
+(defun org-iw-discovery--entry-id ()
+  "Return the ID of the entry at point, or nil if it has none.
+The scan and the commands both read it here, so they agree on it."
+  (org-string-nw-p (org-entry-get nil "ID")))
+
 (defun org-iw-discovery--read-entry (file tally)
   "Read the entry starting at point in FILE.
 TALLY counts the buffer's ID property line values.  Return (ENTRY
 . PROBLEMS), where ENTRY is nil unless a membership survives."
-  (let ((id (org-string-nw-p (org-entry-get nil "ID"))))
+  (let ((id (org-iw-discovery--entry-id)))
     (cl-flet ((problem (type)
                 (org-iw-problem-create :type type :file file :id id)))
       (cond
@@ -356,6 +372,13 @@ narrowing.  The key matches in any case; the value, case-sensitively."
   "Signal an `org-iw-refusal' that WHAT is wrong with ID in FILE."
   (signal 'org-iw-refusal (list (format "ID %s in %s: %s" id file what))))
 
+(defun org-iw-discovery--excluded-id-p (scan id)
+  "Return non-nil if SCAN excluded ID as a duplicate, in any file."
+  (seq-some (lambda (problem)
+              (and (eq (org-iw-problem-type problem) 'duplicate-id)
+                   (equal (org-iw-problem-id problem) id)))
+            (org-iw-scan-problems scan)))
+
 (defun org-iw-discovery-resolve (scan id file)
   "Return a marker at the entry with ID in FILE, or refuse.
 This is the only resolver of IDs.  The marker is in FILE's buffer, at
@@ -363,10 +386,7 @@ the heading, or at `point-min' for a document-level ID.  SCAN is the
 scan that found the entry; refuse with `org-iw-refusal' if it excluded
 ID as a duplicate (in any file), or if ID is not on exactly one ID
 property line in FILE, which catches copies the scan cannot know of."
-  (when (seq-some (lambda (problem)
-                    (and (eq (org-iw-problem-type problem) 'duplicate-id)
-                         (equal (org-iw-problem-id problem) id)))
-                  (org-iw-scan-problems scan))
+  (when (org-iw-discovery--excluded-id-p scan id)
     (org-iw-discovery--refuse "duplicate ID, excluded from the queue" id file))
   (with-current-buffer (org-iw-discovery-buffer file)
     (pcase (org-iw-discovery--id-positions id)

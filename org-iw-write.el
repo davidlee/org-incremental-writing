@@ -51,19 +51,9 @@ The message is FORMAT-STRING with ARGS, after the file name."
                         (buffer-file-name (org-iw-write--base marker))
                         (apply #'format format-string args)))))
 
-(defun org-iw-write--queue-lines (queue)
-  "Return the entry at point's IW lines for QUEUE as (KIND . VALUE).
-Lines are read by `org-iw-discovery--iw-lines' and classified by
-`org-iw-discovery--line-class', so KIND is `member' or `accumulate'.
-Lines come in drawer order."
-  (cl-loop for (name . value) in (org-iw-discovery--iw-lines)
-           for class = (org-iw-discovery--line-class name)
-           when (and (consp class) (equal (cdr class) queue))
-           collect (cons (car class) value)))
-
 (defun org-iw-write--expected-p (lines expected)
   "Return non-nil if the queue LINES hold the rank EXPECTED.
-LINES are as from `org-iw-write--queue-lines'.  EXPECTED :absent
+LINES are as from `org-iw-discovery--queue-lines'.  EXPECTED :absent
 holds for no line at all, and an integer for a single membership
 line whose value parses to it."
   (pcase lines
@@ -87,7 +77,7 @@ QUEUE, a canonical queue ID.  Nothing is changed."
              (with-current-buffer (marker-buffer marker)
                (org-with-wide-buffer
                 (goto-char marker)
-                (org-iw-write--queue-lines queue)))
+                (org-iw-discovery--queue-lines queue)))
              expected)
       (org-iw-write--refuse marker "IW_%s changed since scan" queue))))
 

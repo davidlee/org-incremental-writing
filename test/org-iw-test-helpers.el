@@ -34,8 +34,10 @@
 (require 'ert)
 (require 'seq)
 (require 'subr-x)
+(require 'org)
 (require 'org-id)
 (require 'org-iw)
+(require 'org-iw-discovery)
 
 (defvar org-iw-test-dir nil
   "Truename of the current corpus directory, as a directory name.")
@@ -197,6 +199,97 @@ ID nil omits the ID line; PROPERTIES are whole drawer lines."
          (append (and id (list (concat ":ID: " id)))
                  properties
                  '(":END:"))))
+
+;;;; Buffers, markers and snapshots
+
+(defun org-iw-test-marker (name title)
+  "Return a marker at the heading TITLE in corpus file NAME.
+The file is visited first; the marker is in its buffer."
+  (with-current-buffer (org-iw-test-visit name)
+    (org-with-wide-buffer
+     (goto-char (point-min))
+     (let ((case-fold-search nil))
+       (re-search-forward (concat "^\\* " (regexp-quote title) "$")))
+     (copy-marker (line-beginning-position)))))
+
+(defun org-iw-test-base (marker)
+  "Return the base buffer of MARKER's buffer."
+  (let ((buffer (marker-buffer marker)))
+    (or (buffer-base-buffer buffer) buffer)))
+
+(defun org-iw-test-text (marker)
+  "Return the whole text of MARKER's buffer, ignoring narrowing."
+  (with-current-buffer (marker-buffer marker)
+    (org-with-wide-buffer
+     (buffer-substring-no-properties (point-min) (point-max)))))
+
+(defun org-iw-test-snapshot (marker)
+  "Return (TEXT MODIFIED DISK) for the base buffer of MARKER's buffer.
+The buffer is not visited again, so a file changed on disk cannot
+prompt."
+  (let ((base (org-iw-test-base marker)))
+    (list (org-iw-test-text marker)
+          (buffer-modified-p base)
+          (org-iw-test-file-string (buffer-file-name base)))))
+
+(defun org-iw-test-state ()
+  "Return the state of the corpus files and the buffers visiting them.
+The result lists (FILE . CONTENTS) for every regular corpus file, then
+\(BUFFER-NAME TEXT MODIFIED) for every live buffer visiting one, so
+two states are `equal' only if nothing was written, edited or
+visited.  No buffer is visited to take it."
+  (append
+   (mapcar (lambda (file) (cons file (org-iw-test-file-string file)))
+           (seq-filter #'file-regular-p
+                       (directory-files-recursively org-iw-test-dir "")))
+   (sort (mapcar (lambda (buffer)
+                   (with-current-buffer buffer
+                     (list (buffer-name)
+                           (org-with-wide-buffer
+                            (buffer-substring-no-properties (point-min)
+                                                            (point-max)))
+                           (buffer-modified-p))))
+                 (seq-filter #'org-iw-test--corpus-buffer-p (buffer-list)))
+         (lambda (a b) (string< (car a) (car b))))))
+
+(defun org-iw-test-edit-elsewhere (marker)
+  "Leave unsaved text at the end of MARKER's buffer, as a user would."
+  (with-current-buffer (marker-buffer marker)
+    (save-excursion
+      (goto-char (point-max))
+      (insert "User edit.\n"))))
+
+(defun org-iw-test-call-with-indirect (marker fn)
+  "Call FN with MARKER's position in a cloned indirect buffer.
+The indirect buffer is made with `make-indirect-buffer' and CLONE t,
+as `clone-indirect-buffer' does, and killed afterwards."
+  (let ((indirect (make-indirect-buffer
+                   (marker-buffer marker)
+                   (generate-new-buffer-name "org-iw-test-indirect")
+                   t)))
+    (unwind-protect
+        (with-current-buffer indirect
+          (should-not buffer-file-name)
+          (funcall fn (copy-marker (marker-position marker))))
+      (kill-buffer indirect))))
+
+(defun org-iw-test-should-add-drawer (text marker anchor)
+  "Assert the saved file of MARKER is TEXT plus one new drawer.
+The drawer must directly follow the line ANCHOR and hold exactly one
+new ID, unique in the file, and IW_ESSAYS at 1024."
+  (let ((disk (org-iw-test-file-string
+               (buffer-file-name (org-iw-test-base marker)))))
+    (should (string-search (concat anchor "\n:PROPERTIES:\n") disk))
+    (pcase-let ((`(,removed . ,added) (org-iw-test-changed-lines text disk)))
+      (should-not removed)
+      (should (equal (length added) 4))
+      (should (equal (nth 0 added) ":PROPERTIES:"))
+      (should (string-match "\\`:ID: +\\([^ ]+\\)\\'" (nth 1 added)))
+      (let ((id (match-string 1 (nth 1 added))))
+        (with-current-buffer (marker-buffer marker)
+          (should (equal (org-iw-discovery-id-count id) 1))))
+      (should (equal (nth 2 added) ":IW_ESSAYS: 1024"))
+      (should (equal (nth 3 added) ":END:")))))
 
 (defmacro org-iw-test-unless-root (&rest body)
   "Run BODY, skipping the test when file modes cannot deny access."

@@ -31,54 +31,23 @@
 (require 'ert)
 (require 'org)
 (require 'org-iw-test-helpers)
-(require 'org-iw-discovery)
 (require 'org-iw-write)
 
 ;;;; Helpers
-
-(defun org-iw-write-test--marker (name title)
-  "Return a marker at the heading TITLE in corpus file NAME.
-The file is visited first; the marker is in its buffer."
-  (with-current-buffer (org-iw-test-visit name)
-    (org-with-wide-buffer
-     (goto-char (point-min))
-     (let ((case-fold-search nil))
-       (re-search-forward (concat "^\\* " (regexp-quote title) "$")))
-     (copy-marker (line-beginning-position)))))
-
-(defun org-iw-write-test--base (marker)
-  "Return the base buffer of MARKER's buffer."
-  (let ((buffer (marker-buffer marker)))
-    (or (buffer-base-buffer buffer) buffer)))
-
-(defun org-iw-write-test--text (marker)
-  "Return the whole text of MARKER's buffer, ignoring narrowing."
-  (with-current-buffer (marker-buffer marker)
-    (org-with-wide-buffer
-     (buffer-substring-no-properties (point-min) (point-max)))))
-
-(defun org-iw-write-test--snapshot (marker)
-  "Return (TEXT MODIFIED DISK) for the base buffer of MARKER's buffer.
-The buffer is not visited again, so a file changed on disk cannot
-prompt."
-  (let ((base (org-iw-write-test--base marker)))
-    (list (org-iw-write-test--text marker)
-          (buffer-modified-p base)
-          (org-iw-test-file-string (buffer-file-name base)))))
 
 (defun org-iw-write-test--should-refuse (marker queue &rest keys)
   "Assert that put-rank at MARKER in QUEUE refuses, changing nothing.
 KEYS are the keyword arguments.  The refusal must be an
 `org-iw-refusal' naming the file; the buffer text, `buffer-modified-p'
 and disk contents must be unchanged.  Return the refusal message."
-  (let* ((before (org-iw-write-test--snapshot marker))
+  (let* ((before (org-iw-test-snapshot marker))
          (err (should-error (apply #'org-iw-write-put-rank
                                    marker queue 4096 keys)
                             :type 'org-iw-refusal))
          (reason (cadr err)))
-    (should (equal (org-iw-write-test--snapshot marker) before))
+    (should (equal (org-iw-test-snapshot marker) before))
     (should (string-search
-             (buffer-file-name (org-iw-write-test--base marker)) reason))
+             (buffer-file-name (org-iw-test-base marker)) reason))
     reason))
 
 (defconst org-iw-write-test--target
@@ -105,19 +74,12 @@ and disk contents must be unchanged.  Return the refusal message."
 KEYS are extra keyword arguments.  Return the put-rank result."
   (apply #'org-iw-write-put-rank marker "ESSAYS" 3072 :expected 2048 keys))
 
-(defun org-iw-write-test--edit-elsewhere (marker)
-  "Leave unsaved text at the end of MARKER's buffer, as a user would."
-  (with-current-buffer (marker-buffer marker)
-    (save-excursion
-      (goto-char (point-max))
-      (insert "User edit.\n"))))
-
 ;;;; Success
 
 (ert-deftest org-iw-write-test-saves-clean-buffer ()
   "A clean buffer is saved; only the IW_ESSAYS line changes (I4)."
   (org-iw-test-with-corpus `(("a.org" . ,org-iw-write-test--target))
-    (let ((marker (org-iw-write-test--marker "a.org" "Target")))
+    (let ((marker (org-iw-test-marker "a.org" "Target")))
       (should (eq (org-iw-write-put-rank marker "essays" 3072
                                          :expected 2048)
                   'saved))
@@ -126,7 +88,7 @@ KEYS are extra keyword arguments.  Return the put-rank result."
                       org-iw-write-test--target
                       (org-iw-test-file-string "a.org"))
                      org-iw-write-test--rank-change))
-      (should (equal (org-iw-write-test--text marker)
+      (should (equal (org-iw-test-text marker)
                      (org-iw-test-file-string "a.org"))))))
 
 (ert-deftest org-iw-write-test-lowercase-key ()
@@ -136,7 +98,7 @@ KEYS are extra keyword arguments.  Return the put-rank result."
                                    ":IW_OTHER: 5")))
     (org-iw-test-with-corpus `(("a.org" . ,text))
       (should (eq (org-iw-write-put-rank
-                   (org-iw-write-test--marker "a.org" "Target")
+                   (org-iw-test-marker "a.org" "Target")
                    "ESSAYS" 3072 :expected 2048)
                   'saved))
       (should (equal (org-iw-test-changed-lines
@@ -146,35 +108,17 @@ KEYS are extra keyword arguments.  Return the put-rank result."
 (ert-deftest org-iw-write-test-leaves-dirty-buffer-unsaved ()
   "A buffer with unsaved edits is changed but not saved (I5)."
   (org-iw-test-with-corpus `(("a.org" . ,org-iw-write-test--target))
-    (let ((marker (org-iw-write-test--marker "a.org" "Target")))
-      (org-iw-write-test--edit-elsewhere marker)
+    (let ((marker (org-iw-test-marker "a.org" "Target")))
+      (org-iw-test-edit-elsewhere marker)
       (should (eq (org-iw-write-test--put-target marker)
                   'unsaved))
       (should (buffer-modified-p (marker-buffer marker)))
       (should (equal (org-iw-test-changed-lines
                       (concat org-iw-write-test--target "User edit.\n")
-                      (org-iw-write-test--text marker))
+                      (org-iw-test-text marker))
                      org-iw-write-test--rank-change))
       (should (equal (org-iw-test-file-string "a.org")
                      org-iw-write-test--target)))))
-
-(defun org-iw-write-test--should-add-drawer (text marker anchor)
-  "Assert the saved file of MARKER is TEXT plus one new drawer.
-The drawer must directly follow the line ANCHOR and hold exactly one
-new ID, unique in the file, and IW_ESSAYS at 1024."
-  (let ((disk (org-iw-test-file-string
-               (buffer-file-name (org-iw-write-test--base marker)))))
-    (should (string-search (concat anchor "\n:PROPERTIES:\n") disk))
-    (pcase-let ((`(,removed . ,added) (org-iw-test-changed-lines text disk)))
-      (should-not removed)
-      (should (equal (length added) 4))
-      (should (equal (nth 0 added) ":PROPERTIES:"))
-      (should (string-match "\\`:ID: +\\([^ ]+\\)\\'" (nth 1 added)))
-      (let ((id (match-string 1 (nth 1 added))))
-        (with-current-buffer (marker-buffer marker)
-          (should (equal (org-iw-discovery-id-count id) 1))))
-      (should (equal (nth 2 added) ":IW_ESSAYS: 1024"))
-      (should (equal (nth 3 added) ":END:")))))
 
 (ert-deftest org-iw-write-test-ensure-id-adds-one-id ()
   "With :ensure-id, a heading without an ID gets one, drawer and all.
@@ -182,18 +126,18 @@ The drawer goes after the planning line; nothing else changes."
   (let ((text (org-iw-test-org "* New" "SCHEDULED: <2026-10-01 Thu>"
                                "Body.")))
     (org-iw-test-with-corpus `(("a.org" . ,text))
-      (let ((marker (org-iw-write-test--marker "a.org" "New")))
+      (let ((marker (org-iw-test-marker "a.org" "New")))
         (should (eq (org-iw-write-put-rank marker "ESSAYS" 1024
                                            :expected :absent :ensure-id t)
                     'saved))
-        (org-iw-write-test--should-add-drawer
+        (org-iw-test-should-add-drawer
          text marker "SCHEDULED: <2026-10-01 Thu>")))))
 
 (ert-deftest org-iw-write-test-ensure-id-keeps-existing-id ()
   "With :ensure-id, an existing ID is kept; only the rank line changes."
   (org-iw-test-with-corpus `(("a.org" . ,org-iw-write-test--target))
     (should (eq (org-iw-write-test--put-target
-                 (org-iw-write-test--marker "a.org" "Target") :ensure-id t)
+                 (org-iw-test-marker "a.org" "Target") :ensure-id t)
                 'saved))
     (should (equal (org-iw-test-changed-lines
                     org-iw-write-test--target
@@ -210,23 +154,23 @@ The drawer goes after the planning line; nothing else changes."
 (ert-deftest org-iw-write-test-undo-restores-rank ()
   "One undo after a saved put-rank restores the previous rank."
   (org-iw-test-with-corpus `(("a.org" . ,org-iw-write-test--target))
-    (let ((marker (org-iw-write-test--marker "a.org" "Target")))
+    (let ((marker (org-iw-test-marker "a.org" "Target")))
       (should (eq (org-iw-write-test--put-target marker)
                   'saved))
       (org-iw-write-test--undo-once (marker-buffer marker))
-      (should (equal (org-iw-write-test--text marker)
+      (should (equal (org-iw-test-text marker)
                      org-iw-write-test--target)))))
 
 (ert-deftest org-iw-write-test-undo-reverts-ensure-id ()
   "One undo reverts the whole put-rank, the ID insertion included."
   (let ((text (org-iw-test-org "* New" "Body.")))
     (org-iw-test-with-corpus `(("a.org" . ,text))
-      (let ((marker (org-iw-write-test--marker "a.org" "New")))
+      (let ((marker (org-iw-test-marker "a.org" "New")))
         (should (eq (org-iw-write-put-rank marker "ESSAYS" 1024
                                            :expected :absent :ensure-id t)
                     'saved))
         (org-iw-write-test--undo-once (marker-buffer marker))
-        (should (equal (org-iw-write-test--text marker) text))))))
+        (should (equal (org-iw-test-text marker) text))))))
 
 ;;;; Compare-and-set
 
@@ -236,7 +180,7 @@ DRAWER-LINES are the IW lines of a heading with an ID."
   (org-iw-test-with-corpus
       `(("a.org" . ,(apply #'org-iw-test-heading "H" "h1" drawer-lines)))
     (org-iw-write-test--should-refuse
-     (org-iw-write-test--marker "a.org" "H") "ESSAYS"
+     (org-iw-test-marker "a.org" "H") "ESSAYS"
      :expected expected)))
 
 (ert-deftest org-iw-write-test-refuses-stale-expected ()
@@ -260,14 +204,14 @@ DRAWER-LINES are the IW lines of a heading with an ID."
   "An invalid queue ID refuses before anything changes."
   (org-iw-test-with-corpus `(("a.org" . ,org-iw-write-test--target))
     (org-iw-write-test--should-refuse
-     (org-iw-write-test--marker "a.org" "Target") "ESS_AYS"
+     (org-iw-test-marker "a.org" "Target") "ESS_AYS"
      :expected :absent)))
 
 (ert-deftest org-iw-write-test-expected-is-checked ()
   "EXPECTED must be an integer or :absent; omitting it is an error."
   (org-iw-test-with-corpus `(("a.org" . ,org-iw-write-test--target))
     (should-error (org-iw-write-put-rank
-                   (org-iw-write-test--marker "a.org" "Target") "ESSAYS" 1)
+                   (org-iw-test-marker "a.org" "Target") "ESSAYS" 1)
                   :type 'wrong-type-argument)))
 
 (ert-deftest org-iw-write-test-expected-compares-parsed-rank ()
@@ -275,7 +219,7 @@ DRAWER-LINES are the IW lines of a heading with an ID."
   (let ((text (org-iw-test-heading "H" "h1" ":IW_ESSAYS: 007")))
     (org-iw-test-with-corpus `(("a.org" . ,text))
       (should (eq (org-iw-write-put-rank
-                   (org-iw-write-test--marker "a.org" "H") "ESSAYS" 8
+                   (org-iw-test-marker "a.org" "H") "ESSAYS" 8
                    :expected 7)
                   'saved)))))
 
@@ -283,25 +227,11 @@ DRAWER-LINES are the IW lines of a heading with an ID."
   "Other IW_ and IW_AFTER_ lines do not count as QUEUE's."
   (org-iw-test-with-corpus `(("a.org" . ,org-iw-write-test--target))
     (should (eq (org-iw-write-put-rank
-                 (org-iw-write-test--marker "a.org" "Target") "NOTES" 1024
+                 (org-iw-test-marker "a.org" "Target") "NOTES" 1024
                  :expected :absent)
                 'saved))))
 
 ;;;; File checks (RV-001 F-4)
-
-(defun org-iw-write-test--call-with-indirect (marker fn)
-  "Call FN with MARKER's position in a cloned indirect buffer.
-The indirect buffer is made with `make-indirect-buffer' and CLONE t,
-as `clone-indirect-buffer' does, and killed afterwards."
-  (let ((indirect (make-indirect-buffer
-                   (marker-buffer marker)
-                   (generate-new-buffer-name "org-iw-write-test-indirect")
-                   t)))
-    (unwind-protect
-        (with-current-buffer indirect
-          (should-not buffer-file-name)
-          (funcall fn (copy-marker (marker-position marker))))
-      (kill-buffer indirect))))
 
 (defun org-iw-write-test--rewrite-behind (name)
   "Rewrite corpus file NAME behind Emacs's back.
@@ -315,7 +245,7 @@ granularity cannot hide the change."
 (ert-deftest org-iw-write-test-refuses-changed-on-disk ()
   "A clean buffer whose file changed on disk refuses, with no prompt."
   (org-iw-test-with-corpus `(("a.org" . ,org-iw-write-test--target))
-    (let ((marker (org-iw-write-test--marker "a.org" "Target")))
+    (let ((marker (org-iw-test-marker "a.org" "Target")))
       (org-iw-write-test--rewrite-behind "a.org")
       (should (string-search "changed on disk"
                              (org-iw-write-test--should-refuse
@@ -325,9 +255,9 @@ granularity cannot hide the change."
   "The check is on the base buffer, reached through an indirect buffer.
 An indirect buffer has no file, so a check on it would pass."
   (org-iw-test-with-corpus `(("a.org" . ,org-iw-write-test--target))
-    (let ((marker (org-iw-write-test--marker "a.org" "Target")))
+    (let ((marker (org-iw-test-marker "a.org" "Target")))
       (org-iw-write-test--rewrite-behind "a.org")
-      (org-iw-write-test--call-with-indirect
+      (org-iw-test-call-with-indirect
        marker
        (lambda (indirect-marker)
          (should (string-search "changed on disk"
@@ -342,15 +272,15 @@ An indirect buffer has no file, so a check on it would pass."
       (org-iw-test-set-modes "a.org" #o444)
       (should (string-search "not writable"
                              (org-iw-write-test--should-refuse
-                              (org-iw-write-test--marker "a.org" "Target")
+                              (org-iw-test-marker "a.org" "Target")
                               "ESSAYS" :expected 2048))))))
 
 (ert-deftest org-iw-write-test-writes-through-indirect-buffer ()
   "From a narrowed indirect buffer the edit lands in the base and saves.
 The indirect buffer's narrowing, excluding the target, is kept."
   (org-iw-test-with-corpus `(("a.org" . ,org-iw-write-test--target))
-    (let ((marker (org-iw-write-test--marker "a.org" "Target")))
-      (org-iw-write-test--call-with-indirect
+    (let ((marker (org-iw-test-marker "a.org" "Target")))
+      (org-iw-test-call-with-indirect
        marker
        (lambda (indirect-marker)
          (goto-char (point-min))
@@ -365,7 +295,7 @@ The indirect buffer's narrowing, excluding the target, is kept."
                          org-iw-write-test--target
                          (org-iw-test-file-string "a.org"))
                         org-iw-write-test--rank-change))
-         (should (equal (org-iw-write-test--text marker)
+         (should (equal (org-iw-test-text marker)
                         (org-iw-test-file-string "a.org"))))))))
 
 (ert-deftest org-iw-write-test-ensure-id-through-narrowed-indirect ()
@@ -373,8 +303,8 @@ The indirect buffer's narrowing, excluding the target, is kept."
 The new drawer goes under the target, not at the narrowing."
   (let ((text (org-iw-test-org "* Other" "Text." "* New" "Body.")))
     (org-iw-test-with-corpus `(("a.org" . ,text))
-      (let ((marker (org-iw-write-test--marker "a.org" "New")))
-        (org-iw-write-test--call-with-indirect
+      (let ((marker (org-iw-test-marker "a.org" "New")))
+        (org-iw-test-call-with-indirect
          marker
          (lambda (indirect-marker)
            (narrow-to-region (point-min) (1- (marker-position marker)))
@@ -382,7 +312,7 @@ The new drawer goes under the target, not at the narrowing."
                                               :expected :absent
                                               :ensure-id t)
                        'saved))
-           (org-iw-write-test--should-add-drawer
+           (org-iw-test-should-add-drawer
             text indirect-marker "* New")))))))
 
 ;;;; Atomicity (I7) and save failure
@@ -410,17 +340,17 @@ The error must propagate as is, and the buffer text,
 A buffer left clean holds no lock file."
   (let ((text (org-iw-test-org "* New" "Body.")))
     (org-iw-test-with-corpus `(("a.org" . ,text))
-      (let ((marker (org-iw-write-test--marker "a.org" "New")))
+      (let ((marker (org-iw-test-marker "a.org" "New")))
         (when dirty
-          (org-iw-write-test--edit-elsewhere marker))
-        (let ((before (org-iw-write-test--snapshot marker)))
+          (org-iw-test-edit-elsewhere marker))
+        (let ((before (org-iw-test-snapshot marker)))
           (org-iw-write-test--call-failing-rank-put
            (lambda ()
              (should-error (org-iw-write-put-rank marker "ESSAYS" 1024
                                                   :expected :absent
                                                   :ensure-id t)
                            :type 'org-iw-write-test-injected)))
-          (should (equal (org-iw-write-test--snapshot marker) before))
+          (should (equal (org-iw-test-snapshot marker) before))
           (unless dirty
             (should-not (file-symlink-p (org-iw-test-path ".#a.org")))))))))
 
@@ -441,14 +371,14 @@ A buffer left clean holds no lock file."
 The save fails through `write-file-functions', whose errors reach the
 caller of `save-buffer'."
   (org-iw-test-with-corpus `(("a.org" . ,org-iw-write-test--target))
-    (let ((marker (org-iw-write-test--marker "a.org" "Target"))
+    (let ((marker (org-iw-test-marker "a.org" "Target"))
           (write-file-functions (list #'org-iw-write-test--failing-hook)))
       (should (equal (org-iw-write-test--put-target marker)
                      '(save-failed org-iw-write-test-injected disk)))
       (should (buffer-modified-p (marker-buffer marker)))
       (should (equal (org-iw-test-changed-lines
                       org-iw-write-test--target
-                      (org-iw-write-test--text marker))
+                      (org-iw-test-text marker))
                      org-iw-write-test--rank-change))
       (should (equal (org-iw-test-file-string "a.org")
                      org-iw-write-test--target)))))
@@ -458,7 +388,7 @@ caller of `save-buffer'."
 Emacs 30 and 31 demote its errors to a message, so put-rank reports
 saved and the disk holds the edit."
   (org-iw-test-with-corpus `(("a.org" . ,org-iw-write-test--target))
-    (let ((marker (org-iw-write-test--marker "a.org" "Target"))
+    (let ((marker (org-iw-test-marker "a.org" "Target"))
           (before-save-hook (list #'org-iw-write-test--failing-hook)))
       (should (eq (org-iw-write-test--put-target marker)
                   'saved))

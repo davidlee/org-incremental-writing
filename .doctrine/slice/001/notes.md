@@ -122,7 +122,7 @@ holds on Emacs 30 and 31: `buffer-file-name` is nil and `find-buffer-visiting`
 returns the base. `org-back-to-heading-or-point-min` is passed `t`
 (invisible-ok) so a folded heading cannot fail the lookup. No design delta.
 
-## PHASE-05 (2026-10-01) — completed, uncommitted
+## PHASE-05 (2026-10-01) — completed, 0352b68
 
 org-iw-write.el: `org-iw-write-put-rank` (the only public symbol) with
 private `--base`, `--refuse`, `--queue-lines`, `--expected-p`,
@@ -173,6 +173,81 @@ Outcomes:
   `</dev/null`.
 - No Org 9.7/9.8 differences observed.
 
+## PHASE-06 (2026-10-01) — completed, uncommitted
+
+org-iw.el: autoloaded `org-iw-add` (QUEUE) plus private `--refuse`,
+`--files`, `--scan`, `--buffer-truename`, `--source-file-p`,
+`--configured-queues`, `--configured-name`, `--queue-name`,
+`--read-queue`, the message pair `--save-status` / `--report` (PHASE-07
+reuses both), and Add's own `--add-target` (steps 1-2),
+`--problem-types`, `--unrecognised-drawer-p`, `--shared-id-p`,
+`--check-heading` (steps 4-6). org-iw.el requires `org`, core, discovery,
+write. New test/org-iw-test.el: 27 tests (103 total); gate green on Emacs
+31.1/Org 9.8.10 and 30.2/Org 9.7.11; `org-iw.el` coverage 100%. T1
+promoted `-marker`, `-base`, `-text`, `-snapshot`, `-edit-elsewhere`,
+`-call-with-indirect`, `-should-add-drawer` from write-test into
+test/org-iw-test-helpers.el as `org-iw-test-*`, and added
+`org-iw-test-state` (every corpus file's disk text plus every corpus
+buffer's text and modified flag; PHASE-07's I1 checks can use it).
+Command-test names use `org-iw-cmd-test-` so they cannot shadow fixture
+internals.
+
+Rulings (orchestrator, adopting the phase sheet's defaults):
+- G1: steps 1-2 are `org-iw--add-target`, called from the interactive spec
+  before the prompt and again by the body. G2: two scans per interactive
+  Add, accepted.
+- G3: `org-iw-write--queue-lines` moved to `org-iw-discovery--queue-lines`
+  (pure move; write and org-iw call it). G8: the entry-ID read extracted as
+  `org-iw-discovery--entry-id`, used by the scan and Add.
+- G4: excluded-type text is `missing-id` for a heading without an ID, else
+  the distinct problem types naming the ID in any file, else `unknown`.
+- G5/G6/G7/G10: see deltas below. G9: title left out of the message; the
+  suffix is always "[N source problems ignored]". G11: every Add read runs
+  widened. G12: invalid configured IDs are dropped from completion and
+  names (`--configured-queues`).
+- Worker call beyond the sheet (POL-002): G6's test "the scan excluded ID
+  as a duplicate" was inline in `org-iw-discovery-resolve`; extracted as
+  `org-iw-discovery--excluded-id-p` and shared with Add rather than
+  restated. Pure refactor under green.
+
+Messages: "Added to NAME at M+1/M+1 STATUS", "Already in NAME at N/M",
+refusals "BUFFER is not under org-iw-sources", "document targets are not yet
+supported", "invalid queue ID %S", "heading has a property drawer Org
+doesn't recognise", "heading has IW_Q but it is excluded (TYPES)", "ID
+shared with another heading", "rank limit; redistribution needed". Refusals
+are `org-iw-refusal` via `format` (not `format-message`, which would curl
+the apostrophe).
+
+Outcomes:
+- F-2 (EX-3) holds: same-file and cross-file copies both refuse with every
+  corpus file and buffer unchanged and the scan identical before and after.
+  Red proof: without the cross-file entry condition, Add of the copy reports
+  "Added to ESSAYS at 2/2 (saved)" and the rescan leaves ESSAYS empty (both
+  excluded as `duplicate-id`), i.e. the member is knocked out. Without the
+  G6 condition the three-file case fails.
+- F-5 indirect half (EX-4) holds: from a cloned indirect buffer
+  (`make-indirect-buffer ... t`) Add saves through the base; the disk diff is
+  the one `IW_ESSAYS` line. Under a base narrowed to the subtree and an
+  indirect buffer narrowed to the body only, Add succeeds and the narrowing
+  is kept (the accessible text grows by the inserted line). Red proofs: a
+  `buffer-file-name` without the base lookup fails the indirect and
+  source-file tests; `--add-target` without widening fails the body-only case.
+- Steps 1-3, 5 and 7 were written in T4/T5's green code before their T6
+  tests; each was then proven by mutation (disable the check -> its tests
+  fail), as was the pre-prompt check in the interactive spec.
+- Malformed drawer: Org's `org-property-start-re` is the line test (same
+  string on 9.7.11 and 9.8.10); the section ends at `outline-next-heading`
+  (point-max for the last heading; both ends tested).
+- A step-5 bug found by the no-op tests: a `when` whose value was dropped let
+  a member fall through to step 6; now a `cond`, steps 5 and 6 exclusive.
+- `doctrine slice verify-vt SL-001` reports PHASE-06 VT-1/VT-2
+  UNATTRIBUTABLE until test/org-iw-test.el is committed (attribution is by
+  commit); every keyword is present literally.
+- Grep: no `org-entry-properties`, `org-find-entry-with-id` or IW regexp in
+  org-iw.el; the three defcustoms are read only in org-iw.el (discovery's
+  docstring names `org-iw-sources`, a reference).
+- No Org 9.7/9.8 differences observed.
+
 ## Design deltas for /reconcile
 
 - § 5.2 `org-iw-core-append-rank` takes `(ORDERED QUEUE)`, not `(ORDERED)`
@@ -193,6 +268,27 @@ Outcomes:
   `write-file-functions` error)".
 - § 5.2: EXPECTED is required (integer or :absent); omitting it signals
   `wrong-type-argument`.
+- § 5.2 / § 5.4 (PHASE-06, G3): the per-queue line filter lives in
+  discovery as `org-iw-discovery--queue-lines` (moved from write);
+  `org-iw-discovery--entry-id` and `--excluded-id-p` were extracted so the
+  scan, resolve and Add share one ID read and one duplicate test.
+- Plan PHASE-06 EX-3 (G5): with a same-file copy of a member's ID, the
+  fresh scan already excludes the member (`duplicate-id`) before Add runs,
+  so "the existing member stays in the queue" cannot hold literally.
+  Tested instead: Add refuses, nothing changes, and the scan is identical
+  before and after; the cross-file case also keeps the member at its rank.
+  Suggest rewording EX-3's same-file half to "…and the member's IW_ line and
+  the scan are unchanged".
+- § 5.4 Add step 6 (G6): stricter than written; Add also refuses an ID the
+  scan excluded as a `duplicate-id` (shared by two other files), which
+  otherwise passes both written conditions and reports a membership the
+  next scan drops. Same intent ("stops Add creating a duplicate").
+- § 5.2 `org-iw-add` (G7): returns the message it shows (no-op included);
+  the design left the return value open.
+- § 5.1 / ADR-003 (G10): the command layer now calls discovery privates
+  (`--queue-lines`, `--entry-id`, `--in-block-p`, `--excluded-id-p`) and
+  write calls `--queue-lines`. Suggest promoting a small public discovery
+  reader API (entry ID, per-queue lines, block test, excluded-ID test).
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->

@@ -31,6 +31,14 @@
 
 ;;; Code:
 
+(require 'cl-lib)
+(require 'seq)
+(require 'subr-x)
+(require 'org)
+(require 'org-iw-core)
+(require 'org-iw-discovery)
+(require 'org-iw-write)
+
 (defgroup org-iw nil
   "Incremental writing queues for Org."
   :group 'org
@@ -76,6 +84,205 @@ chosen; they are shown by their ID."
                 :value-type (plist :tag "Options"
                                    :options ((:name string))))
   :group 'org-iw)
+
+;;;; Private helpers
+
+(defun org-iw--refuse (format-string &rest args)
+  "Signal an `org-iw-refusal' with FORMAT-STRING applied to ARGS."
+  (signal 'org-iw-refusal (list (apply #'format format-string args))))
+
+(defun org-iw--files ()
+  "Return the source files selected by the user options."
+  (org-iw-discovery-files org-iw-sources org-iw-exclude-regexp))
+
+(defun org-iw--scan ()
+  "Scan the source files afresh; return an `org-iw-scan'."
+  (org-iw-discovery-scan (org-iw--files)))
+
+(defun org-iw--buffer-truename ()
+  "Return the truename of the current buffer's file, or nil.
+An indirect buffer's file is its base buffer's."
+  (when-let* ((file (buffer-file-name (or (buffer-base-buffer)
+                                          (current-buffer)))))
+    (file-truename file)))
+
+(defun org-iw--source-file-p ()
+  "Return non-nil if the current buffer's file is a source file."
+  (when-let* ((file (org-iw--buffer-truename)))
+    (member file (org-iw--files))))
+
+(defun org-iw--configured-queues ()
+  "Return `org-iw-queues' as an alist (QUEUE . PLIST), QUEUE canonical.
+Entries whose key is not a valid queue ID are left out."
+  (seq-keep (lambda (config)
+              (when-let* ((queue (org-iw-core-queue-id (car-safe config))))
+                (cons queue (cdr config))))
+            org-iw-queues))
+
+(defun org-iw--configured-name (queue)
+  "Return the :name configured for QUEUE, a canonical queue ID, or nil."
+  (plist-get (alist-get queue (org-iw--configured-queues) nil nil #'equal)
+             :name))
+
+(defun org-iw--queue-name (queue)
+  "Return the display name of QUEUE, a canonical queue ID."
+  (or (org-iw--configured-name queue) queue))
+
+(defun org-iw--read-queue (scan)
+  "Prompt for a queue ID and return the string entered, unchecked.
+Completion offers the configured queues with valid IDs and those
+found by SCAN, annotated with their configured names.  Any other ID
+may be typed."
+  (let ((completion-extra-properties
+         (list :annotation-function
+               (lambda (queue)
+                 (when-let* ((name (org-iw--configured-name queue)))
+                   (concat " " name))))))
+    (completing-read
+     "Queue: "
+     (sort (seq-uniq
+            (append (mapcar #'car (org-iw--configured-queues))
+                    (org-iw-core-queue-ids (org-iw-scan-entries scan))))
+           #'string<))))
+
+;;;; Messages
+
+(defun org-iw--save-status (status)
+  "Return the text reporting STATUS, a result of `org-iw-write-put-rank'."
+  (pcase status
+    ('saved "(saved)")
+    ('unsaved "(buffer has unsaved changes — queue change not saved)")
+    (`(save-failed . ,err)
+     (format "(queue change applied but not saved: %s)"
+             (error-message-string err)))))
+
+(defun org-iw--report (scan format-string &rest args)
+  "Echo FORMAT-STRING applied to ARGS, noting the problems of SCAN.
+Return the message."
+  (let ((problems (length (org-iw-scan-problems scan))))
+    (message "%s%s" (apply #'format format-string args)
+             (if (zerop problems)
+                 ""
+               (format " [%d source problems ignored]" problems)))))
+
+;;;; Add
+
+(defun org-iw--add-target ()
+  "Return a marker at the heading to add, or refuse.
+The heading is the one at or above point, ignoring narrowing, in the
+current buffer, which must visit a source file."
+  (unless (org-iw--source-file-p)
+    (org-iw--refuse "%s is not under org-iw-sources" (buffer-name)))
+  (org-with-wide-buffer
+   (when (org-before-first-heading-p)
+     (org-iw--refuse "document targets are not yet supported"))
+   (org-back-to-heading t)
+   (point-marker)))
+
+(defun org-iw--problem-types (scan id)
+  "Return the types of SCAN's problems with the entry ID, as text.
+An entry without an ID is `missing-id'.  Otherwise the types come
+from problems naming ID in any file, since a problem for an ID shared
+between files names only one of them."
+  (if (not id)
+      "missing-id"
+    (let ((types (seq-uniq
+                  (seq-keep (lambda (problem)
+                              (and (equal (org-iw-problem-id problem) id)
+                                   (org-iw-problem-type problem)))
+                            (org-iw-scan-problems scan)))))
+      (if types (mapconcat #'symbol-name types ", ") "unknown"))))
+
+(defun org-iw--unrecognised-drawer-p ()
+  "Return non-nil if the heading at point has a drawer Org ignores.
+That is a :PROPERTIES: line in the heading's section, outside any
+block, when Org finds no property drawer: `org-entry-put' would add a
+second one."
+  (unless (org-get-property-block)
+    (save-excursion
+      (let ((end (save-excursion (outline-next-heading) (point)))
+            (case-fold-search t)
+            (found nil))
+        (while (and (not found)
+                    (re-search-forward org-property-start-re end t))
+          (setq found (save-excursion
+                        (goto-char (match-beginning 0))
+                        (not (org-iw-discovery--in-block-p)))))
+        found))))
+
+(defun org-iw--shared-id-p (scan id file)
+  "Return non-nil if another heading has ID, the ID of the one at point.
+FILE is the truename of the heading's file.  That is: ID is on more
+than one line of the buffer, a scanned entry in another file has it,
+or SCAN excluded it as a duplicate."
+  (or (/= (org-iw-discovery-id-count id) 1)
+      (seq-some (lambda (entry)
+                  (and (equal (org-iw-entry-id entry) id)
+                       (not (equal (org-iw-entry-file entry) file))))
+                (org-iw-scan-entries scan))
+      (org-iw-discovery--excluded-id-p scan id)))
+
+(defun org-iw--check-heading (marker scan order queue)
+  "Refuse unless the heading at MARKER may join QUEUE.
+ORDER is QUEUE's members in SCAN.  Return the heading's 1-based
+position in ORDER if it is already a member there, else nil.  The
+checks are steps 4 to 6 of `org-iw-add'."
+  (with-current-buffer (marker-buffer marker)
+    (org-with-wide-buffer
+     (goto-char marker)
+     (when (org-iw--unrecognised-drawer-p)
+       (org-iw--refuse "heading has a property drawer Org doesn't recognise"))
+     (let ((id (org-iw-discovery--entry-id))
+           (file (org-iw--buffer-truename)))
+       (cond
+        ((org-iw-discovery--queue-lines queue)
+         (if-let* ((index (cl-position-if
+                           (lambda (entry)
+                             (and (equal (org-iw-entry-id entry) id)
+                                  (equal (org-iw-entry-file entry) file)))
+                           order)))
+             (1+ index)
+           (org-iw--refuse "heading has IW_%s but it is excluded (%s)"
+                           queue (org-iw--problem-types scan id))))
+        ((and id (org-iw--shared-id-p scan id file))
+         (org-iw--refuse "ID shared with another heading")))))))
+
+;;;###autoload
+(defun org-iw-add (queue)
+  "Add the heading at point to the end of QUEUE.
+QUEUE is a queue ID in any case; interactively, it is read with
+completion over the configured and discovered queues, and a new
+one may be typed.  The heading is the one at or above point, even
+outside a narrowing; indirect buffers work.  It is given an ID and
+a property drawer if it lacks them, and its file is saved unless
+its buffer already had unsaved changes.
+
+A heading already in QUEUE is left alone.  Add refuses, changing
+nothing, if the buffer is not a source file, point is before the
+first heading, QUEUE is not a valid ID, the heading has a property
+drawer Org does not see, its IW property for QUEUE was excluded by
+the scan, another heading has its ID, or QUEUE has no rank left.
+
+Return the message shown."
+  (interactive (progn (org-iw--add-target)
+                      (list (org-iw--read-queue (org-iw--scan)))))
+  (let* ((marker (org-iw--add-target))
+         (queue-id (or (org-iw-core-queue-id queue)
+                       (org-iw--refuse "invalid queue ID %S" queue)))
+         (scan (org-iw--scan))
+         (order (org-iw-core-queue-order (org-iw-scan-entries scan)
+                                         queue-id))
+         (name (org-iw--queue-name queue-id)))
+    (if-let* ((position (org-iw--check-heading marker scan order queue-id)))
+        (org-iw--report scan "Already in %s at %d/%d"
+                        name position (length order))
+      (let* ((rank (or (org-iw-core-append-rank order queue-id)
+                       (org-iw--refuse "rank limit; redistribution needed")))
+             (status (org-iw-write-put-rank marker queue-id rank
+                                            :expected :absent :ensure-id t))
+             (total (1+ (length order))))
+        (org-iw--report scan "Added to %s at %d/%d %s"
+                        name total total (org-iw--save-status status))))))
 
 (provide 'org-iw)
 ;;; org-iw.el ends here
