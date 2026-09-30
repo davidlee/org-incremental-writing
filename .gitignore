@@ -9,3 +9,6 @@
 .doctrine/dispatch/
 .doctrine/skills/*
 .doctrine/observations/**/.tmp.*
+
+# Byte-compiled Elisp never belongs in the tree (the gate compiles to a temp dir).
+*.elc
