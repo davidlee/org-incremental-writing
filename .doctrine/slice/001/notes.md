@@ -348,6 +348,22 @@ For PHASE-08 (human trial):
 - Continue shows two echoes in quick succession (G4); only the second
   stays visible, both are in *Messages*.
 
+## PHASE-08 (G9 fix, VA-1)
+
+- G9 resolved in `org-iw.el`: `org-iw--visit` wraps a non-list
+  `global-mode-string` into a one-element list before `add-to-list`;
+  `org-iw-end-session` deletes our item only when the value is a list.
+  Prepend order kept. Test
+  `org-iw-cmd-test-mode-line-item-with-non-list-global-mode-string`
+  (red: `wrong-type-argument listp "user"`; now green).
+- Ruling: the string stays a one-element list after end-session (not
+  restored to a bare string); content intact. A single-construct list
+  value such as `(:eval ...)` is indistinguishable from a list of items
+  and is out of scope.
+- VA-1 green: `just lint` 0 diagnostics/warnings; `just test-all` 135/135
+  on Emacs 31.1 and 30.2. VH-1 (human trial) pending; phase stays
+  `in_progress`.
+
 ## Design deltas for /reconcile
 
 - § 5.2 `org-iw-core-append-rank` takes `(ORDERED QUEUE)`, not `(ORDERED)`
