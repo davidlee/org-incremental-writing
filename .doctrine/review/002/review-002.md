@@ -168,3 +168,57 @@ the queue keeps its turn.
   POL-002 more closely than before. The proposed amendments (Synthesis
   § Proposed governance) are new governance for the user to accept, not
   reconciliation of drift.
+
+## Reconciliation Outcome
+
+User assent: "agreed" (session 2026-10-01), covering the design and scope
+edits and the POL-001 REV as presented.
+
+### Direct edits applied
+- design.md (edited directly; the run is locked, so per the CLI no
+  `design adopt`):
+  - § 4 refusal owners: core `org-iw-core-refuse`, discovery Org-mode
+    rule, write preflight for every caller (F-1, F-2, F-3, F-7).
+  - § 5.1 diagram and edges: discovery public readers, write → discovery,
+    no cross-file `--` calls (F-11, G10 closed).
+  - § 5.2 core: `refuse`, `canonical-queue-id-p`, `rank-p`,
+    `append-rank (ORDERED QUEUE)`, classify `(accumulate . ID)` row (F-6,
+    F-7, F-8, F-15; PHASE-02 delta).
+  - § 5.2 discovery: `org-iw-scan-create`, `base-buffer`,
+    `require-org-mode`, the six readers, Org-mode rule for sources,
+    resolve's refusal texts (F-3, F-9, F-11).
+  - § 5.2 write: put-rank contract (canonical QUEUE, `rank-p` RANK,
+    required EXPECTED), read-only refusal, drawer guard after CAS,
+    `save-failed` causes, `--apply` sample synced (F-1, F-2, F-6, F-8).
+  - § 5.2 org-iw.el: commands return their message, visit-next QUEUE,
+    `--queue-id`, session pair (G1, G7, F-8, F-12).
+  - § 5.3 session constructor, start/end ownership, mode-line trailing
+    space (F-12; VH-1 request).
+  - § 5.4 scan accumulate rule, Continue G3/G4/G7/G8, Visit `point-max`
+    widening, Add steps 1/4/5/6/7 (F-2, F-3, F-11, G6).
+  - § 6, § 8, § 9, § 10: justfile replaces Makefile; README.md added;
+    flake row corrected; Known criterion wording errors recorded for
+    PHASE-05 VT-3 and PHASE-06 EX-3 (plan.toml untouched) (F-26).
+  - Every bullet of notes.md § "Design deltas for /reconcile" is now in
+    the design; *Superseded* bullets were applied as overridden.
+- slice-001.md: Tooling bullet and affected surface name the justfile and
+  README.md; Emacs 30 risk marked resolved (plan.md delta).
+- Selectors (F-26): removed `Makefile`; added `justfile`, `README.md` as
+  design-targets. `flake.nix` kept, with a note (delivered in 145b226).
+  Conformance: Makefile/README/justfile resolved; `flake.nix` stays
+  "undelivered" by design.
+
+### REVs completed
+- REV-001 (`reconcile-sl-001`): done — POL-001 § Verification names
+  `just lint` / `just test-all` / `just gate` and the justfile (F-27).
+  Rationale and before/after in revision-001.md.
+
+### Withdrawn / tolerated / follow-up
+- F-20, F-23: tolerated; rationale in their dispositions.
+- F-4 → IMP-004, F-5 → IMP-002, F-24 → IMP-003 (follow-up).
+
+### Handed back (not a finding)
+- ISS-001: put-rank and continue docstrings omit preflight refusals;
+  found while confirming design wording.
+
+Reconcile pass complete — handoff to /close.

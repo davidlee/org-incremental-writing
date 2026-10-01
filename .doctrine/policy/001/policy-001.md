@@ -26,9 +26,10 @@ metadata and prose docs.
 
 ## Verification
 
-`make lint` and `make test` (with every supported Emacs) run before a
-phase is marked completed. The audit checks the evidence. The Makefile
-targets are established in SL-001.
+`just lint` and `just test-all` (every supported Emacs) run before a
+phase is marked completed; `just gate` (`doctrine check gate`) runs
+both. The audit checks the evidence. The justfile recipes are
+established in SL-001.
 
 ## References
 

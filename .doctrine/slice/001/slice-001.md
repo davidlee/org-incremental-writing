@@ -9,8 +9,9 @@ edit in place, send the entry to the back, and repeat.
 
 ## Scope & Objectives
 
-- **Tooling.** Makefile targets `compile`, `lint`, `test`, `test-all` and
-  `clean`. ERT runs in batch. Lint is byte-compile with warnings as errors,
+- **Tooling.** justfile recipes `compile`, `lint`, `test`, `test-all` and
+  `clean` (a justfile replaced the planned Makefile by user direction,
+  2026-09-30). ERT runs in batch. Lint is byte-compile with warnings as errors,
   checkdoc and package-lint. The flake gains an `emacs-30` binary from a
   pinned `nixos-26.05` input so the suite runs on 30.2 and 31.1 (REQ-024,
   DEC-006).
@@ -55,7 +56,8 @@ edit in place, send the entry to the back, and repeat.
 
 ## Summary
 
-Affected surface (coarse): `*.el`, `test/**`, `Makefile`, `flake.nix`.
+Affected surface (coarse): `*.el`, `test/**`, `justfile`, `flake.nix`,
+`README.md` (added in PHASE-08 at the user's request, 2026-10-01).
 
 Governed by the "before SL-001" documents in RFC-001's governance
 schedule: A1 entry-resident state, A3 buffer-mediated writes, A4 layering,
@@ -72,7 +74,9 @@ Risks and assumptions:
 - Assumes Org 9.7+ `org-entry-get` with inheritance off and
   `org-id-get-create` behave as needed.
 - Adding Emacs 30 to the flake touches the user's dev-shell wiring, and the
-  agent jail has no `nix` to build it; the user runs `make test-all`.
+  agent jail has no `nix` to build it; the user runs `just test-all`.
+  (Resolved: the rebuilt shell has `emacs-30` in-jail, and every phase
+  gated on `just test-all`.)
 - Auto-saving a clean buffer runs the user's save hooks (design § 8).
 
 **Closure:** P1 gate green on Emacs 30 and 31. Human trial (VH): configure

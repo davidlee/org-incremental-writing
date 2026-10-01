@@ -19,12 +19,9 @@ selector = "test/**"
 intent = "scope-relevant"
 
 [[selector]]
-selector = "Makefile"
-intent = "design-target"
-
-[[selector]]
 selector = "flake.nix"
 intent = "design-target"
+note = "Delivered in the user's commit 145b226, outside the recorded source-deltas; kept (RV-002 F-26)"
 
 [[selector]]
 selector = "org-iw-core.el"
@@ -69,6 +66,16 @@ intent = "design-target"
 [[selector]]
 selector = "tools/checkdoc-batch.el"
 intent = "design-target"
+
+[[selector]]
+selector = "justfile"
+intent = "design-target"
+note = "RV-002 F-26"
+
+[[selector]]
+selector = "README.md"
+intent = "design-target"
+note = "RV-002 F-26"
 
 [[relation]]
 label = "governed_by"

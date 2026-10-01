@@ -6,7 +6,7 @@ slug = "lint-test-gate"
 title = "Lint and test gate"
 status = "required"
 created = "2026-09-30"
-updated = "2026-09-30"
+updated = "2026-10-01"
 tags = ["process"]
 
 [relationships]
