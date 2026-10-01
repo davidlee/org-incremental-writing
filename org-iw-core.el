@@ -77,13 +77,19 @@ That is, a valid queue ID that `org-iw-core-queue-id' leaves unchanged."
 
 (defun org-iw-core-classify-property (name)
   "Classify the property NAME.
-Return (member . QUEUE-ID) for a queue membership, `reserved' for an
-IW_AFTER_ name, `invalid' for any other IW_ name, and nil for names
-outside the IW_ namespace.  Prefixes match case-insensitively."
+Return (member . QUEUE-ID) for a queue membership, and
+\(accumulate . QUEUE-ID) for its IW_<QUEUE-ID>+ form in Org's
+accumulate syntax.  Return `reserved' for an IW_AFTER_ name,
+`invalid' for any other IW_ name, and nil for names outside the IW_
+namespace.  Prefixes match case-insensitively."
   (let ((case-fold-search t))
     (cond
      ((not (string-match-p "\\`IW_" name)) nil)
      ((string-match-p "\\`IW_AFTER_" name) 'reserved)
+     ((string-suffix-p "+" name)
+      (if-let* ((id (org-iw-core-queue-id (substring name 3 -1))))
+          (cons 'accumulate id)
+        'invalid))
      (t (if-let* ((id (org-iw-core-queue-id (substring name 3))))
             (cons 'member id)
           'invalid)))))

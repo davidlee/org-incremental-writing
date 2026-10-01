@@ -237,73 +237,32 @@ current buffer, which must visit a source file."
    (org-back-to-heading t)
    (point-marker)))
 
-(defun org-iw--problem-types (scan id)
-  "Return the types of SCAN's problems with the entry ID, as text.
-An entry without an ID is `missing-id'.  Otherwise the types come
-from problems naming ID in any file, since a problem for an ID shared
-between files names only one of them."
-  (if (not id)
-      "missing-id"
-    (let ((types (seq-uniq
-                  (seq-keep (lambda (problem)
-                              (and (equal (org-iw-problem-id problem) id)
-                                   (org-iw-problem-type problem)))
-                            (org-iw-scan-problems scan)))))
-      (if types (mapconcat #'symbol-name types ", ") "unknown"))))
-
-(defun org-iw--unrecognised-drawer-p ()
-  "Return non-nil if the heading at point has a drawer Org ignores.
-That is a :PROPERTIES: line in the heading's section, outside any
-block, when Org finds no property drawer: `org-entry-put' would add a
-second one."
-  (unless (org-get-property-block)
-    (save-excursion
-      (let ((end (save-excursion (outline-next-heading) (point)))
-            (case-fold-search t)
-            (found nil))
-        (while (and (not found)
-                    (re-search-forward org-property-start-re end t))
-          (setq found (save-excursion
-                        (goto-char (match-beginning 0))
-                        (not (org-iw-discovery--in-block-p)))))
-        found))))
-
-(defun org-iw--shared-id-p (scan id file)
-  "Return non-nil if another heading has ID, the ID of the one at point.
-FILE is the truename of the heading's file.  That is: ID is on more
-than one line of the buffer, a scanned entry in another file has it,
-or SCAN excluded it as a duplicate."
-  (or (/= (org-iw-discovery-id-count id) 1)
-      (seq-some (lambda (entry)
-                  (and (equal (org-iw-entry-id entry) id)
-                       (not (equal (org-iw-entry-file entry) file))))
-                (org-iw-scan-entries scan))
-      (org-iw-discovery--excluded-id-p scan id)))
+(defun org-iw--problem-types-text (types)
+  "Return problem TYPES, a list of symbols, as text for a refusal."
+  (if types (mapconcat #'symbol-name types ", ") "unknown"))
 
 (defun org-iw--check-heading (marker scan order queue)
   "Refuse unless the heading at MARKER may join QUEUE, a canonical queue ID.
-ORDER is QUEUE's members in SCAN.  Refuse if Org does not recognise
-the heading's property drawer, if the heading has an IW_ line for
-QUEUE but is not in ORDER (the scan excluded it), or if another
-heading has its ID.  Return the heading's 1-based position in ORDER
+ORDER is QUEUE's members in SCAN.  Refuse if the heading has an IW_
+line for QUEUE but is not in ORDER (the scan excluded it), or if
+another heading has its ID.  Return the heading's 1-based position in ORDER
 if it is already a member, else nil."
   (org-with-point-at marker
-    (when (org-iw--unrecognised-drawer-p)
-      (org-iw-core-refuse
-       "heading has a property drawer Org doesn't recognise"))
-    (let ((id (org-iw-discovery--entry-id))
+    (let ((id (org-iw-discovery-entry-id))
           (file (org-iw--buffer-truename)))
       (cond
-       ((org-iw-discovery--queue-lines queue)
+       ((org-iw-discovery-queue-lines queue)
         (if-let* ((index (cl-position-if
                           (lambda (entry)
                             (and (equal (org-iw-entry-id entry) id)
                                  (equal (org-iw-entry-file entry) file)))
                           order)))
             (1+ index)
-          (org-iw-core-refuse "heading has IW_%s but it is excluded (%s)"
-                              queue (org-iw--problem-types scan id))))
-       ((and id (org-iw--shared-id-p scan id file))
+          (org-iw-core-refuse
+           "heading has IW_%s but it is excluded (%s)" queue
+           (org-iw--problem-types-text
+            (org-iw-discovery-problem-types scan id)))))
+       ((and id (org-iw-discovery-shared-id-p scan id file))
         (org-iw-core-refuse "ID shared with another heading"))))))
 
 ;;;###autoload
@@ -396,10 +355,11 @@ Return the message shown."
 Say whether SCAN excluded the entry's ID as a duplicate."
   (let ((id (org-iw--session-id session))
         (title (org-iw--session-title session)))
-    (if (org-iw-discovery--excluded-id-p scan id)
+    (if (org-iw-discovery-excluded-id-p scan id)
         (org-iw-core-refuse "ID %s is duplicated; %s not moved" id title)
-      (org-iw-core-refuse "%s is no longer in queue %s" title
-                      (org-iw--queue-name (org-iw--session-queue session))))))
+      (org-iw-core-refuse
+       "%s is no longer in queue %s" title
+       (org-iw--queue-name (org-iw--session-queue session))))))
 
 (defun org-iw--move-to-end (scan entry rest queue)
   "Rank ENTRY of SCAN after REST, the other members of QUEUE.

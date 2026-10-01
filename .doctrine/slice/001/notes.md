@@ -443,13 +443,58 @@ For PHASE-08 (human trial):
 - Gate: `just lint` clean; `just test-all` 146/146 on 31.1 and 30.2;
   `just test-each` 146 pass alone.
 
+### R2b — ADR-003 ownership
+
+- F-15: core `org-iw-core-classify-property` returns `(accumulate . ID)` for
+  `IW_<valid id>+` (clause after `reserved`, so `IW_AFTER_…+` stays
+  `reserved`; `IW_+`, `IW_ess_ays+`, `IW_ESSAYS++` stay `invalid`).
+  `org-iw-discovery--line-class` deleted; `--queue-lines` and
+  `--classify-lines` call core. Test changed:
+  `org-iw-core-test-classify-property` (accumulate cases added; `IW_ESSAYS+`
+  left the invalid list). Red: `(equal invalid (accumulate . "ESSAYS"))`.
+- G10 renames: `--entry-id` -> `org-iw-discovery-entry-id ()`,
+  `--queue-lines` -> `org-iw-discovery-queue-lines QUEUE` (docstring names
+  core as the classifier).
+- F-11: discovery gains private `--id-problems SCAN ID` (the one
+  problem-by-ID filter) and public `org-iw-discovery-excluded-id-p SCAN ID`
+  (replaces `--excluded-id-p`), `-problem-types SCAN ID` (symbols; nil ID ->
+  `(missing-id)`), `-shared-id-p SCAN ID FILE`, `-unrecognised-drawer-p ()`.
+  org-iw.el loses `--problem-types`, `--shared-id-p`,
+  `--unrecognised-drawer-p`; gains pure `org-iw--problem-types-text TYPES`
+  (", " join, "unknown" fallback). No test changed.
+- F-2: guard in `org-iw-write--preflight`, inside `org-with-point-at`, after
+  the compare-and-set, ungated on EXPECTED: "FILE: entry has a property
+  drawer Org doesn't recognise". `--check-heading` lost its drawer check and
+  docstring clause; put-rank's docstring lists the refusal. New test
+  `org-iw-write-test-refuses-unrecognised-drawer`. Red: put-rank with
+  `:expected :absent` returned `saved` ("did not signal an error").
+  Placement argument checked: integer EXPECTED passes the compare only with
+  a member line, read from `org-get-property-block`, and
+  `-unrecognised-drawer-p` is nil whenever that block exists. Probed before
+  the guard: `:expected 1` on the drawer refused "IW_ESSAYS changed since
+  scan", nothing changed; the new test keeps that case.
+- Add's change: the message is now "/abs/a.org: entry has a property drawer
+  Org doesn't recognise" (was "heading has …", no file), and it comes after
+  the rank-limit check. Add tests unedited and green (malformed-drawer,
+  ignores-drawer-text-in-block, drawerless-before-drawer-heading B2,
+  refusal-order, nonmember-shared-id-in-file A1).
+- Closure greps empty: `org-iw-discovery--` in org-iw.el/org-iw-write.el;
+  `org-iw-write--` in org-iw.el; `org-property-start-re|outline-next-heading`
+  there; `line-class` anywhere. The sheet's `org-iw--(problem-types|…)\b`
+  grep matches `org-iw--problem-types-text` (`-` is a word boundary); with
+  `([^-[:alnum:]]|$)` it is empty.
+- Also re-indented `org-iw--refuse-absent` (R2a's misaligned continuation)
+  and the touched defuns with Emacs `indent-region`.
+- Gate: `just lint` clean; `just test-all` 147/147 on 31.1 and 30.2;
+  `just test-each` 147 pass alone.
+
 ## Design deltas for /reconcile
 
 - § 5.2 `org-iw-core-append-rank` takes `(ORDERED QUEUE)`, not `(ORDERED)`
   (PHASE-02); the user accepted it in session 2026-10-01.
 - § 5.2 discovery: the scan struct has constructor `org-iw-scan-create`; § 9:
   the fixture's FILES argument is an evaluated form (PHASE-03 entry).
-- § 5.2 says `org-iw-write.el` requires core, `org`, `org-id`, and § 5.1 draws
+- *Superseded by RV-002 F-11/F-15 (R2b, below).* § 5.2 says `org-iw-write.el` requires core, `org`, `org-id`, and § 5.1 draws
   no write -> discovery edge; § 5.4 has preflight use the scan's raw-line
   reader. Implemented: write requires `org-iw-discovery` (ADR-003 permits the
   direction) and calls `org-iw-discovery--iw-lines` and `--line-class`.
@@ -480,7 +525,7 @@ For PHASE-08 (human trial):
   next scan drops. Same intent ("stops Add creating a duplicate").
 - § 5.2 `org-iw-add` (G7): returns the message it shows (no-op included);
   the design left the return value open.
-- § 5.1 / ADR-003 (G10): the command layer now calls discovery privates
+- *Superseded by RV-002 F-11/F-15 (R2b, below).* § 5.1 / ADR-003 (G10): the command layer now calls discovery privates
   (`--queue-lines`, `--entry-id`, `--in-block-p`, `--excluded-id-p`) and
   write calls `--queue-lines`. Suggest promoting a small public discovery
   reader API (entry ID, per-queue lines, block test, excluded-ID test).
@@ -512,6 +557,9 @@ For PHASE-08 (human trial):
 - § 5.2 core and put-rank (RV-002 F-6 fix-now disposition 2026-10-01): core gains `org-iw-core-rank-p`, the one limit test, used by `parse-rank`, `append-rank` and put-rank's `cl-check-type` on RANK. An out-of-limit or non-integer RANK is `wrong-type-argument`. This supersedes PHASE-05 gap 5's "RANK not range-checked".
 - § 5.2 discovery, write preflight, `org-iw--source-file-p` (RV-002 F-9, user ruling 2026-10-01): `(or (buffer-base-buffer b) b)` is `org-iw-discovery-base-buffer &optional BUFFER`, the one base-buffer helper. `org-iw-write--base` is gone.
 - § 5.3 Session (RV-002 F-12 fix-now disposition 2026-10-01): set only by `org-iw--session-start QUEUE ENTRY` (called by `org-iw--visit`) and cleared only by `org-iw--session-end` (called by `org-iw-end-session`). The pair owns the `global-mode-string` item.
+- § 5.2 core classify table (RV-002 F-15, user ruling 2026-10-01): a new row `IW_<valid id>+` -> `(accumulate . ID)` before the `invalid` row. `IW_AFTER_…+` stays `reserved`, and `IW_<anything else>+` stays `invalid`. § 5.4 step 4's accumulate rule is now core's classification. `org-iw-discovery--line-class` is gone.
+- § 4 / § 5.2 write preflight / § 5.4 Add step 4 (RV-002 F-2, user ruling 2026-10-01): the second-drawer guard is in write preflight, after the compare-and-set. put-rank refuses "FILE: entry has a property drawer Org doesn't recognise" for every caller, and step 4 leaves Add's list. Consequences: Add's message names the file and comes after the rank-limit refusal (step 7). Steps 5 and 6 cannot precede it.
+- § 5.1 / § 5.2 discovery / § 5.4 Add (RV-002 F-11 and logged delta G10, user ruling 2026-10-01): discovery's public API gains `org-iw-discovery-entry-id`, `-queue-lines QUEUE`, `-excluded-id-p SCAN ID`, `-problem-types SCAN ID` (symbols), `-shared-id-p SCAN ID FILE` and `-unrecognised-drawer-p`. They share one problem-by-ID filter, `org-iw-discovery--id-problems`. Add steps 5 and 6 read through them, and § 5.4 step 4's "Write preflight and Add step 4 use it" now reads "use it through `org-iw-discovery-queue-lines`". G10 is closed: no file calls another file's `--` private. This supersedes the earlier deltas suggesting promotion (the PHASE-05 "§ 5.2 says `org-iw-write.el` requires …" bullet and the G10 bullet).
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->

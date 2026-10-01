@@ -47,7 +47,7 @@ The message is FORMAT-STRING with ARGS, after the file name."
 
 (defun org-iw-write--expected-p (lines expected)
   "Return non-nil if the queue LINES hold the rank EXPECTED.
-LINES are as from `org-iw-discovery--queue-lines'.  EXPECTED :absent
+LINES are as from `org-iw-discovery-queue-lines'.  EXPECTED :absent
 holds for no line at all, and an integer for a single membership
 line whose value parses to it."
   (pcase lines
@@ -59,19 +59,22 @@ line whose value parses to it."
 (defun org-iw-write--preflight (marker queue expected)
   "Refuse unless writing QUEUE's rank at MARKER is safe.
 The base buffer's file must be unchanged on disk since visited and
-writable, and the entry at MARKER must hold the rank EXPECTED in
-QUEUE, a canonical queue ID.  Nothing is changed."
+writable.  The entry at MARKER must hold the rank EXPECTED in QUEUE,
+a canonical queue ID, and have no property drawer Org fails to
+recognise.  Nothing is changed."
   (let* ((base (org-iw-discovery-base-buffer (marker-buffer marker)))
          (file (buffer-file-name base)))
     (unless (verify-visited-file-modtime base)
       (org-iw-write--refuse marker "changed on disk; revert first"))
     (unless (file-writable-p file)
       (org-iw-write--refuse marker "not writable"))
-    (unless (org-iw-write--expected-p
-             (org-with-point-at marker
-               (org-iw-discovery--queue-lines queue))
-             expected)
-      (org-iw-write--refuse marker "IW_%s changed since scan" queue))))
+    (org-with-point-at marker
+      (unless (org-iw-write--expected-p (org-iw-discovery-queue-lines queue)
+                                        expected)
+        (org-iw-write--refuse marker "IW_%s changed since scan" queue))
+      (when (org-iw-discovery-unrecognised-drawer-p)
+        (org-iw-write--refuse
+         marker "entry has a property drawer Org doesn't recognise")))))
 
 (defun org-iw-write--apply (marker fn)
   "Call FN at MARKER atomically; save the base buffer if it was clean.
@@ -109,8 +112,9 @@ Before anything changes, refuse with `org-iw-refusal', naming the
 file, if the file changed on disk since visited, the file is not
 writable, or the entry's IW_ lines for QUEUE are not exactly
 EXPECTED: one membership line whose value parses to it, or none for
-:absent.  A duplicated or accumulated key
-never matches.
+:absent.  A duplicated or accumulated key never matches.  It also
+refuses if the entry has a property drawer Org does not recognise,
+since Org would add a second one.
 
 The ID and rank are then written atomically: if either signals, the
 buffer is restored and the error propagates.  A base buffer that had

@@ -200,6 +200,20 @@ DRAWER-LINES are the IW lines of a heading with an ID."
   (org-iw-write-test--check-refuses '(":IW_ESSAYS: 1" ":IW_ESSAYS+: 2") 1)
   (org-iw-write-test--check-refuses '(":IW_ESSAYS+: 2") :absent))
 
+(ert-deftest org-iw-write-test-refuses-unrecognised-drawer ()
+  ":absent refuses an entry whose drawer Org does not see.
+Writing would add a second drawer and strand its ID.  An integer
+EXPECTED refuses there too, at the compare: Org sees no rank."
+  (let ((text (org-iw-test-org "* H" "body" ":PROPERTIES:" ":ID: x1" ":END:")))
+    (dolist (keys '((:expected :absent) (:expected :absent :ensure-id t)
+                    (:expected 1)))
+      (org-iw-test-with-corpus `(("a.org" . ,text))
+        (let ((reason (apply #'org-iw-write-test--should-refuse
+                             (org-iw-test-marker "a.org" "H") "ESSAYS" keys)))
+          (when (eq (plist-get keys :expected) :absent)
+            (should (string-search "property drawer Org doesn't recognise"
+                                   reason))))))))
+
 (ert-deftest org-iw-write-test-queue-is-checked ()
   "QUEUE must be a canonical queue ID; anything else is an error.
 The error comes before anything changes."

@@ -61,7 +61,7 @@
     (should-not (org-iw-core-queue-id bad))))
 
 (ert-deftest org-iw-core-test-classify-property ()
-  "Property names classify as member, reserved, invalid or nil."
+  "Property names classify as member, accumulate, reserved, invalid or nil."
   (should (equal (org-iw-core-classify-property "IW_ESSAYS")
                  '(member . "ESSAYS")))
   (should (equal (org-iw-core-classify-property "iw_essays")
@@ -70,9 +70,16 @@
                  '(member . "AFTER-X")))
   (should (equal (org-iw-core-classify-property "IW_AFTER")
                  '(member . "AFTER")))
-  (dolist (name '("IW_AFTER_ESSAYS" "iw_after_x" "IW_AFTER_"))
+  (should (equal (org-iw-core-classify-property "IW_ESSAYS+")
+                 '(accumulate . "ESSAYS")))
+  (should (equal (org-iw-core-classify-property "iw_essays+")
+                 '(accumulate . "ESSAYS")))
+  (should (equal (org-iw-core-classify-property "IW_AFTER+")
+                 '(accumulate . "AFTER")))
+  (dolist (name '("IW_AFTER_ESSAYS" "iw_after_x" "IW_AFTER_" "IW_AFTER_X+"))
     (should (eq (org-iw-core-classify-property name) 'reserved)))
-  (dolist (name '("IW_ess_ays" "IW_straße" "IW_ESSAYS+" "IW_"))
+  (dolist (name '("IW_ess_ays" "IW_straße" "IW_" "IW_+" "IW_ess_ays+"
+                  "IW_ESSAYS++"))
     (should (eq (org-iw-core-classify-property name) 'invalid)))
   (dolist (name '("ID" "IWX" ""))
     (should-not (org-iw-core-classify-property name))))
