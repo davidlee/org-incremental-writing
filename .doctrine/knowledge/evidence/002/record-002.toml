@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 2
+slug = "same-gap-exhaustion"
+title = "Repeated fixed placement exhausts its rank gap in ~11 Continues"
+record_kind = "evidence"
+status = "captured"
+created = "2026-10-01"
+updated = "2026-10-01"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+datum = "Python simulation of ADR-004 allocation, spacing 1024, queue ranks 1024*i, always Continuing the front: one fixed placement repeated ('after 2' or 'halfway') hit no-gap after 11 Continues for queue sizes 5, 10, 30 and 100; a random mix of after-2/halfway/end lasted 41-5911; tail rotation never exhausts."
+provenance = "experiment"
+confidence = "high"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-002"
+
+[[relation]]
+label = "supports"
+target = "DEC-009"

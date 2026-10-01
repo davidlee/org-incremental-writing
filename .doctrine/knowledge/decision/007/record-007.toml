@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 7
+slug = "placement-spec-forms"
+title = "Placement specification forms"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-01"
+updated = "2026-10-01"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "REQ-009 needs fixed, fractional and end placement as plain data shared by config and the pure core; floats misround under floor (floor(0.29*100)=28)."
+choice = "A placement is (after N) with N a non-negative integer, (fraction NUM DEN) with integers 0 <= NUM <= DEN, DEN > 0, (percent P) with integer 0 <= P <= 100 as shorthand for (fraction P 100), or the symbol end. Front is (after 0), not a separate form. Depth: after -> min(N, count); fraction -> floor(count*NUM/DEN) in integer arithmetic; end -> count. One core predicate validates the form."
+alternatives = ["float fraction (inexact)", "float read to 6 decimal places", "percent only (no thirds)", "a named front form"]
+rationale = "Exact integer arithmetic satisfies REQ-009's floor(f*N) for every typed value; percent is a UX accommodation the user asked for, normalised in one place."
+consequences = ["config and core share one data form and one validity test", "no floating point anywhere in placement"]
+decided_by = "user (inq-2, percent per user note), agent (forms)"
+decided_on = "2026-10-01"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-002"

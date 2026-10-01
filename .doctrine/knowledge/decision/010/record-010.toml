@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 10
+slug = "rank-spacing-1024"
+title = "Rank spacing stays 1024"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-01"
+updated = "2026-10-01"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "ADR-004 leaves the spacing value to design. Repeated same-gap placement exhausts after about log2(spacing) uses."
+choice = "Keep org-iw-core-rank-spacing at 1024."
+alternatives = ["2^20 (about 20 same-gap uses; 7+ digit ranks)"]
+rationale = "A larger spacing buys only logarithmic headroom at a readability cost; default End (see the standard-vocabulary decision) and SL-006 address exhaustion instead."
+consequences = ["no-room refusals remain possible for repeated Soon/Later before SL-006"]
+decided_by = "user"
+decided_on = "2026-10-01"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-002"

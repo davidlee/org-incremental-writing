@@ -1,0 +1,353 @@
+id    = 3
+slug  = "design-review-of-sl-002"
+title = "design review of SL-002"
+# no status — a review's status is DERIVED from its findings, so
+# it is never stored (the storage rule forbids derived data in authored files).
+
+[review]
+facet     = "design"     # scope|design|plan|phase-plan|implementation|code-review|reconciliation
+raiser    = "raiser"
+responder = "responder"
+rounds_base = 0
+contests_base = 0
+concluded = true
+
+[[review.turn]]
+act = "conclude"
+role = "raiser"
+note = "Two rounds over design.md rev 26 against ADR-001..004, POL-002, STD-001, STD-004, DEC-007..011 and REQ-009/010/011/015/016. Prototyped and fuzzed the core contract in Emacs 31.1 (20k cases, 0 failures) and checked the defcustom widget types and icomplete's default reordering. F-1..F-9 raised and all verified (F-4 after one contest). No open defects."
+
+[[review.turn]]
+act = "conclude"
+role = "raiser"
+note = "Pass re-concluded after attaching a route to F-1; all 9 findings verified (raiser concluded round 2 earlier)."
+
+[target]                   # the outbound `reviews` edge: RV-NNN ──reviews──▶ <ref>
+ref   = "SL-002"
+
+[[finding]]
+id = "F-1"
+status = "verified"
+severity = "major"
+title = "Chooser order vs default: icomplete/vertico bubble default to top"
+detail = '''
+**Location.** design.md § 5.2 `org-iw--read-placement`: "completing-read \"Placement: \" over the labels, REQUIRE-MATCH t, in configured order (a completion table whose metadata sets display-sort-function to identity), default the default label." § 8 mitigation: "The table's metadata sets `display-sort-function` to `identity`. The trial checks it with the user's own completion UI."
+
+**Governing source.** REQ-016 AC1 "A configured queue's Continue chooser shows its labels in configured order"; DEC-011 "RET choosing the default"; DEC-009 default End (the *last* standard label).
+
+**Defect.** `display-sort-function` does not stop popular frontends from moving the DEFAULT to the top. Verified in Emacs 31.1 `icomplete.el` `icomplete--sorted-completions`: "Icomplete mode re-sorts candidates, bubbling the default to top" whenever a string default is given and the input is empty (icomplete, fido-mode; vertico does the same). With the standard vocabulary and default End, the chooser shows End, Soon, Later — not configured order — on every Continue. The obvious workaround (pass no DEF, map "" to the default) breaks DEC-011 under the same frontends, because there RET selects the first candidate (Soon). So the two requirements are in tension in common UIs, and the design defers the answer to the human trial, where it can only fail.
+
+**Fix.** Decide in design, with the user: either (a) accept "default first, rest in configured order" as meeting REQ-016 and say so (and test the configured order of the *table*, not the display), or (b) keep configured order and mark the default by annotation/prompt text ("Placement (default End): "), accepting that RET in icomplete picks the first label. Record the choice (DEC or design § 7) and make the § 9 trial step 5 check the decided behaviour.
+'''
+disposition = "fix-now"
+response = "Unchanged substance: user ruled RET = default (2026-10-01); DEC-011 amended; § 5.2/§ 7/§ 8 and trial step 5 record it. Route: review (settled in design review)."
+route = "review"
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Verified in icomplete--sorted-completions (Emacs 31.1). User ruled RET = default (2026-10-01): keep the completing-read default; labels passed in configured order; default may be shown first by icomplete/fido/vertico. Recorded in DEC-011 (amended), § 5.2 read-placement, § 7, § 8; trial step 5 checks it."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "DEC-011 amended with the user ruling (RET = default; UIs may list the default first); § 5.2 read-placement, § 7, § 8 and trial step 5 record it faithfully."
+
+[[finding.turn]]
+act = "reopen"
+role = "raiser"
+note = "Mechanical reopen (orchestrator, cooperative raiser role) only to attach a route the lock gate requires; the substance stays verified."
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+route = "review"
+response = "Unchanged substance: user ruled RET = default (2026-10-01); DEC-011 amended; § 5.2/§ 7/§ 8 and trial step 5 record it. Route: review (settled in design review)."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Re-verify after route attachment; the raiser verified the substance in round 2."
+
+[[finding]]
+id = "F-2"
+status = "verified"
+severity = "minor"
+title = "Add resolves label after scan and membership no-op"
+detail = """
+**Location.** design.md § 5.4 Add: "SL-001's steps 1 to 6 are unchanged. Step 7 becomes: Placement: `end` when LABEL is nil, else `org-iw--placement` (which refuses before any write)." versus § 4 "Refuse config on use. The vocabulary is validated where it is read, before any prompt, scan or write." and § 7 "Continue's placement is resolved before the scan. Bad config fails fast and cheaply".
+
+**Defect.** For Add the label is resolved at step 7, i.e. after the scan and after `org-iw--check-heading`. Concrete inputs: `(org-iw-add "ESSAYS" "Bogus")` with point on a heading already in ESSAYS returns "Already in ESSAYS at 2/3" and silently ignores the unknown label; with a broken `:placements` the same call scans first, then refuses. Continue and Add thus order the same check differently, and Add contradicts § 4. § 9 tests an unknown label from Lisp only for Continue.
+
+**Fix.** Resolve the placement in Add right after `org-iw--queue-id` (before the scan) when LABEL is non-nil, as Continue does, so unknown labels and bad config refuse before any scan regardless of membership. Add § 9 tests: Lisp `org-iw-add` with an unknown label refuses before scanning (scan stub asserts not called), including on an existing member.
+"""
+disposition = "fix-now"
+response = "§ 5.4 Add: placement resolved after add-target and queue-id, before the scan; bad label/config refuses even for an existing member. § 9 test added."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "§ 5.4 Add: placement resolved after add-target and queue-id, before the scan; bad label/config refuses even for an existing member. § 9 test added."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "§ 5.4 Add now resolves the placement after add-target and queue-id, before the scan; § 9 tests an unknown label refusing for an existing member. Plain Add (LABEL nil) still skips the vocabulary, which is correct."
+
+[[finding]]
+id = "F-3"
+status = "verified"
+severity = "minor"
+title = "Command test of 5 cannot distinguish Soon from Later"
+detail = """
+**Location.** design.md § 9 Commands: "Continue with each standard placement on an unconfigured queue of 5: the resulting order (Soon → 3rd, Later → 3rd, End → last)".
+
+**Defect.** With 5 members the target has 4 others: Soon `(after 2)` → depth 2, Later `(fraction 1 2)` → floor(4/2) = 2. Both land 3rd, so the command test cannot tell Soon from Later. Plausible bugs that pass it: the labels' placements swapped or both bound to the same form in the vocabulary lookup (e.g. `org-iw--placement` returning the first/default entry's placement for any label that matches by prefix), or Continue counting the target (floor(5/2) = 2, same answer). The defcustom literal pin covers the default value but not the label→placement lookup path through Continue.
+
+**Fix.** Use a queue where every standard placement gives a distinct position and the fraction distinguishes "with" vs "without target", e.g. 8 members (7 others): Soon → 3rd, Later → floor(7/2)=3 → 4th (with target counted: floor(8/2)=4 → 5th), End → last.
+"""
+disposition = "fix-now"
+response = "§ 9: standard-placement Continue test uses a queue of 8 (Soon 3rd, Later 4th, End 8th)."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "§ 9: standard-placement Continue test uses a queue of 8 (Soon 3rd, Later 4th, End 8th)."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "8-entry queue, 7 others: Soon depth 2 → 3rd, Later floor(7/2)=3 → 4th, End → 8th. Counting the target by mistake gives floor(8/2)=4 → 5th, so that bug is now caught too."
+
+[[finding]]
+id = "F-4"
+status = "verified"
+severity = "minor"
+title = "Property test one-directional, no oracle self-test"
+detail = """
+**Location.** design.md § 5.5 "Core property (tested over random inputs, § 9). For any order and any placement, `place` returns one of: unchanged, when reorder equals ORDER; moved, when sorting ... equals reorder; no-gap, when the neighbours' ranks admit no integer strictly between them, or the limit is reached." § 9 "Property test (seeded, about 500 cases, no external library): random orders with ties and negative ranks ... Check the § 5.5 property".
+
+**Governing source.** STD-001 item 2 (tested oracles: a helper deciding pass/fail for many tests has a self-test showing it detects what it claims); item 3 (guards killed).
+
+**Defect.** (1) The property is stated one-directionally ("returns ... when"). A checker that only verifies each returned tag's own condition passes an implementation that returns `no-gap` too often (e.g. checks rank-at before the unchanged test, so an entry already in place between tied/adjacent neighbours gets `no-gap` instead of `unchanged`), or `moved` for a target already in place with a valid gap. The checker must be biconditional: unchanged iff the target's index equals the depth; no-gap iff no allowed rank exists; else moved. (2) The generator is specified as "ties and negative ranks" only; the precedence bug above and the limit cases are only reached if ranks include adjacent values and ±(2^53−1) neighbourhoods. (3) No self-test of the property checker is planned, though it is exactly the STD-001 item 2 oracle kind.
+
+(Checked by prototype: a reference implementation of § 5.2 passed 20,000 random cases with ties, duplicate IDs, adjacent ranks and ±limit; the contract itself is sound — the gap is in the test specification.)
+
+**Fix.** State the property as three iff-conditions with an independent no-gap oracle (neighbour ranks in `reorder` tied/adjacent, or depth 0 with first − 1024 < −(2^53−1), or depth = count with last + 1024 > 2^53−1). Specify the generator to draw from small ranges (forcing ties/adjacency) and from near ±limit. Add a self-test: the checker rejects a deliberately wrong `place` (e.g. one that ignores unchanged, one that always returns no-gap).
+"""
+disposition = "fix-now"
+response = "Contest accepted. § 9 checker now in precedence order: unchanged ⇔ non-nil target and reorder = ORDER; no-gap ⇔ not unchanged and no allowed rank (A(5) T(5) B(6) (after 1) cited as unchanged); else moved with re-sort = reorder. Nil target checked via a fresh stand-in entry inserted at DEPTH. Self-test adds 'no-gap for an entry already in place'. Also fixed the F-6/F-8 wording leftovers (§ 5.5, § 9 global-option pin)."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "§ 9: property checked in both directions per outcome; generator includes ties, adjacent ranks, nil target and ranks near ±limit; checker self-test against three deliberately wrong results (STD-001 item 2)."
+
+[[finding.turn]]
+act = "contest"
+role = "raiser"
+note = """
+The revised § 9 checker is wrong as written. It now rejects a correct `place`.
+
+§ 9 says "`no-gap` ⇔ there is no integer strictly between the neighbours, or the limit is reached". That condition ignores the fact that `unchanged` takes precedence. Take ORDER = A(5) T(5) B(6) with placement `(after 1)`. T is already at depth 1, so the correct result is `unchanged`. Yet its neighbours among the others are 5 and 6, which admit no integer between them, so the right-hand side of the no-gap iff holds and the checker demands `no-gap`. I ran a prototype of § 5.2 with ranks in 0..3: 837 of 20,000 random cases had `unchanged` as the correct result while the no-gap condition also held. A checker written to the letter of § 9 fails a correct implementation. Or the implementer "fixes" it by making `no-gap` win, which is exactly the precedence bug F-4 was meant to catch.
+
+Second, the generator now draws "random targets, nil included". The property, though, is stated through `reorder ORDER TARGET DEPTH` and "the target re-ranked", and neither is defined for a nil TARGET. For nil, the checker has to insert a fresh entry carrying RANK and compare its position against DEPTH.
+
+Fix:
+- State the oracle with precedence: unchanged ⇔ TARGET non-nil and its index in ORDER = DEPTH. no-gap ⇔ not unchanged ∧ (the depth's neighbours in OTHERS are tied or adjacent, or DEPTH = 0 ∧ first − 1024 < −(2^53−1), or DEPTH = |OTHERS| ∧ last + 1024 > 2^53−1, with empty OTHERS never no-gap). Otherwise moved, and re-sorting with the target (or a fresh entry for nil) at RANK puts it at DEPTH, with the others in their original order.
+- Add "`no-gap` for an entry already in place between tied neighbours" to the self-test's wrong results.
+
+Everything else in the F-4 fix holds: the generator ranges, the "in both directions" requirement and the self-test.
+"""
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Contest accepted. § 9 checker now in precedence order: unchanged ⇔ non-nil target and reorder = ORDER; no-gap ⇔ not unchanged and no allowed rank (A(5) T(5) B(6) (after 1) cited as unchanged); else moved with re-sort = reorder. Nil target checked via a fresh stand-in entry inserted at DEPTH. Self-test adds 'no-gap for an entry already in place'. Also fixed the F-6/F-8 wording leftovers (§ 5.5, § 9 global-option pin)."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "§ 9 now checks the outcomes in precedence order: unchanged (non-nil target already in place) first, then no-gap only when not unchanged. That matches the § 5.2 prototype, which passed 20,000 fuzz cases, and the A(5) T(5) B(6) counterexample is cited as unchanged. A nil target is checked with a fresh stand-in entry. The self-test includes no-gap for an entry already in place."
+
+[[finding]]
+id = "F-5"
+status = "verified"
+severity = "minor"
+title = "Add prompt default drifts from DEC-011 (default End)"
+detail = """
+**Location.** design.md § 5.2 `org-iw--read-placement`: "Add's prompt uses it too, so its default is the queue's default label". DEC-011 choice: "org-iw-add appends; with a prefix argument it prompts for a placement from the chosen queue's vocabulary after the queue prompt (default End)."
+
+**Defect.** Drift between the design and an accepted decision. For a configured queue with `:default "Soon"`, `C-u M-x org-iw-add` RET places at Soon under the design, at End under DEC-011. For a queue whose vocabulary has no "End" label (the § 5.3 TWEETS example), DEC-011's literal reading cannot be implemented at all. Per the authority model, two binding sources disagreeing must be surfaced, not silently resolved.
+
+**Fix.** Ask the user which they meant; then either amend DEC-011's wording ("default: the queue's default label") or change the design (Add's prompt default = the label whose placement is `end`, if any, else the queue default). Pin the chosen default with the recorder in § 9 (`C-u` Add on a queue with `:default "Soon"`).
+"""
+disposition = "fix-now"
+response = "User ruled the queue's default label (2026-10-01). DEC-011 amended; § 5.2 and § 9 updated."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "User ruled the queue's default label (2026-10-01). DEC-011 amended; § 5.2 and § 9 updated."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "DEC-011 amended: Add's prompt defaults to the queue's default label (user ruling); § 5.2, § 7 and the § 9 test 'C-u Add's prompt default is the queue's default label' match."
+
+[[finding]]
+id = "F-6"
+status = "verified"
+severity = "minor"
+title = "Vocabulary: nil vs absent, global-config blame, second plist reader"
+detail = """
+**Location.** design.md § 5.2 `org-iw--vocabulary`: "PLACEMENTS = the queue's :placements, else org-iw-placements. DEFAULT = the queue's :default; else, unless the queue has its own :placements, org-iw-default-placement; else the first label. Refuses, naming the queue, unless PLACEMENTS is a non-empty list ..." § 9: "Bad config refuses ... naming the queue: ... an empty list".
+
+**Defects.**
+1. *Absent vs nil is undefined.* `("TWEETS" :placements nil)` matches the customize type (verified: the plist widget accepts it). With `plist-get` it silently falls back to the standard vocabulary, while `org-iw-placements` set to nil refuses as "empty list". The § 9 "empty list" case is therefore reachable only through the global option, and the per-queue explicit empty list is silently ignored. Decide: `plist-member` semantics (explicit nil refuses) or document nil = absent.
+2. *Blame for global config.* With `org-iw-placements` customised to `(("Soon" (after 2)) ("Later" (fraction 1 2)))` and `org-iw-default-placement` left at "End", every unconfigured queue refuses plain Continue with a message naming the *queue*, though the fault is in two global options. The refusal should name the source of the bad value (`org-iw-default-placement` / `org-iw-placements` vs the queue's `:placements`/`:default`).
+3. *Second plist reader.* research.md Thread 2 says "`org-iw--configured-name` is the plist reader to generalise", but § 5.2/§ 10 add `org-iw--vocabulary` as a separate reader of the same `(alist-get queue (org-iw--configured-queues))` plist. Under POL-002 ("a reader of source state" is a concept; STD-004 item 5) the queue-config lookup should have one owner, e.g. `org-iw--queue-config QUEUE` used by both `org-iw--configured-name` and `org-iw--vocabulary`.
+
+**Fix.** Specify plist-member semantics (or nil = absent) for `:placements`/`:default`; make the refusal name the option that supplied the bad value; route both readers through one queue-config accessor and list it in § 10.
+"""
+disposition = "fix-now"
+response = "§ 5.2: org-iw--queue-config is the one queue-plist reader (configured-name built on it); present-but-nil :placements refused as empty (plist-member); refusals name the blamed source (queue NAME :placements / org-iw-placements / :default / org-iw-default-placement)."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "§ 5.2: org-iw--queue-config is the one queue-plist reader (configured-name built on it); present-but-nil :placements refused as empty (plist-member); refusals name the blamed source (queue NAME :placements / org-iw-placements / :default / org-iw-default-placement)."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "org-iw--queue-config is the single plist reader, and configured-name is built on it (§ 5.2, § 10). plist-member semantics: a present-but-nil :placements refuses as empty. Refusals name the blamed source. Residual wording, not contested: § 5.5's 'Default label missing ... naming the queue' and § 9's 'naming the queue' predate the blame rule, and § 9 should pin a global-option blame message (org-iw-placements / org-iw-default-placement) alongside a per-queue one."
+
+[[finding]]
+id = "F-7"
+status = "verified"
+severity = "minor"
+title = "Interactive-spec guards (refuse before prompt) untested"
+detail = """
+**Location.** design.md § 9 Commands and § 5.4: "1. No session → refuse ... The interactive spec checks this before prompting." and "Refuses bad config or an unknown label before any scan"; for Add "With a prefix argument it then canonicalises the queue (`org-iw--queue-id`) and reads the placement."
+
+**Governing source.** STD-001 item 3 (each guard pinned by a test that fails when it is removed) and item 6 (a stub asserts whether it was called).
+
+**Defect.** The interactive-spec guards have no planned test. § 9 lists "`C-u` Continue reads a placement; Continue without a prefix doesn't prompt" and the existing no-session test calls `org-iw-continue` non-interactively. Removing `org-iw--session-or-refuse` from Continue's interactive spec (prompt first, refuse after) or removing the vocabulary validation before the prompt passes every listed test. Likewise for `C-u` Add: an invalid queue ID or bad vocabulary must refuse before the placement prompt.
+
+**Fix.** Add: `C-u` `call-interactively` Continue without a session refuses with the recorder asserting no prompt (answer nil); `C-u` Continue on a queue with bad vocabulary refuses before the prompt; `C-u` Add with an invalid typed queue ID refuses before the placement prompt (recorder sees exactly one prompt, the queue's).
+"""
+disposition = "fix-now"
+response = "§ 9: refuse-before-prompt tests for C-u Continue without session, C-u Continue with bad config, and C-u Add with bad config before the placement prompt; the recorder fails if reached."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "§ 9: refuse-before-prompt tests for C-u Continue without session, C-u Continue with bad config, and C-u Add with bad config before the placement prompt; the recorder fails if reached."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "§ 9 adds refuse-before-prompt tests for C-u Continue without a session, C-u Continue with bad config, and C-u Add with bad config before the placement prompt, with the recorder failing if reached. That covers both interactive-spec guards."
+
+[[finding]]
+id = "F-8"
+status = "verified"
+severity = "minor"
+title = "Later is sooner than Soon in small queues; unstated, unpinned"
+detail = """
+**Location.** design.md § 5.5 Edge cases ("Clamping ... `(percent 0)` = front", "`(fraction 0 1)` and `(after 0)` both mean the front") and DEC-009 (Later = `(fraction 1 2)`).
+
+**Defect (unstated consequence).** Under REQ-009's floor(f·N), Later in a 2-entry queue has N = 1 other → floor(1/2) = 0: the target goes to the front and Continue → Later reopens the same entry (unchanged, no write). In a 3-entry queue Later → depth 1 while Soon → depth 2 (the end), so "Later" comes back *sooner* than "Soon" for queues of up to 4 entries (5 entries: both depth 2). This is correct by REQ-009 but nowhere stated; the § 9 trial on a small queue will look like a bug, and no test pins it, so a later "fix" (ceil, min-depth 1) would slip in unreviewed.
+
+**Fix.** State it as an edge case in § 5.5 and pin it in the core depth table (`(fraction 1 2)` with 1 other → 0). Optionally surface to the user whether a non-zero fraction should mean depth ≥ 1; if so it is a DEC-007 change, not an implementation choice.
+"""
+disposition = "fix-now"
+response = "User accepted the behaviour (follows REQ-009 and DEC-009). Stated in § 5.5 edge cases; § 9 pins the 2-entry Later case."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "User accepted the behaviour (follows REQ-009 and DEC-009). Stated in § 5.5 edge cases; § 9 pins the 2-entry Later case."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "§ 5.5 states the accepted behaviour and § 9 pins the 2-entry Later case. Wording: with 3 or 4 entries Later is strictly before Soon (depth 1 vs 2); 'with' first happens at 5 entries. 'before or with' is true but loose."
+
+[[finding]]
+id = "F-9"
+status = "verified"
+severity = "nit"
+title = "Message wording and undeclared test-message churn"
+detail = '''
+**Location.** design.md § 5.4 messages: "Report \"Moved T to LABEL (D+1/N) STATUS. Now 1/N: NEXT\"", Add "Report \"Added to NAME at D+1/N+1 STATUS\"", § 5.2 `org-iw--refuse-no-room`: "no room at WHERE in NAME; redistribution is not yet available — choose another placement ... WHERE is ... \"the end\" for a plain Add"; § 10 "the \"already at end\" message updated".
+
+**Nits.**
+- Continue's moved message yields two adjacent parentheticals: "Moved A to End (3/3) (saved). Now 1/3: B". Consider "Moved A to End, 3/3 (saved). Now 1/3: B".
+- Add at a label omits the label ("Added to Articles at 3/6"), while Continue names it; include it for `C-u` Add.
+- "choose another placement" is unhelpful for plain Add, which has no placement argument (the remedy is `C-u` Add).
+- § 10 mentions only the "already at end" test message, but every existing Continue test pinning "Moved A to end (saved). Now 1/3: B" (moves-to-end, ignores-new-front, counts-source-problems, reports-failed-save) and both "rank limit" refusal tests change wording; list them so the churn is expected, not mistaken for regressions.
+'''
+disposition = "fix-now"
+response = "§ 5.4 messages use 'LABEL, D+1/N STATUS'; Add with a label names it; no-room advice holds for plain Add via C-u (§ 5.2); § 10 declares the changed expectations of existing Continue/limit tests."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "§ 5.4 messages use 'LABEL, D+1/N STATUS'; Add with a label names it; no-room advice holds for plain Add via C-u (§ 5.2); § 10 declares the changed expectations of existing Continue/limit tests."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "§ 5.4 uses 'LABEL, D+1/N STATUS'; Add with a label names it; the no-room advice for plain Add is justified via C-u; § 10 declares the changed expectations of the existing messages."
+
+# Findings are append-only `[[finding]]` tables, added by `review raise`.
+# Empty here at creation — a fresh review is Active, awaiting the raiser.

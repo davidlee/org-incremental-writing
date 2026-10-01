@@ -1,0 +1,42 @@
+memory_uid = "mem_01a0f61703707ab195b31ba1ae0c631e"
+memory_key = "mem.pattern.doctrine.design-review-gate-gotchas"
+schema_version = 1
+memory_type = "pattern"
+status = "active"
+title = "Design run review and lock gotchas (doctrine 0.46.5)"
+summary = "policy label bound, att- declarations for section review, severe findings need a route"
+created = "2026-10-01"
+updated = "2026-10-01"
+
+[scope]
+paths = []
+globs = []
+commands = []
+tags = ["doctrine", "design"]
+workspace = "default"
+repo = "github.com/davidlee/org-incremental-writing"
+repo_id_kind = "remote"
+repo_id_confidence = "high"
+
+[git]
+anchor_kind = "checkout_state"
+commit = ""
+tree = "680755e5c62f18902c993e251532e62817e4ccaf"
+ref_name = "refs/heads/main"
+checkout_state_id = "2111af22efe32f23bcbebfad6b434ed99f803a69f82f681a782eedca1be82136"
+base_commit = "869915cc65ea0121abd51d28288b3f8bce0881e0"
+verified_sha = ""
+normalizer = "forget.checkout.v1"
+
+[review]
+verification_state = "unverified"
+reviewed = ""
+review_by = ""
+
+[trust]
+trust_level = "medium"
+
+[ranking]
+severity = "none"
+weight = 0
+

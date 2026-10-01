@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 9
+slug = "standard-vocabulary-default-end"
+title = "Standard Soon/Later/End vocabulary, default End"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-01"
+updated = "2026-10-01"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "PRD-001 OQ-3 asked for the standard depths. Simulation (SL-002 notes): one fixed placement repeated every Continue exhausts its gap after ~11 uses at spacing 1024; tail rotation never does."
+choice = "Standard placements: Soon = (after 2), Later = (fraction 1 2), End = end, in that chooser order; the default is End."
+alternatives = ["default Soon (routine no-room refusals before SL-006)", "default Later (same exhaustion profile)"]
+rationale = "End as default keeps the common case exhaustion-free and matches SL-001's behaviour; Soon and Later are deliberate choices, so their mix stays healthy until SL-006 provides redistribution."
+consequences = ["settles PRD-001 OQ-3", "revisit the default once SL-006 lands, if the user wants"]
+decided_by = "user"
+decided_on = "2026-10-01"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-002"

@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 8
+slug = "reinsertion-vocabulary-config"
+title = "Reinsertion vocabulary configuration"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-01"
+updated = "2026-10-01"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "REQ-016: each queue may configure labels, placements and default; unconfigured queues use standard defaults. DEC-002 left org-iw-queues' plist open for this."
+choice = "org-iw-queues entries gain :placements, a list of (LABEL PLACEMENT) in chooser order, and :default, a LABEL (absent -> the first placement). Queues without :placements use the defcustoms org-iw-placements and org-iw-default-placement. Labels live only in config; entries never store them."
+alternatives = ["first placement is always the default (cannot order chooser independently)", "standard vocabulary as a defconst (not user-adjustable globally)", "separate defcustom per queue aspect"]
+rationale = "Extends DEC-002 without migration; global defcustoms let a user set one vocabulary for all unconfigured queues with no new logic beyond a fallback lookup."
+consequences = ["renaming a label or queue display name never touches entries", "Add-at-placement reads the same vocabulary"]
+decided_by = "agent; user did not object (2026-10-01)"
+decided_on = "2026-10-01"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-002"

@@ -1,0 +1,42 @@
+memory_uid = "mem_01a0f61703427ea2ace185d0f97fc691"
+memory_key = "mem.fact.emacs.completing-read-default-bubbles"
+schema_version = 1
+memory_type = "fact"
+status = "active"
+title = "completing-read: icomplete/fido/vertico move a string default to the top"
+summary = "display-sort-function identity does not stop icomplete/fido/vertico showing DEF first"
+created = "2026-10-01"
+updated = "2026-10-01"
+
+[scope]
+paths = []
+globs = []
+commands = []
+tags = ["emacs", "completion"]
+workspace = "default"
+repo = "github.com/davidlee/org-incremental-writing"
+repo_id_kind = "remote"
+repo_id_confidence = "high"
+
+[git]
+anchor_kind = "checkout_state"
+commit = ""
+tree = "680755e5c62f18902c993e251532e62817e4ccaf"
+ref_name = "refs/heads/main"
+checkout_state_id = "50ea6a1ecb00a6b2067f9afd5b8c12c7b84c9e256d29c093c663b6be9ffe9b3b"
+base_commit = "869915cc65ea0121abd51d28288b3f8bce0881e0"
+verified_sha = ""
+normalizer = "forget.checkout.v1"
+
+[review]
+verification_state = "unverified"
+reviewed = ""
+review_by = ""
+
+[trust]
+trust_level = "medium"
+
+[ranking]
+severity = "none"
+weight = 0
+

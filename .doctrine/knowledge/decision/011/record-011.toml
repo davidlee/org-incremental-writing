@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 11
+slug = "placement-command-surface"
+title = "Continue and Add placement command surface"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-01"
+updated = "2026-10-01"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "REQ-015 wants a low-friction default plus a chooser; REQ-011 wants Add at a chosen placement."
+choice = "org-iw-continue applies the queue's default placement; with a prefix argument it prompts with completing-read over the queue's labels, RET choosing the default. org-iw-add appends; with a prefix argument it prompts for a placement from the chosen queue's vocabulary after the queue prompt, defaulting to the queue's default label (amended 2026-10-01, RV-003 F-5, user ruling). Both take the placement label as an optional argument for Lisp callers. Labels are passed in configured order; completion UIs that bubble the default to the top (icomplete, fido, vertico) show it first and the rest in order, which is the accepted reading of REQ-016's configured-order criterion (RV-003 F-1, user ruling 2026-10-01)."
+alternatives = ["separate org-iw-continue-choose command", "read-multiple-choice single-key chooser", "no completing-read default for strict order (RET would pick the first label in vertico/icomplete)", "Add prompt defaulting to an end-placement label"]
+rationale = "One command per action; completing-read works with any completion UI and needs no key configuration."
+consequences = ["Remove joins the chooser only when SL-003 provides it"]
+decided_by = "user"
+decided_on = "2026-10-01"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-002"

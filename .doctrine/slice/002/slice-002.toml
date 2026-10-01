@@ -1,9 +1,9 @@
 id = 2
 slug = "placement-vocabulary"
 title = "Placement and vocabulary"
-status = "proposed"
+status = "plan"
 created = "2026-09-30"
-updated = "2026-09-30"
+updated = "2026-10-01"
 tags = ["roadmap"]
 
 [relationships]
@@ -17,6 +17,26 @@ intent = "scope-relevant"
 [[selector]]
 selector = "test/**"
 intent = "scope-relevant"
+
+[[selector]]
+selector = "org-iw-core.el"
+intent = "design-target"
+
+[[selector]]
+selector = "org-iw.el"
+intent = "design-target"
+
+[[selector]]
+selector = "test/org-iw-core-test.el"
+intent = "design-target"
+
+[[selector]]
+selector = "test/org-iw-test.el"
+intent = "design-target"
+
+[[selector]]
+selector = "README.md"
+intent = "design-target"
 
 [[relation]]
 label = "governed_by"
