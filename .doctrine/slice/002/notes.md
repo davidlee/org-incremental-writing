@@ -107,7 +107,9 @@ is corrected.
 
 Continue takes LABEL and C-u chooser; messages name the label. Mutation 11/11
 (the carried reorder mutant is killed). New oracle should-write-nothing, for
-outcomes that re-visit. ISS-001 Continue half is fixed in the docstring.
+outcomes that re-visit. ISS-001 Continue half is fixed in the docstring. The PHASE-04/VT-1 keyword is
+corrected from "Moved A to Soon" (a planning guess) to "Moved E1 to Soon", the
+queue-of-8 fixture's text.
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->

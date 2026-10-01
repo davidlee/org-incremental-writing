@@ -116,7 +116,7 @@ exit_criteria = [
   { id = "EX-7", text = "just gate and just test-each green; mutation pass over the new command guards recorded." },
 ]
 verification = [
-  { id = "VT-1", expects = "Continue with each standard placement on a queue of 8; configured-queue chooser order and default; C-u vs plain prompting; Lisp label; unknown label", test_file = "test/org-iw-test.el", keywords = ["\"Soon\"", "\"Later\"", "Moved A to Soon", "already at End", "current-prefix-arg"], waived = false },
+  { id = "VT-1", expects = "Continue with each standard placement on a queue of 8; configured-queue chooser order and default; C-u vs plain prompting; Lisp label; unknown label", test_file = "test/org-iw-test.el", keywords = ["\"Soon\"", "\"Later\"", "Moved E1 to Soon", "already at End", "current-prefix-arg"], waived = false },
   { id = "VT-2", expects = "refuse-before-prompt for C-u Continue (no session, bad config) (F-7); unchanged at depth; depth 0; small-queue Later (F-8)", test_file = "test/org-iw-test.el", keywords = ["call-interactively #'org-iw-continue", "already at Soon", "(after 0)"], waived = false },
   { id = "VA-1", text = "Agent reads Continue's docstring against design § 5.4 and DEC-011; checkdoc clean." },
 ]
