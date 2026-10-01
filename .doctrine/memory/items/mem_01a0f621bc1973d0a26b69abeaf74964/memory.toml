@@ -1,0 +1,46 @@
+memory_uid = "mem_01a0f621bc1973d0a26b69abeaf74964"
+memory_key = "mem.fact.emacs.completion-table-with-metadata-31-only"
+schema_version = 1
+memory_type = "fact"
+status = "active"
+title = "completion-table-with-metadata is Emacs 31+; absent on 30.2"
+summary = "Package-Requires emacs 30.1: write completion tables with metadata as a hand-rolled function table (action 'metadata), not completion-table-with-metadata"
+created = "2026-10-01"
+updated = "2026-10-01"
+
+[scope]
+paths = []
+globs = ["*.el"]
+commands = []
+tags = ["emacs", "compat"]
+workspace = "default"
+repo = "github.com/davidlee/org-incremental-writing"
+repo_id_kind = "remote"
+repo_id_confidence = "high"
+
+[git]
+anchor_kind = "checkout_state"
+commit = ""
+tree = "ce962c0245e12f3df254d081cde4b052a2a1b547"
+ref_name = "refs/heads/main"
+checkout_state_id = "1a309bc69a8c155b76ca817b140075dcb1220bb45c04f2d3b35e6bd296b9e77f"
+base_commit = "efe2ee7bd4ca38bcbe120b5243b8201dd9881690"
+verified_sha = ""
+normalizer = "forget.checkout.v1"
+
+[review]
+verification_state = "unverified"
+reviewed = ""
+review_by = ""
+
+[trust]
+trust_level = "high"
+
+[ranking]
+severity = "none"
+weight = 0
+
+[[source]]
+kind = "session"
+ref = "SL-002 plan 2026-10-01"
+

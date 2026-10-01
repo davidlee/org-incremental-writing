@@ -67,19 +67,33 @@ Tooling note: `doctrine design apply` refused review policy
 admission bound"), although the contract lists it. The run stayed human-only;
 the adversarial pass is RV-003.
 
+## Plan (2026-10-01)
+
+Six phases, run in array order 01, 02, 03, 04, 06, 05 (`plan.md`). The Add
+phase took PHASE-06 because the draft had already authored PHASE-05 as the
+trial. RV-003 has no routed findings; each F-n is pinned by a criterion
+(plan.md § RV-003 routing). Premises re-grepped against HEAD: all hold.
+Research restamped; it had drifted only on this slice's own docs.
+Finding: `completion-table-with-metadata` is absent on Emacs 30.2
+(mem.fact.emacs.completion-table-with-metadata-31-only).
+Weak VT: PHASE-02/VT-2's keywords already exist in SL-001's tests. It is a
+regression check, not new signal.
+
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: 2026-10-01 · design locked · 869915c (design work uncommitted)
+fresh-as-of: 2026-10-01 · plan approved-ready, phases materialised
 
 ### Produced
 - design.md locked (run dr-01a0f578, rev 36); research/research.md; slice scope updated
 - RV-003 — adversarial design review, 9 findings, all verified
 - selectors: org-iw-core.el, org-iw.el, test/org-iw-core-test.el, test/org-iw-test.el, README.md
+- plan.toml / plan.md — PHASE-01..06; phase sheets materialised
 
 ### Learned
 - EVD-002 — repeated fixed placement exhausts its gap in ~11 Continues
 - mem.fact.emacs.completing-read-default-bubbles — UIs float DEF to the top
 - mem.pattern.doctrine.design-review-gate-gotchas — policy label bound, att- section review, routes before lock
+- mem.fact.emacs.completion-table-with-metadata-31-only — chooser table must be hand-rolled
 
 ### Open
 - DEC-007 — placement forms (after / fraction / percent / end)
@@ -87,4 +101,5 @@ fresh-as-of: 2026-10-01 · design locked · 869915c (design work uncommitted)
 - DEC-009 — standard Soon/Later/End, default End; settles PRD-001 OQ-3 (PRD text updated at reconcile)
 - DEC-010 — spacing stays 1024
 - DEC-011 — prefix + completing-read surface (amended per RV-003 F-1, F-5)
-- ISS-001 — Continue docstring half fixed in passing; put-rank half stays open
+- ISS-001 — Continue half fixed in PHASE-04; put-rank half stays open
+- CHR-001 — mutation recipe; until then mutation is ad hoc per phase
