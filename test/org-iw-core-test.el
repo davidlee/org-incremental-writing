@@ -378,6 +378,35 @@ PLACE is called like `org-iw-core-place'."
     (dolist (outcome '(unchanged moved no-gap))
       (should (< 20 (seq-count (apply-partially #'eq outcome) outcomes))))))
 
+(defun org-iw-core-test--ranks (order)
+  "Return the ranks in Q of the entries of ORDER."
+  (mapcar (lambda (entry) (org-iw-core-rank entry "Q")) order))
+
+(ert-deftest org-iw-core-test-place-cases-reach-edges ()
+  "The seeded cases include each edge the property must hold at.
+Each edge is called with a case's ORDER, TARGET and PLACEMENT."
+  (let ((cases (org-iw-core-test--place-cases)))
+    (pcase-dolist
+        (`(,wanted ,edge)
+         `((20 ,(lambda (order target _) (and order (null target))))
+           (20 ,(lambda (order _ _) (nthcdr 3 order)))
+           (20 ,(lambda (_ _ placement) (eq placement 'end)))
+           (20 ,(lambda (_ _ placement) (eq (car-safe placement) 'after)))
+           (20 ,(lambda (_ _ placement) (eq (car-safe placement) 'fraction)))
+           (20 ,(lambda (_ _ placement) (eq (car-safe placement) 'percent)))
+           (20 ,(lambda (order _ _)
+                  (seq-some #'cl-minusp (org-iw-core-test--ranks order))))
+           (20 ,(lambda (order _ _)
+                  (let ((ranks (org-iw-core-test--ranks order)))
+                    (/= (length ranks) (length (seq-uniq ranks))))))
+           (5 ,(lambda (order _ _)
+                 (let ((ranks (org-iw-core-test--ranks order)))
+                   (cl-some (lambda (a b) (= (- b a) 1)) ranks (cdr ranks)))))
+           (5 ,(lambda (order _ _)
+                 (memql 9007199254740991
+                        (mapcar #'abs (org-iw-core-test--ranks order)))))))
+      (should (< wanted (seq-count (lambda (case) (apply edge case)) cases))))))
+
 (ert-deftest org-iw-core-test-place-checker-self-test ()
   "The property checker rejects each kind of wrong result."
   (let ((wrong
@@ -393,6 +422,22 @@ PLACE is called like `org-iw-core-place'."
           (lambda (&rest args)
             (pcase (apply #'org-iw-core-place args)
               (`(unchanged ,depth) (list 'no-gap depth))
+              (result result)))
+          (lambda (&rest args)
+            (pcase (apply #'org-iw-core-place args)
+              (`(moved ,depth ,rank) (list 'moved (1+ depth) rank))
+              (result result)))
+          (lambda (&rest args)
+            (pcase (apply #'org-iw-core-place args)
+              (`(moved ,depth ,_) (list 'moved depth 0))
+              (result result)))
+          ;; Into an empty queue any rank sorts right, so only the
+          ;; limit check can reject this one.
+          (lambda (order &rest args)
+            (pcase (apply #'org-iw-core-place order args)
+              (`(moved ,depth ,rank)
+               (list 'moved depth
+                     (if order rank (+ rank 9007199254740991))))
               (result result))))))
     (should (zerop (org-iw-core-test--rejections #'org-iw-core-place)))
     (dolist (place wrong)

@@ -151,8 +151,8 @@ Bound to a key, a placement needs no prompt:
 
 ### What gets written, and when
 
-- Only `org-iw-add` and `org-iw-continue` write, and each changes one
-  `IW_` line. Add may also give the heading a property drawer and an ID.
+- Only `org-iw-add` and `org-iw-continue` write, and each changes at most
+  one `IW_` line. Add may also give the heading a property drawer and an ID.
 - Writes go through the file's buffer, so undo works.
 - If that buffer was unmodified, it is saved; the message ends `(saved)`.
 - If it already had unsaved changes, it is left unsaved. The message

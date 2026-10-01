@@ -245,6 +245,8 @@ the refusal."
           "queue ARTICLES :placements: no placements")
          ((:placements end) nil "End"
           "queue ARTICLES :placements: not a list")
+         ((:placements (("A" end) . x)) nil "End"
+          "queue ARTICLES :placements: not a list")
          ((:placements (("A" end)) :default "B") nil "End"
           "queue ARTICLES :default: \"B\" is not a placement label")
          ((:default nil) (("A" end)) "A"
@@ -272,7 +274,10 @@ the refusal."
                    '("Later" fraction 1 2)))
     (should (equal (cadr (should-error (org-iw--placement "ARTICLES" "Later")
                                        :type 'org-iw-refusal))
-                   "queue Articles has no placement \"Later\""))))
+                   "queue Articles has no placement \"Later\""))
+    (should (equal (cadr (should-error (org-iw--placement "OTHER" "soon")
+                                       :type 'org-iw-refusal))
+                   "queue OTHER has no placement \"soon\""))))
 
 (ert-deftest org-iw-cmd-test-read-placement ()
   "The chooser offers the labels in configured order, defaulting.
@@ -388,11 +393,10 @@ It requires a match, and keeps the order in both cycling and
 (defun org-iw-cmd-test--should-be-no-op (target-line)
   "Assert Add of a member by TARGET-LINE reports it and changes nothing."
   (org-iw-test-with-corpus (org-iw-cmd-test--queue-of-three target-line)
-    (let* ((marker (org-iw-test-marker "a.org" "Target"))
-           (before (org-iw-test-state)))
-      (should (equal (org-iw-cmd-test--add-at marker "ESSAYS")
-                     "Already in ESSAYS at 2/3"))
-      (should (equal (org-iw-test-state) before)))))
+    (let ((marker (org-iw-test-marker "a.org" "Target")))
+      (should (equal (org-iw-cmd-test--should-change-nothing
+                      (lambda () (org-iw-cmd-test--add-at marker "ESSAYS")))
+                     "Already in ESSAYS at 2/3")))))
 
 (ert-deftest org-iw-cmd-test-add-member-is-no-op ()
   "Adding a member reports its position; nothing is written or saved."
@@ -414,14 +418,10 @@ TITLE nil means the start of the file, before any heading."
 
 (defun org-iw-cmd-test--should-refuse (marker queue substring)
   "Assert Add at MARKER to QUEUE refuses with SUBSTRING, changing nothing.
-The refusal must be an `org-iw-refusal', and the corpus files and
-buffers must be as before.  Return the refusal message."
-  (let* ((before (org-iw-test-state))
-         (reason (cadr (should-error (org-iw-cmd-test--add-at marker queue)
-                                     :type 'org-iw-refusal))))
-    (should (string-search substring reason))
-    (should (equal (org-iw-test-state) before))
-    reason))
+See `org-iw-cmd-test--should-refuse-cleanly'.  Return the refusal
+message."
+  (org-iw-cmd-test--should-refuse-cleanly
+   substring (lambda () (org-iw-cmd-test--add-at marker queue))))
 
 (defun org-iw-cmd-test--refuses (text queue substring &optional title)
   "Assert Add refuses with SUBSTRING in a corpus holding a.org as TEXT.
@@ -935,6 +935,42 @@ The placement prompt defaults to the queue's default, not to the end."
                        "queue ESSAYS :placements: no placements"))
         (should (= (length org-iw-cmd-test--prompts) 1))))))
 
+(ert-deftest org-iw-cmd-test-add-plain-appends-whatever-the-default ()
+  "Without a label Add appends, even where the queue's default is not End."
+  (org-iw-test-with-corpus org-iw-cmd-test--target-and-eight
+    (let ((org-iw-queues '(("essays" :default "Soon"))))
+      (should (equal (org-iw-cmd-test--add "a.org" "Target" "essays")
+                     "Added to ESSAYS at 9/9 (saved)"))
+      (should (equal (car (last (org-iw-cmd-test--order "ESSAYS"))) "t1")))))
+
+(ert-deftest org-iw-cmd-test-add-chooser-refuses-invalid-queue-first ()
+  "An invalid queue ID refuses before the placement prompt."
+  (org-iw-test-with-corpus org-iw-cmd-test--target-and-eight
+    (org-iw-cmd-test--open-all)
+    (org-iw-cmd-test--with-prompt '("ess_ays")
+      (should (equal (cadr (org-iw-cmd-test--should-write-nothing
+                            (lambda ()
+                              (should-error
+                               (org-iw-cmd-test--add-chosen
+                                (org-iw-test-marker "a.org" "Target"))
+                               :type 'org-iw-refusal))))
+                     "invalid queue ID \"ess_ays\""))
+      (should (= (length org-iw-cmd-test--prompts) 1)))))
+
+(ert-deftest org-iw-cmd-test-add-refuses-placement-before-scan ()
+  "An unknown label refuses Add before any scan."
+  (org-iw-test-with-corpus org-iw-cmd-test--corpus
+    (org-iw-cmd-test--open-all)
+    (let ((marker (org-iw-test-marker "a.org" "Target")))
+      (cl-letf (((symbol-function 'org-iw--scan)
+                 (lambda () (ert-fail "Scanned"))))
+        (should (equal (cadr (org-iw-cmd-test--should-write-nothing
+                              (lambda ()
+                                (should-error
+                                 (org-iw-cmd-test--add-at marker "ESSAYS" "Nope")
+                                 :type 'org-iw-refusal))))
+                       "queue ESSAYS has no placement \"Nope\""))))))
+
 (ert-deftest org-iw-cmd-test-add-member-at-placement ()
   "A member is left alone at any valid label; an unknown label refuses."
   (org-iw-test-with-corpus org-iw-cmd-test--corpus
@@ -997,11 +1033,9 @@ FN may visit and start a session."
   "Call FN and assert it changed nothing; return its value.
 Nothing is the corpus state (see `org-iw-test-state'), the session
 and what the selected window shows."
-  (let ((state (org-iw-test-state))
-        (session org-iw--session)
+  (let ((session org-iw--session)
         (shown (org-iw-cmd-test--shown)))
-    (prog1 (funcall fn)
-      (should (equal (org-iw-test-state) state))
+    (prog1 (org-iw-cmd-test--should-write-nothing fn)
       (should (eq org-iw--session session))
       (should (equal (org-iw-cmd-test--shown) shown)))))
 
@@ -1014,6 +1048,31 @@ The refusal must be an `org-iw-refusal'.  Return its message."
                                        :type 'org-iw-refusal))))))
     (should (string-search substring reason))
     reason))
+
+(ert-deftest org-iw-cmd-test-should-refuse-cleanly-self-test ()
+  "The clean-refusal oracle fails on a wrong refusal or any change.
+That is another refusal, a plain error, an edit, a changed session or
+a navigation."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (org-iw-cmd-test--open-all)
+    (org-iw-visit-next "ESSAYS")
+    (should (equal (org-iw-cmd-test--should-refuse-cleanly
+                    "no" (lambda () (org-iw-core-refuse "no way")))
+                   "no way"))
+    (dolist (fn (list (lambda () (org-iw-core-refuse "other"))
+                      (lambda () (error "No"))
+                      (lambda ()
+                        (with-current-buffer (org-iw-test-visit "d.org")
+                          (insert "x"))
+                        (org-iw-core-refuse "no"))
+                      (lambda ()
+                        (setq org-iw--session nil)
+                        (org-iw-core-refuse "no"))
+                      (lambda ()
+                        (pop-to-buffer-same-window (org-iw-test-visit "d.org"))
+                        (org-iw-core-refuse "no"))))
+      (should-error (org-iw-cmd-test--should-refuse-cleanly "no" fn)
+                    :type 'ert-test-failed))))
 
 (ert-deftest org-iw-cmd-test-visit-next-writes-nothing ()
   "`org-iw-visit-next' changes nothing and repeats the same entry (I1)."

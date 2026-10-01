@@ -1,0 +1,237 @@
+id    = 4
+slug  = "reconciliation-review-of-sl-002"
+title = "reconciliation review of SL-002"
+# no status — a review's status is DERIVED from its findings, so
+# it is never stored (the storage rule forbids derived data in authored files).
+
+[review]
+facet     = "reconciliation"     # scope|design|plan|phase-plan|implementation|code-review|reconciliation
+raiser    = "raiser"
+responder = "responder"
+rounds_base = 0
+contests_base = 0
+
+[target]                   # the outbound `reviews` edge: RV-NNN ──reviews──▶ <ref>
+ref   = "SL-002"
+
+[[finding]]
+id = "F-1"
+status = "open"
+severity = "major"
+title = "Expected every SL-002 VT keyword to name test names or test-code symbols (STD-002 item 1) and verify-vt to pass; observed PHASE-02 VT-1/VT-2 fail and several rows key on message text"
+detail = """
+`doctrine slice verify-vt 002`: PHASE-02 VT-1 FAIL (`no room at the end` absent), VT-2 FAIL (`Moved A to end` absent). Both strings left test/org-iw-test.el in 126e91f (PHASE-04), as RV-003 F-9 planned the message change, so the rows were orphaned by design.
+STD-002 (scope: every VT authored from SL-002 on) item 1 forbids user-facing message text as a keyword. Rows that pass but key on message text: PHASE-02 VT-1 `is empty`; PHASE-03 VT-1 `:placements:`, `org-iw-placements:`, `org-iw-default-placement:`; PHASE-03 VT-2 `Placement: `; PHASE-04 VT-1 `Moved E1 to Soon`, `already at End`; PHASE-04 VT-2 `already at Soon`; PHASE-06 VT-1 `Added to ESSAYS at Soon`.
+The earlier per-phase claim "all VT checks pass" was wrong: it was checked per phase before PHASE-04 changed the messages, and not re-run after (STD-002 item 4).
+Verified by the verifier (opus) and by re-running verify-vt."""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding]]
+id = "F-2"
+status = "open"
+severity = "major"
+title = "Expected the property checker's self-test to show the `moved` arm rejects a wrong rank (STD-001 item 2); observed deleting the moved-arm checks leaves the suite green"
+detail = """
+test/org-iw-core-test.el ~345-351 (moved arm of org-iw-core-test--check-place), ~381-399 (self-test).
+Mutants that survive the whole suite (test reviewer, confirmed by the verifier): H3 replace the `unless (equal ... wanted)` sort check with `(ignore moved wanted)`; H2 drop the `org-iw-core-rank-p` check on the moved rank; H1 drop the `(pred (eql depth))` depth check on moved results.
+Cause: none of the four wrong placers in the self-test (design § 9) ever returns a `moved` result with a bad depth or rank, and the self-test asserts only "at least one rejection" overall. Production code is still covered by example tests (3584, -1536), so no user-visible risk; the oracle's main arm is unverified."""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding]]
+id = "F-3"
+status = "open"
+severity = "minor"
+title = 'Expected one owner of the "Queue NAME is empty" report (POL-002); observed the format string at two call sites'
+detail = 'org-iw.el:494 (org-iw-visit-next) `(org-iw--report scan "Queue %s is empty" (org-iw--queue-name queue-id))` and org-iw.el:561 (org-iw-continue) `(org-iw--report scan "Queue %s is empty" name)`. The Continue copy is new in SL-002 (design § 5.4 step 4). POL-002 duplication is fix-now unless waived (STD-003).'
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding]]
+id = "F-4"
+status = "open"
+severity = "minor"
+title = """Expected a test that plain Add appends when the queue's default is not End (DEC-011 as amended, § 9 "plain Add appends"); observed no such test"""
+detail = "org-iw.el ~430: mutant replacing `'(nil . end)` with `(cons nil (cdr (org-iw--placement queue-id nil)))` — plain Add uses the queue default but keeps the plain message — survives. Every plain-Add test runs with the default End, which is indistinguishable from append. Behaviour is correct today; the user-ruled behaviour (RV-003 F-5) is unpinned."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding]]
+id = "F-5"
+status = "open"
+severity = "minor"
+title = "Expected Continue's and Add's docstrings to list every refusal accurately (PHASE-04 EX-6, ISS-001 Continue half); observed omissions and two wrong claims"
+detail = """
+org-iw.el ~539-545 (Continue): the write-refusal list still omits the read-only buffer (org-iw-write.el:72) and the unrecognised property drawer (:78-79) — exactly the two ISS-001 names — and also the resolve refusals (org-iw-discovery.el ~442/446/452) and the not-in-Org-mode scan refusal (~395). It also says an unknown LABEL is "checked before the prompt"; only config is checked before the prompt (a typed label is REQUIRE-MATCH; a Lisp label is checked before the scan).
+org-iw.el ~411-413 (Add): implies a plain Add refuses misconfigured placements; plain Add never reads the vocabulary (design § 5.4: `end` when LABEL is nil) — probe: `:placements nil` plus plain Add succeeds.
+notes.md (PHASE-04, Harvest Open) records ISS-001's Continue half as fixed; it is not."""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding]]
+id = "F-6"
+status = "open"
+severity = "minor"
+title = "Expected C-u Add to refuse an invalid queue ID before the placement prompt (§ 5.4: canonicalise, then read the placement); observed this ordering unpinned"
+detail = "org-iw.el ~426: mutant `(org-iw--read-placement (or (org-iw-core-queue-id queue) queue))` survives; it prompts for a placement before refusing."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding]]
+id = "F-7"
+status = "open"
+severity = "minor"
+title = "Expected Add's placement to resolve before the scan to be pinned (PHASE-06 EX-2); observed no test"
+detail = "org-iw.el ~429-431: mutant moving the placement binding after `(scan (org-iw--scan))` survives. Continue has `continue-refuses-placement-before-scan`; Add has no counterpart."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding]]
+id = "F-8"
+status = "open"
+severity = "minor"
+title = 'Expected one "changes nothing" oracle with self-tests (POL-002 via STD-001 item 7, item 2); observed four overlapping state checks, two without self-tests'
+detail = "test/org-iw-test.el: `--should-write-nothing` (~975, new in SL-002) repeats the state comparison inside `--should-change-nothing` (~996); `--should-refuse` (~415) and `--should-be-no-op` (~388) repeat it inline. Mutants dropping the session/shown checks from `--should-change-nothing` (H9) and the substring check from `--should-refuse-cleanly` (H8) survive."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding]]
+id = "F-9"
+status = "open"
+severity = "minor"
+title = "Expected the property generator's guard to fail if the generator loses its edge cases; observed it counts outcomes only"
+detail = "test/org-iw-core-test.el ~306, ~379. Generator mutants survive: no near-limit ranks (G1), never a nil target (G2), orders of length <= 2 (G4), only `end` placements (G5), no ranks at exactly ±limit (G6), `after` only, small ranks only. Today's distribution does reach every § 9 case (measured: 192 nil targets, 90 ties, 340 negative, 265 near-limit of 500), so this is a regression guard, not a current gap."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding]]
+id = "F-10"
+status = "open"
+severity = "nit"
+title = "Expected the `proper-list-p` vocabulary guard to be killed; observed weakening it to `listp` survives"
+detail = "org-iw.el ~218: no bad-config row has a dotted list. Removing the guard is killed; `proper-list-p` → `listp` survives."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding]]
+id = "F-11"
+status = "open"
+severity = "nit"
+title = 'Expected README to say a Continue or Add changes at most one IW_ line (I2′); observed "each changes one"'
+detail = "README.md ~154-155. An unchanged Continue and a member Add write nothing; README ~138 already says so."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding]]
+id = "F-12"
+status = "open"
+severity = "nit"
+title = "Expected label matching to be pinned as exact (case-sensitive); observed it unpinned"
+detail = "org-iw.el ~262 `assoc`: mutant `assoc-string ... t` survives. Design is silent; completing-read with REQUIRE-MATCH and default completion-ignore-case is exact."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding]]
+id = "F-13"
+status = "open"
+severity = "nit"
+title = "Expected the Customize types to reject placements the commands refuse; observed they accept (fraction 3 2), (percent 150) and :placements nil"
+detail = "org-iw.el ~74-85, ~131-136. All are refused on use naming the source. Design § 5.2 quotes `org-iw--placement-type` verbatim."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding]]
+id = "F-14"
+status = "open"
+severity = "nit"
+title = "Expected org-iw-core-rank-at to reject an out-of-range DEPTH; observed it returns an out-of-order rank"
+detail = "org-iw-core.el:178-187: others 5000/6000, depth 5 → 1024; depth -1 → 3976. Unreachable through org-iw-core-place (placement-depth clamps to [0, COUNT]); the docstring states the precondition."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding]]
+id = "F-15"
+status = "open"
+severity = "nit"
+title = "Expected two org-iw-queues entries whose IDs differ only in case to be refused or merged; observed the first silently wins"
+detail = """org-iw.el ~168-170 (alist-get over canonical IDs). `'(("A" :name "first") ("a" :placements (("Z" end))))` ignores the second entry's placements. Pre-existing for :name (SL-001); SL-002 widens it to :placements/:default."""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding]]
+id = "F-16"
+status = "open"
+severity = "nit"
+title = "Expected `C-u` Add at Soon to be tested through the chooser (§ 9); observed it tested from Lisp, with the chooser exercised via Later"
+detail = 'test/org-iw-test.el: `(org-iw-add ... "Soon")` from Lisp; C-u Add path tested with Later (5/9). Same code path after the prompt.'
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding]]
+id = "F-17"
+status = "open"
+severity = "minor"
+title = "Expected slice conformance to show only declared paths; observed org-iw-write.el undeclared"
+detail = "`doctrine slice conformance 2`: undeclared org-iw-write.el (a one-line docstring edit: append-rank → rank-at reference, required by POL-002 once append-rank was deleted), plus doctrine bookkeeping (.doctrine memory item, notes.md, slice-002.toml). Design § 2/§ 5.1/§ 10 say the write path is untouched and § 10 omits org-iw-write.el."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding]]
+id = "F-18"
+status = "open"
+severity = "minor"
+title = "Expected design § 5.2/§ 8 to name the sort metadata the chooser needs; observed it names only display-sort-function, while icomplete and fido order by cycle-sort-function"
+detail = 'org-iw.el `org-iw--read-placement` sets both `display-sort-function` and `cycle-sort-function` to `identity`. Design § 5.2 ("a completion table whose metadata sets display-sort-function to identity") and § 8 (same) omit cycle-sort-function. Without it, `completion-all-sorted-completions` (Emacs 30 minibuffer.el:1806, 31 :1929) sorts by length/alpha/history in icomplete and fido. Confirmed in a real terminal on 30.2 and 31.1 by the modelling reviewer (configured order, default first under icomplete/fido; RET picks the default). The code is right; the locked design under-specifies.'
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding]]
+id = "F-19"
+status = "open"
+severity = "minor"
+title = 'Expected PRD-001 OQ-3 to record its settlement; observed it still open ("Confirm before the session slice")'
+detail = 'PRD-001 § open questions, OQ-3: "Default placement depths for the standard Soon / Later / End vocabulary (brief suggests after-2, halfway, tail). Confirm before the session slice." DEC-009 (accepted, decided_by user) settled it: Soon (after 2), Later (fraction 1 2), End end, default End; SL-002 implements it and pins the defaults (org-iw-cmd-test-placement-options-defaults).'
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+# Findings are append-only `[[finding]]` tables, added by `review raise`.
+# Empty here at creation — a fresh review is Active, awaiting the raiser.

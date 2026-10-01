@@ -69,9 +69,11 @@ exit_criteria = [
   { id = "EX-6", text = "just gate and just test-each green; mutation pass over the new guards (empty, no-gap, session) recorded." },
 ]
 verification = [
-  { id = "VT-1", expects = "Continue on an empty queue with a session reports empty and changes nothing; no-gap Continue and Add refuse with nothing changed (I9)", test_file = "test/org-iw-test.el", keywords = ["is empty", "no room at the end", "org-iw-cmd-test--should-refuse-cleanly"], waived = false },
-  { id = "VT-2", expects = "existing Continue and Add tests pass with the new messages; already-last writes nothing", test_file = "test/org-iw-test.el", keywords = ["Moved A to end", "already at end"], waived = false },
+  { id = "VT-1", expects = "Continue on an empty queue with a session reports empty and changes nothing; no-gap Continue and Add refuse with nothing changed (I9)", test_file = "test/org-iw-test.el", keywords = ["is empty", "no room at the end", "org-iw-cmd-test--should-refuse-cleanly"], waived = true, waived_reason = "superseded by a re-keyed row: keywords were message text (STD-002 item 1; RV-004 F-1)" },
+  { id = "VT-2", expects = "existing Continue and Add tests pass with the new messages; already-last writes nothing", test_file = "test/org-iw-test.el", keywords = ["Moved A to end", "already at end"], waived = true, waived_reason = "superseded by a re-keyed row: keywords were message text (STD-002 item 1; RV-004 F-1)" },
   { id = "VA-1", text = "Agent greps for deleted helpers and any rank arithmetic outside org-iw-core.el (EX-5)." },
+  { id = "VT-3", expects = "Supersedes VT-1 (its keywords were message text; STD-002 item 1, RV-004 F-1): empty-queue report and no-gap refusals change nothing (I9)", test_file = "test/org-iw-test.el", keywords = ["org-iw-cmd-test-continue-empty-queue", "org-iw-cmd-test-continue-refuses-without-gap", "org-iw-cmd-test-add-refuses-at-rank-limit", "org-iw-cmd-test--should-refuse-cleanly"], waived = false },
+  { id = "VT-4", expects = "Supersedes VT-2 (its keywords were message text; STD-002 item 1, RV-004 F-1): existing Continue and Add tests under the new messages; already-last writes nothing", test_file = "test/org-iw-test.el", keywords = ["org-iw-cmd-test-continue-moves-to-end", "org-iw-cmd-test-continue-already-last", "org-iw-cmd-test-add-appends"], waived = false },
 ]
 specs        = []
 requirements = []
@@ -93,8 +95,10 @@ exit_criteria = [
   { id = "EX-7", text = "just gate and just test-each green; mutation pass over each validation guard recorded." },
 ]
 verification = [
-  { id = "VT-1", expects = "defaults pinned; queue-config is the one plist reader; vocabulary resolution and every bad-config refusal with its blamed source", test_file = "test/org-iw-test.el", keywords = ["org-iw-placements", "org-iw-default-placement", "org-iw--vocabulary", ":placements:", "org-iw-placements:", "org-iw-default-placement:"], waived = false },
-  { id = "VT-2", expects = "read-placement offers labels in configured order with the default, metadata identity sort, and refuses bad config before prompting; recorder self-test", test_file = "test/org-iw-test.el", keywords = ["org-iw--read-placement", "display-sort-function", "Placement: ", "completion-metadata-get"], waived = false },
+  { id = "VT-1", expects = "defaults pinned; queue-config is the one plist reader; vocabulary resolution and every bad-config refusal with its blamed source", test_file = "test/org-iw-test.el", keywords = ["org-iw-placements", "org-iw-default-placement", "org-iw--vocabulary", ":placements:", "org-iw-placements:", "org-iw-default-placement:"], waived = true, waived_reason = "superseded by a re-keyed row: keywords were message text (STD-002 item 1; RV-004 F-1)" },
+  { id = "VT-2", expects = "read-placement offers labels in configured order with the default, metadata identity sort, and refuses bad config before prompting; recorder self-test", test_file = "test/org-iw-test.el", keywords = ["org-iw--read-placement", "display-sort-function", "Placement: ", "completion-metadata-get"], waived = true, waived_reason = "superseded by a re-keyed row: keywords were message text (STD-002 item 1; RV-004 F-1)" },
+  { id = "VT-3", expects = "Supersedes VT-1 (its keywords were message text; STD-002 item 1, RV-004 F-1): defaults pinned; vocabulary resolution and every bad-config refusal with its blamed source", test_file = "test/org-iw-test.el", keywords = ["org-iw-cmd-test-placement-options-defaults", "org-iw-cmd-test-vocabulary", "org-iw-cmd-test-vocabulary-refuses-bad-config", "org-iw-cmd-test-placement"], waived = false },
+  { id = "VT-4", expects = "Supersedes VT-2 (its keywords were message text; STD-002 item 1, RV-004 F-1): chooser order, default and refusal before prompting; recorder self-test", test_file = "test/org-iw-test.el", keywords = ["org-iw-cmd-test-read-placement", "org-iw-cmd-test-read-placement-refuses-before-prompting", "org-iw-cmd-test-with-prompt-self-test"], waived = false },
 ]
 specs        = []
 requirements = []
@@ -116,9 +120,11 @@ exit_criteria = [
   { id = "EX-7", text = "just gate and just test-each green; mutation pass over the new command guards recorded." },
 ]
 verification = [
-  { id = "VT-1", expects = "Continue with each standard placement on a queue of 8; configured-queue chooser order and default; C-u vs plain prompting; Lisp label; unknown label", test_file = "test/org-iw-test.el", keywords = ["\"Soon\"", "\"Later\"", "Moved E1 to Soon", "already at End", "current-prefix-arg"], waived = false },
-  { id = "VT-2", expects = "refuse-before-prompt for C-u Continue (no session, bad config) (F-7); unchanged at depth; depth 0; small-queue Later (F-8)", test_file = "test/org-iw-test.el", keywords = ["call-interactively #'org-iw-continue", "already at Soon", "(after 0)"], waived = false },
+  { id = "VT-1", expects = "Continue with each standard placement on a queue of 8; configured-queue chooser order and default; C-u vs plain prompting; Lisp label; unknown label", test_file = "test/org-iw-test.el", keywords = ["\"Soon\"", "\"Later\"", "Moved E1 to Soon", "already at End", "current-prefix-arg"], waived = true, waived_reason = "superseded by a re-keyed row: keywords were message text (STD-002 item 1; RV-004 F-1)" },
+  { id = "VT-2", expects = "refuse-before-prompt for C-u Continue (no session, bad config) (F-7); unchanged at depth; depth 0; small-queue Later (F-8)", test_file = "test/org-iw-test.el", keywords = ["call-interactively #'org-iw-continue", "already at Soon", "(after 0)"], waived = true, waived_reason = "superseded by a re-keyed row: keywords were message text (STD-002 item 1; RV-004 F-1)" },
   { id = "VA-1", text = "Agent reads Continue's docstring against design § 5.4 and DEC-011; checkdoc clean." },
+  { id = "VT-3", expects = "Supersedes VT-1 (its keywords were message text; STD-002 item 1, RV-004 F-1): standard placements on a queue of 8; chooser; plain Continue never prompts; configured defaults", test_file = "test/org-iw-test.el", keywords = ["org-iw-cmd-test-continue-standard-placements", "org-iw-cmd-test-continue-chooser", "org-iw-cmd-test-continue-default-never-prompts", "org-iw-cmd-test-continue-configured-defaults", "org-iw-cmd-test-continue-refuses-placement-before-scan"], waived = false },
+  { id = "VT-4", expects = "Supersedes VT-2 (its keywords were message text; STD-002 item 1, RV-004 F-1): refuse before prompting; unchanged writes nothing; depth 0; small-queue Later", test_file = "test/org-iw-test.el", keywords = ["org-iw-cmd-test-continue-chooser-refuses-before-prompting", "org-iw-cmd-test-continue-unchanged-writes-nothing", "org-iw-cmd-test-continue-front-reopens", "org-iw-cmd-test-continue-later-in-two"], waived = false },
 ]
 specs        = []
 requirements = []
@@ -139,8 +145,9 @@ exit_criteria = [
   { id = "EX-6", text = "just gate and just test-each green; mutation pass over the new guards recorded." },
 ]
 verification = [
-  { id = "VT-1", expects = "Add at a placement, its prompt default, no-gap Add, existing member with unknown label refuses (F-2), bad config refuses before the placement prompt (F-7)", test_file = "test/org-iw-test.el", keywords = ["Added to ESSAYS at Soon", "call-interactively #'org-iw-add", "(org-iw-cmd-test--no-room \"Second\")"], waived = false },
+  { id = "VT-1", expects = "Add at a placement, its prompt default, no-gap Add, existing member with unknown label refuses (F-2), bad config refuses before the placement prompt (F-7)", test_file = "test/org-iw-test.el", keywords = ["Added to ESSAYS at Soon", "call-interactively #'org-iw-add", "(org-iw-cmd-test--no-room \"Second\")"], waived = true, waived_reason = "superseded by a re-keyed row: keywords were message text (STD-002 item 1; RV-004 F-1)" },
   { id = "VA-1", text = "Agent reads Add's docstring and the README section against design § 5.2/§ 5.4 and DEC-007..011; checkdoc clean." },
+  { id = "VT-2", expects = "Supersedes VT-1 (its keywords were message text; STD-002 item 1, RV-004 F-1): Add at a placement, its chooser and default, no-gap Add, member with an unknown label, refusal before the placement prompt", test_file = "test/org-iw-test.el", keywords = ["org-iw-cmd-test-add-at-placement", "org-iw-cmd-test-add-chooser", "org-iw-cmd-test-add-refuses-without-gap", "org-iw-cmd-test-add-member-at-placement", "org-iw-cmd-test-add-chooser-refuses-before-prompting"], waived = false },
 ]
 specs        = []
 requirements = []

@@ -131,6 +131,33 @@ guidance, not the code: the bindings handed to the user named org-iw-visit and
 org-iw-queue, which don't exist; the README's bindings (org-iw-visit-next,
 org-iw-end-session) are correct. No fixes, so the gate stands at c3761c5.
 
+## Audit (RV-004, 2026-10-01)
+
+STD-003 roster: opus modelling and test reviewers, opus verifier (majors
+present). 19 findings, no blockers. Fixed in the audit:
+
+- VT rows re-keyed on test names; the message-text rows are waived with a
+  reason (F-1). Correction: the earlier "all VT checks pass" was checked per
+  phase, before PHASE-04 changed the messages; verify-vt was not re-run
+  after (STD-002 item 4).
+- Oracles: the property self-test now feeds wrong `moved` results (F-2); a
+  test pins the generator's edge coverage (F-9); `--should-change-nothing`
+  and the Add oracles are built on `--should-write-nothing`, and
+  `--should-refuse-cleanly` has a self-test (F-8).
+- One empty-queue reporter (F-3, POL-002).
+- New tests: plain Add ignores a non-End default (F-4), C-u Add refuses an
+  invalid queue before the placement prompt (F-6), Add resolves the
+  placement before the scan (F-7), dotted :placements (F-10), exact labels
+  (F-12).
+- Docstrings: Continue lists every refusal, and Add's says only a labelled
+  Add reads the vocabulary (F-5). The PHASE-04 note that ISS-001's Continue
+  half was fixed was premature; it is fixed now.
+- README: "at most one IW_ line" (F-11).
+
+Targeted mutation after the fixes: all 19 rerun mutants killed (H1-H3, H8,
+H9, H13, H14, G1, G2, G4-G8, A1, A3, A7, V16, V17). Gate 200/200 on both
+Emacs; test-each green. Scratch: /home/scratch/sl-002/audit/.
+
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
 fresh-as-of: 2026-10-01 · PHASE-05 completed (VH-1, step 3 waived); slice → audit
@@ -153,5 +180,5 @@ fresh-as-of: 2026-10-01 · PHASE-05 completed (VH-1, step 3 waived); slice → a
 - DEC-009 — standard Soon/Later/End, default End; settles PRD-001 OQ-3 (PRD text updated at reconcile)
 - DEC-010 — spacing stays 1024
 - DEC-011 — prefix + completing-read surface (amended per RV-003 F-1, F-5)
-- ISS-001 — Continue half fixed in PHASE-04; put-rank half stays open
+- ISS-001 — Continue half fixed at audit (RV-004 F-5); put-rank half stays open
 - CHR-001 — mutation recipe; until then mutation is ad hoc per phase

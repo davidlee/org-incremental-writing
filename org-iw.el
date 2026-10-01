@@ -409,11 +409,13 @@ unsaved changes.
 A heading already in QUEUE is left alone.  Add refuses, changing
 nothing, if the buffer is not a source file or not in Org mode (a
 derived mode counts), point is before the first heading, QUEUE is
-not a valid ID, LABEL is not one of the queue's labels or the
-queue's placements are misconfigured, the heading has a property
-drawer Org does not see, its IW property for QUEUE was excluded by
-the scan, another heading has its ID, or there is no room for a rank
-at the placement.
+not a valid ID, LABEL is given and is not one of the queue's labels
+or the queue's placements are misconfigured (checked before any
+scan), the heading has a property drawer Org does not see, its IW
+property for QUEUE was excluded by the scan, another heading has its
+ID, there is no room for a rank at the placement, or the write
+refuses (the file changed on disk or is not writable, or its buffer
+is read-only).
 
 Return the message shown."
   ;; Called for its refusals: a buffer or point Add cannot use fails
@@ -469,6 +471,11 @@ Return the message shown."
     (org-iw--report scan "IW %s %d/%d: %s" (org-iw--queue-name queue)
                     pos total (org-iw-entry-title entry))))
 
+(defun org-iw--report-empty (scan queue)
+  "Report that QUEUE, a canonical queue ID, is empty, noting SCAN's problems.
+Return the message shown."
+  (org-iw--report scan "Queue %s is empty" (org-iw--queue-name queue)))
+
 ;;;###autoload
 (defun org-iw-visit-next (queue)
   "Visit the first entry of QUEUE and make it the session's entry.
@@ -491,7 +498,7 @@ Return the message shown."
          (order (org-iw--order scan queue-id)))
     (if order
         (org-iw--visit scan (car order) queue-id 1 (length order))
-      (org-iw--report scan "Queue %s is empty" (org-iw--queue-name queue-id)))))
+      (org-iw--report-empty scan queue-id))))
 
 ;;;; Continue
 
@@ -537,12 +544,18 @@ entry.  At the front, that is the entry itself.
 An entry already at its placement is not written, the only entry in
 its queue is left alone, and an empty queue is reported; none of
 these change anything.  Continue refuses, writing and visiting
-nothing, if there is no session, LABEL is not one of the queue's
-labels or the queue's placements are misconfigured (both checked
-before the prompt and any scan), the entry has left its queue or its
-ID is duplicated, there is no room for a rank at the placement, or
-the write refuses (the file changed on disk or is not writable, or
-the rank changed since the scan).
+nothing, if:
+
+- there is no session;
+- the queue's placements are misconfigured (checked before the
+  prompt), or LABEL is not one of its labels (before any scan);
+- a source buffer is not in Org mode;
+- the entry has left its queue, or its ID is duplicated, missing or
+  ambiguous in its file;
+- there is no room for a rank at the placement; or
+- the write refuses: the file changed on disk or is not writable, its
+  buffer is read-only, the rank changed since the scan, or the entry
+  has a property drawer Org doesn't recognise.
 
 Return the message shown."
   (interactive
@@ -558,7 +571,7 @@ Return the message shown."
                (total (length order))
                (name (org-iw--queue-name queue)))
     (if (null order)
-        (org-iw--report scan "Queue %s is empty" name)
+        (org-iw--report-empty scan queue)
       (let* ((retained (or (seq-find (lambda (entry)
                                        (equal (org-iw-entry-id entry) id))
                                      order)
