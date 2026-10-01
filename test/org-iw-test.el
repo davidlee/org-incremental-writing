@@ -117,10 +117,11 @@ never prompts.  Each call is recorded, in order, in
 
 ;;;; Private helpers
 
-(defconst org-iw-cmd-test--no-room-at-end
-  (concat "no room at the end in ESSAYS; redistribution is not yet"
-          " available — choose another placement")
-  "The refusal when ESSAYS has no rank left after its last member.")
+(defun org-iw-cmd-test--no-room (where)
+  "Return the refusal when ESSAYS has no rank left at WHERE."
+  (format (concat "no room at %s in ESSAYS; redistribution is not yet"
+                  " available — choose another placement")
+          where))
 
 (ert-deftest org-iw-cmd-test-files-honour-exclude-regexp ()
   "A file matching `org-iw-exclude-regexp' is not a source file."
@@ -521,7 +522,7 @@ Nothing changes and no Org parsing runs, so no warnings appear."
   (org-iw-cmd-test--refuses
    (concat (org-iw-test-heading "Last" "l1" ":IW_ESSAYS: 9007199254740991")
            (org-iw-test-heading "H" "h1"))
-   "ESSAYS" org-iw-cmd-test--no-room-at-end "H"))
+   "ESSAYS" (org-iw-cmd-test--no-room "the end") "H"))
 
 (ert-deftest org-iw-cmd-test-add-refusal-order ()
   "When two refusals apply, the earlier in the design's order wins."
@@ -877,6 +878,27 @@ The ID is copied after the scan, so resolve finds it ambiguous."
   "Visit every source file, so that a state compares every buffer."
   (mapc #'find-file-noselect (org-iw--files)))
 
+(defun org-iw-cmd-test--should-write-nothing (fn)
+  "Call FN and assert the corpus state is unchanged; return its value.
+See `org-iw-test-state'.  Unlike `org-iw-cmd-test--should-change-nothing',
+FN may visit and start a session."
+  (let ((state (org-iw-test-state)))
+    (prog1 (funcall fn)
+      (should (equal (org-iw-test-state) state)))))
+
+(ert-deftest org-iw-cmd-test-should-write-nothing-self-test ()
+  "The write-nothing oracle fails on an unsaved edit and on a save."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (org-iw-cmd-test--open-all)
+    (should (equal (org-iw-cmd-test--should-write-nothing (lambda () 'x)) 'x))
+    (dolist (edit (list (lambda () (insert "x"))
+                        (lambda () (insert "x") (save-buffer))))
+      (should-error (org-iw-cmd-test--should-write-nothing
+                     (lambda ()
+                       (with-current-buffer (org-iw-test-visit "d.org")
+                         (funcall edit))))
+                    :type 'ert-test-failed))))
+
 (defun org-iw-cmd-test--should-change-nothing (fn)
   "Call FN and assert it changed nothing; return its value.
 Nothing is the corpus state (see `org-iw-test-state'), the session
@@ -1075,7 +1097,7 @@ FROM and TO are ranks.  Return FN's value."
     (org-iw-visit-next "ESSAYS")
     (should (equal (org-iw-cmd-test--should-move #'org-iw-continue
                                                  "a.org" 1024 4096)
-                   "Moved A to end (saved). Now 1/3: B"))
+                   "Moved A to End, 3/3 (saved). Now 1/3: B"))
     (should (equal (org-iw-cmd-test--shown) '("b.org" "B")))
     (should (equal (org-iw-cmd-test--session-id) "b1"))
     (should (equal (org-iw-cmd-test--order "ESSAYS") '("b1" "c1" "a1")))))
@@ -1099,7 +1121,7 @@ after B, the last of the rest, C is visited, and b.org is not saved."
     (org-iw-cmd-test--set-rank "b.org" 3072 1)
     (should (equal (org-iw-cmd-test--should-move #'org-iw-continue
                                                  "a.org" 1024 3072)
-                   "Moved A to end (saved). Now 1/3: C"))
+                   "Moved A to End, 3/3 (saved). Now 1/3: C"))
     (should (equal (org-iw-cmd-test--shown) '("b.org" "C")))
     (should (buffer-modified-p (org-iw-test-visit "b.org")))
     (should (equal (org-iw-test-file-string "b.org")
@@ -1196,9 +1218,8 @@ B and C are re-ranked before A in b.org's unsaved buffer."
     (org-iw-visit-next "ESSAYS")
     (org-iw-cmd-test--set-rank "b.org" 2048 1)
     (org-iw-cmd-test--set-rank "b.org" 3072 2)
-    (let ((state (org-iw-test-state)))
-      (should (equal (org-iw-continue) "A already at end. Now 1/3: B"))
-      (should (equal (org-iw-test-state) state)))
+    (should (equal (org-iw-cmd-test--should-write-nothing #'org-iw-continue)
+                   "A already at End, 3/3. Now 1/3: B"))
     (should (equal (org-iw-cmd-test--shown) '("b.org" "B")))
     (should (equal (org-iw-cmd-test--session-id) "b1"))))
 
@@ -1211,8 +1232,21 @@ B and C are re-ranked before A in b.org's unsaved buffer."
     (org-iw-cmd-test--open-all)
     (org-iw-visit-next "ESSAYS")
     (should (equal (org-iw-cmd-test--should-refuse-cleanly
-                    "no room at the end in ESSAYS" #'org-iw-continue)
-                   org-iw-cmd-test--no-room-at-end))))
+                    "no room at End" #'org-iw-continue)
+                   (org-iw-cmd-test--no-room "End")))))
+
+(ert-deftest org-iw-cmd-test-continue-refuses-without-gap ()
+  "Between neighbours ranked 5 and 6 there is no room: nothing changes (I9)."
+  (org-iw-test-with-corpus
+      `(("a.org" . ,(org-iw-test-heading "A" "a1" ":IW_ESSAYS: 1"))
+        ("b.org" . ,(concat (org-iw-test-heading "B" "b1" ":IW_ESSAYS: 5")
+                            (org-iw-test-heading "C" "c1" ":IW_ESSAYS: 6"))))
+    (let ((org-iw-queues '(("essays" :placements (("Second" (after 1)))))))
+      (org-iw-cmd-test--open-all)
+      (org-iw-visit-next "ESSAYS")
+      (should (equal (org-iw-cmd-test--should-refuse-cleanly
+                      "no room" #'org-iw-continue)
+                     (org-iw-cmd-test--no-room "Second"))))))
 
 (ert-deftest org-iw-cmd-test-continue-refuses-read-only-buffer ()
   "Continue refuses when the session entry's buffer is read-only (RV-002 F-1).
@@ -1235,6 +1269,152 @@ Nothing is written or visited, and the session is unchanged."
                                                 "* Added outside\n"))
     (org-iw-cmd-test--should-refuse-cleanly "changed on disk"
                                             #'org-iw-continue)))
+
+;;;; Continue: placements
+
+(defconst org-iw-cmd-test--eight
+  `(("q.org" . ,(mapconcat (lambda (i)
+                             (org-iw-test-heading
+                              (format "E%d" i) (format "e%d" i)
+                              (format ":IW_ESSAYS: %d" (* 1024 i))))
+                           (number-sequence 1 8))))
+  "E1 to E8, in ESSAYS at 1024 to 8192, so seven others for E1.")
+
+(defun org-iw-cmd-test--continue-chosen ()
+  "Call `org-iw-continue' interactively with a prefix argument."
+  (let ((current-prefix-arg '(4)))
+    (call-interactively #'org-iw-continue)))
+
+(ert-deftest org-iw-cmd-test-continue-standard-placements ()
+  "Soon, Later and End put E1 3rd, 4th and 8th, one line each.
+The head of the rest is visited, and the message names the label."
+  (pcase-dolist (`(,label ,rank ,order)
+                 '(("Soon" 3584 ("e2" "e3" "e1" "e4" "e5" "e6" "e7" "e8"))
+                   ("Later" 4608 ("e2" "e3" "e4" "e1" "e5" "e6" "e7" "e8"))
+                   ("End" 9216 ("e2" "e3" "e4" "e5" "e6" "e7" "e8" "e1"))))
+    (org-iw-test-with-corpus org-iw-cmd-test--eight
+      (org-iw-visit-next "ESSAYS")
+      (should (equal (org-iw-cmd-test--should-move
+                      (lambda () (org-iw-continue label)) "q.org" 1024 rank)
+                     (format "Moved E1 to %s, %d/8 (saved). Now 1/8: E2"
+                             label (1+ (seq-position order "e1")))))
+      (should (equal (org-iw-cmd-test--order "ESSAYS") order))
+      (should (equal (org-iw-cmd-test--shown) '("q.org" "E2")))
+      (should (equal (org-iw-cmd-test--session-id) "e2")))))
+
+(ert-deftest org-iw-cmd-test-continue-default-never-prompts ()
+  "Without a prefix argument Continue uses the default, End, unprompted."
+  (org-iw-test-with-corpus org-iw-cmd-test--eight
+    (org-iw-visit-next "ESSAYS")
+    (org-iw-cmd-test--with-prompt nil
+      (should (string-prefix-p "Moved E1 to End, 8/8"
+                               (call-interactively #'org-iw-continue))))))
+
+(ert-deftest org-iw-cmd-test-continue-chooser ()
+  "With a prefix argument Continue reads one of the queue's own labels.
+They are offered in configured order with the queue's default, which
+plain Continue then uses."
+  (org-iw-test-with-corpus org-iw-cmd-test--eight
+    (let ((org-iw-queues '(("essays" :placements (("Later" (fraction 1 2))
+                                                  ("Again" (after 0))
+                                                  ("Soon" (after 2)))
+                            :default "Soon"))))
+      (org-iw-visit-next "ESSAYS")
+      (org-iw-cmd-test--with-prompt "Later"
+        (should (equal (org-iw-cmd-test--continue-chosen)
+                       "Moved E1 to Later, 4/8 (saved). Now 1/8: E2"))
+        (pcase-let ((`(,call) org-iw-cmd-test--prompts))
+          (should (equal (plist-get call :prompt) "Placement: "))
+          (should (equal (plist-get call :order) '("Later" "Again" "Soon")))
+          (should (equal (plist-get call :default) "Soon"))))
+      (should (string-prefix-p "Moved E2 to Soon, 3/8" (org-iw-continue))))))
+
+(ert-deftest org-iw-cmd-test-continue-configured-defaults ()
+  "Own placements without :default use the first; :default alone the standard."
+  (pcase-dolist (`(,options ,message)
+                 '(((:placements (("Again" (after 0)) ("Soon" (after 2))))
+                    "E1 already at Again, 1/8. Now 1/8: E1")
+                   ((:default "Soon")
+                    "Moved E1 to Soon, 3/8 (saved). Now 1/8: E2")))
+    (org-iw-test-with-corpus org-iw-cmd-test--eight
+      (let ((org-iw-queues (list (cons "essays" options))))
+        (org-iw-visit-next "ESSAYS")
+        (should (equal (org-iw-continue) message))))))
+
+(ert-deftest org-iw-cmd-test-continue-chooser-refuses-before-prompting ()
+  "With a prefix, Continue refuses unprompted: no session, or bad config."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (org-iw-cmd-test--open-all)
+    (org-iw-cmd-test--with-prompt nil
+      (org-iw-cmd-test--should-refuse-cleanly
+       "no session" #'org-iw-cmd-test--continue-chosen)
+      (org-iw-visit-next "ESSAYS")
+      (let ((org-iw-queues '(("essays" :placements nil))))
+        (org-iw-cmd-test--should-refuse-cleanly
+         "queue ESSAYS :placements: no placements"
+         #'org-iw-cmd-test--continue-chosen)))))
+
+(ert-deftest org-iw-cmd-test-continue-refuses-placement-before-scan ()
+  "A bad label or bad config refuses before any scan, naming its source."
+  (pcase-dolist (`(,queues ,placements ,label ,message)
+                 `((nil ,org-iw-cmd-test--standard "Nope"
+                        "queue ESSAYS has no placement \"Nope\"")
+                   ((("essays" :default "Nope")) ,org-iw-cmd-test--standard nil
+                    "queue ESSAYS :default: \"Nope\" is not a placement label")
+                   (nil (("Soon" (after -1))) "Soon"
+                        "org-iw-placements: invalid entry (\"Soon\" (after -1))")))
+    (org-iw-test-with-corpus org-iw-cmd-test--queue
+      (org-iw-cmd-test--open-all)
+      (org-iw-visit-next "ESSAYS")
+      (let ((org-iw-queues queues)
+            (org-iw-placements placements)
+            (org-iw-default-placement "Soon"))
+        (cl-letf (((symbol-function 'org-iw--scan)
+                   (lambda () (ert-fail "Scanned"))))
+          (should (equal (org-iw-cmd-test--should-refuse-cleanly
+                          "" (lambda () (org-iw-continue label)))
+                         message)))))))
+
+(ert-deftest org-iw-cmd-test-continue-unchanged-writes-nothing ()
+  "An entry already at its placement is not written, nor its buffer modified."
+  (org-iw-test-with-corpus org-iw-cmd-test--eight
+    (org-iw-cmd-test--open-all)
+    (org-iw-visit-next "ESSAYS")
+    (with-current-buffer (org-iw-test-visit "q.org")
+      (org-iw-cmd-test--set-rank "q.org" 1024 3500)
+      (save-buffer))
+    (should (equal (org-iw-cmd-test--should-write-nothing
+                    (lambda () (org-iw-continue "Soon")))
+                   "E1 already at Soon, 3/8. Now 1/8: E2"))
+    (should-not (buffer-modified-p (org-iw-test-visit "q.org")))
+    (should (equal (org-iw-cmd-test--shown) '("q.org" "E2")))))
+
+(ert-deftest org-iw-cmd-test-continue-front-reopens ()
+  "At depth 0 Continue reopens the entry, moved there or already there."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (let ((org-iw-queues '(("essays" :placements (("Again" (after 0)))))))
+      (org-iw-cmd-test--open-all)
+      (org-iw-visit-next "ESSAYS")
+      (should (equal (org-iw-cmd-test--should-write-nothing #'org-iw-continue)
+                     "A already at Again, 1/3. Now 1/3: A"))
+      (org-iw-cmd-test--set-rank "b.org" 2048 1)
+      (should (equal (org-iw-cmd-test--should-move #'org-iw-continue
+                                                   "a.org" 1024 -1023)
+                     "Moved A to Again, 1/3 (saved). Now 1/3: A"))
+      (should (equal (org-iw-cmd-test--shown) '("a.org" "A")))
+      (should (equal (org-iw-cmd-test--order "ESSAYS") '("a1" "b1" "c1"))))))
+
+(ert-deftest org-iw-cmd-test-continue-later-in-two ()
+  "In a queue of two, Later is the front: it reopens the same entry."
+  (org-iw-test-with-corpus
+      `(("a.org" . ,org-iw-cmd-test--a-file)
+        ("b.org" . ,(org-iw-test-heading "B" "b1" ":IW_ESSAYS: 2048")))
+    (org-iw-cmd-test--open-all)
+    (org-iw-visit-next "ESSAYS")
+    (should (equal (org-iw-cmd-test--should-write-nothing
+                    (lambda () (org-iw-continue "Later")))
+                   "A already at Later, 1/2. Now 1/2: A"))
+    (should (equal (org-iw-cmd-test--shown) '("a.org" "A")))))
 
 ;;;; Continue: save status and problems (EX-4, VT-3, I5)
 
@@ -1260,7 +1440,7 @@ The corpus is a directory source and the edit's lock file is present
     (org-iw-visit-next "ESSAYS")
     (let ((message (org-iw-continue)))
       (should (string-search "source problems ignored" message))
-      (should (equal message (concat "Moved A to end (saved). Now 1/3: B"
+      (should (equal message (concat "Moved A to End, 3/3 (saved). Now 1/3: B"
                                      " [1 source problems ignored]"))))))
 
 (ert-deftest org-iw-cmd-test-continue-reports-failed-save ()
@@ -1269,8 +1449,8 @@ The corpus is a directory source and the edit's lock file is present
     (org-iw-visit-next "ESSAYS")
     (let ((write-file-functions (list (lambda () (error "Disk full")))))
       (should (equal (org-iw-continue)
-                     (concat "Moved A to end (queue change applied but not"
-                             " saved: Disk full). Now 1/3: B"))))
+                     (concat "Moved A to End, 3/3 (queue change applied but"
+                             " not saved: Disk full). Now 1/3: B"))))
     (should (buffer-modified-p (org-iw-test-visit "a.org")))
     (should (equal (org-iw-test-file-string "a.org") org-iw-cmd-test--a-file))
     (should (equal (org-iw-cmd-test--shown) '("b.org" "B")))))

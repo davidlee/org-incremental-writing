@@ -103,9 +103,15 @@ display-sort-function, because icomplete and fido sort by the former (§ 5.2
 names only the latter). The memory mem.fact.emacs.completing-read-default-bubbles
 is corrected.
 
+## PHASE-04 (2026-10-01)
+
+Continue takes LABEL and C-u chooser; messages name the label. Mutation 11/11
+(the carried reorder mutant is killed). New oracle should-write-nothing, for
+outcomes that re-visit. ISS-001 Continue half is fixed in the docstring.
+
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: 2026-10-01 · PHASE-03 completed
+fresh-as-of: 2026-10-01 · PHASE-04 completed
 
 ### Produced
 - design.md locked (run dr-01a0f578, rev 36); research/research.md; slice scope updated

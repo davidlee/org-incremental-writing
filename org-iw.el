@@ -505,29 +505,42 @@ The write expects ENTRY's scanned rank.  Return the result of
    queue rank :expected (org-iw-core-rank entry queue)))
 
 ;;;###autoload
-(defun org-iw-continue ()
-  "Move the session's entry to the end of its queue; visit the next.
+(defun org-iw-continue (&optional label)
+  "Reinsert the session's entry at the placement LABEL; visit the next.
 The entry is the one `org-iw-visit-next' last showed, whatever is at
-point or now first in the queue.  It is ranked after the queue's
-other members through its buffer, which is saved unless it already
-had unsaved changes.  Then the first of the other members is visited
-and becomes the session's entry.
+point or now first in the queue.  LABEL names one of the queue's
+placements (see `org-iw-placements' and `org-iw-queues'); nil means
+the queue's default.  Interactively, a prefix argument reads LABEL
+with completion over the queue's labels.
 
-An entry already last is not written, the only entry in its queue is
-left alone, and an empty queue is reported; none of these change
-anything.  Continue refuses, writing and visiting nothing, if there
-is no session, the entry has left its queue or its ID is duplicated,
-the queue has no rank left, or the write refuses (the file changed
-on disk or is not writable, or the rank changed since the scan).
+The entry is given a rank between its new neighbours through its
+buffer, which is saved unless it already had unsaved changes.  Then
+the first member of the queue is visited and becomes the session's
+entry.  At the front, that is the entry itself.
+
+An entry already at its placement is not written, the only entry in
+its queue is left alone, and an empty queue is reported; none of
+these change anything.  Continue refuses, writing and visiting
+nothing, if there is no session, LABEL is not one of the queue's
+labels or the queue's placements are misconfigured (both checked
+before the prompt and any scan), the entry has left its queue or its
+ID is duplicated, there is no room for a rank at the placement, or
+the write refuses (the file changed on disk or is not writable, or
+the rank changed since the scan).
 
 Return the message shown."
-  (interactive)
-  (let* ((session (org-iw--session-or-refuse))
-         (queue (org-iw--session-queue session))
-         (id (org-iw--session-id session))
-         (scan (org-iw--scan))
-         (order (org-iw--order scan queue))
-         (name (org-iw--queue-name queue)))
+  (interactive
+   (let ((session (org-iw--session-or-refuse)))
+     (list (and current-prefix-arg
+                (org-iw--read-placement (org-iw--session-queue session))))))
+  (pcase-let* ((session (org-iw--session-or-refuse))
+               (queue (org-iw--session-queue session))
+               (`(,label . ,placement) (org-iw--placement queue label))
+               (id (org-iw--session-id session))
+               (scan (org-iw--scan))
+               (order (org-iw--order scan queue))
+               (total (length order))
+               (name (org-iw--queue-name queue)))
     (if (null order)
         (org-iw--report scan "Queue %s is empty" name)
       (let* ((retained (or (seq-find (lambda (entry)
@@ -540,17 +553,20 @@ Return the message shown."
                             title name)
           (pcase-let
               ((`(,text . ,new-order)
-                (pcase (org-iw-core-place order retained queue 'end)
-                  (`(no-gap ,_) (org-iw--refuse-no-room "the end" name))
-                  (`(unchanged ,_)
-                   (cons (format "%s already at end" title) order))
+                (pcase (org-iw-core-place order retained queue placement)
+                  (`(no-gap ,_) (org-iw--refuse-no-room label name))
+                  (`(unchanged ,depth)
+                   (cons (format "%s already at %s, %d/%d"
+                                 title label (1+ depth) total)
+                         order))
                   (`(moved ,depth ,rank)
-                   (cons (format "Moved %s to end %s" title
+                   (cons (format "Moved %s to %s, %d/%d %s"
+                                 title label (1+ depth) total
                                  (org-iw--save-status
                                   (org-iw--put-rank scan retained queue rank)))
                          (org-iw-core-reorder order retained depth))))))
-            (org-iw--visit scan (car new-order) queue 1 (length order))
-            (org-iw--report scan "%s. Now 1/%d: %s" text (length order)
+            (org-iw--visit scan (car new-order) queue 1 total)
+            (org-iw--report scan "%s. Now 1/%d: %s" text total
                             (org-iw-entry-title (car new-order)))))))))
 
 ;;;; End session
