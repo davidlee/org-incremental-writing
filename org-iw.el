@@ -229,9 +229,10 @@ Return the session that ended, or nil if there was none."
 (defun org-iw--add-target ()
   "Return a marker at the heading to add, or refuse.
 The heading is the one at or above point, ignoring narrowing, in the
-current buffer, which must visit a source file."
+current buffer, which must visit a source file and be in Org mode."
   (unless (org-iw--source-file-p)
     (org-iw-core-refuse "%s is not under org-iw-sources" (buffer-name)))
+  (org-iw-discovery-require-org-mode (org-iw--buffer-truename))
   (org-with-wide-buffer
    (when (org-before-first-heading-p)
      (org-iw-core-refuse "document targets are not yet supported"))
@@ -277,10 +278,11 @@ a property drawer if it lacks them, and its file is saved unless
 its buffer already had unsaved changes.
 
 A heading already in QUEUE is left alone.  Add refuses, changing
-nothing, if the buffer is not a source file, point is before the
-first heading, QUEUE is not a valid ID, the heading has a property
-drawer Org does not see, its IW property for QUEUE was excluded by
-the scan, another heading has its ID, or QUEUE has no rank left.
+nothing, if the buffer is not a source file or not in Org mode (a
+derived mode counts), point is before the first heading, QUEUE is
+not a valid ID, the heading has a property drawer Org does not see,
+its IW property for QUEUE was excluded by the scan, another heading
+has its ID, or QUEUE has no rank left.
 
 Return the message shown."
   ;; Called for its refusals: a buffer or point Add cannot use fails

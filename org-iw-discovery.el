@@ -386,6 +386,14 @@ narrowing.  The key matches in any case; the value, case-sensitively."
   "Signal an `org-iw-refusal' that WHAT is wrong with ID in FILE."
   (org-iw-core-refuse "ID %s in %s: %s" id file what))
 
+(defun org-iw-discovery-require-org-mode (file)
+  "Refuse with `org-iw-refusal' unless the current buffer is in Org mode.
+A mode derived from Org mode counts.  FILE, the buffer's file, is
+named in the message.  This is the one owner of the rule; no Org
+function may run in a buffer it refuses."
+  (unless (derived-mode-p 'org-mode)
+    (org-iw-core-refuse "%s: buffer not in Org mode" file)))
+
 (defun org-iw-discovery--id-problems (scan id)
   "Return SCAN's problems whose ID is ID, in scan order.
 A problem for an ID shared between files names only one of them, so
@@ -433,8 +441,7 @@ property line in FILE, which catches copies the scan cannot know of."
   (when (org-iw-discovery-excluded-id-p scan id)
     (org-iw-discovery--refuse "duplicated, excluded from the queue" id file))
   (with-current-buffer (org-iw-discovery-buffer file)
-    (unless (derived-mode-p 'org-mode)
-      (org-iw-discovery--refuse "buffer not in Org mode" id file))
+    (org-iw-discovery-require-org-mode file)
     (pcase (org-iw-discovery--id-positions id)
       ('() (org-iw-discovery--refuse "not found" id file))
       (`(,position)

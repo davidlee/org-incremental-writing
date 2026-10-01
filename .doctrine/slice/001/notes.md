@@ -525,6 +525,8 @@ For PHASE-08 (human trial):
   is unrecognised: not equivalent); NID1
   `org-iw-discovery-test-duplicate-excludes-only-its-own-id`; NID2
   `org-iw-discovery-test-problem-types-nil-id-is-missing-id`. No production change.
+- F-3 extension (user ruling 2026-10-01): `org-iw-add` refuses a source file whose buffer is not in Org mode (derived modes count), before the queue prompt and before any Org parsing (text-mode previously gave ~13 org-element warnings then a raw error). One owner: public `org-iw-discovery-require-org-mode FILE`, used by `org-iw-discovery-resolve` and `org-iw--add-target`. Test `org-iw-cmd-test-add-refuses-non-org-buffer` (red: it prompted; green after). Resolve's message is now "FILE: buffer not in Org mode" (the ID prefix dropped, one message shape for both).
+
 
 ## Design deltas for /reconcile
 
@@ -601,6 +603,8 @@ For PHASE-08 (human trial):
 
 - § 5.2 write preflight (RV-002 F-1, user ruling 2026-10-01): gains "base buffer read-only" -> "FILE: buffer is read-only", after the writability check. It applies to every caller, so Add and Continue refuse in `read-only-mode` and `view-mode` too.
 - § 5.2 / § 5.4 resolve (RV-002 F-3, user ruling 2026-10-01): `org-iw-discovery-resolve` refuses an entry whose visiting buffer is not `derived-mode-p` `org-mode`: "ID ID in FILE: buffer not in Org mode". The "a file is used as is" wording in design § 5.2 and in the `org-iw-sources` docstring needs the rule (the docstring is updated).
+
+- § 5.2 discovery / § 5.4 Add (RV-002 F-3 extension, user ruling 2026-10-01): Add refuses a non-Org buffer ("FILE: buffer not in Org mode"; derived modes count) in its target check, so interactively it precedes the prompt. Discovery's public API gains `org-iw-discovery-require-org-mode FILE`, the single owner of the rule; resolve uses it too, so its refusal reads "FILE: buffer not in Org mode" (the earlier "ID ID in FILE:" prefix, recorded above, is superseded).
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->

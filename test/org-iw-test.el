@@ -257,6 +257,25 @@ QUEUE.  Return the refusal message."
                            (org-iw-cmd-test--refuses
                             "* H\n" queue "invalid queue ID" "H")))))
 
+(ert-deftest org-iw-cmd-test-add-refuses-non-org-buffer ()
+  "Add refuses a source file in a non-Org mode before prompting (F-3).
+Nothing changes and no Org parsing runs, so no warnings appear."
+  (org-iw-test-with-corpus `(("a.txt" . ,org-iw-cmd-test--target))
+    (let ((org-iw-sources (list (org-iw-test-path "a.txt"))))
+      (when (get-buffer "*Warnings*")
+        (kill-buffer "*Warnings*"))
+      (with-current-buffer (org-iw-test-visit "a.txt")
+        (text-mode)
+        (goto-char (point-min))
+        (let ((before (org-iw-test-state)))
+          (org-iw-cmd-test--with-prompt nil
+            (should (string-search
+                     "buffer not in Org mode"
+                     (cadr (should-error (call-interactively #'org-iw-add)
+                                         :type 'org-iw-refusal)))))
+          (should (equal (org-iw-test-state) before))
+          (should-not (get-buffer "*Warnings*")))))))
+
 (ert-deftest org-iw-cmd-test-add-refuses-read-only-buffer ()
   "Add refuses in a read-only buffer, even `view-mode' (RV-002 F-1)."
   (dolist (mode '(read-only-mode view-mode))
