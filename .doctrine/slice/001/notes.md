@@ -608,7 +608,7 @@ For PHASE-08 (human trial):
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: 2026-10-01 · reconcile (audit closed) · e16a2b0
+fresh-as-of: 2026-10-01 · close · 6f8e208
 
 ### Produced
 - PHASE-01..08 completed (405af23..64b8e53); VH-1 held on the user's real corpus
@@ -616,6 +616,7 @@ fresh-as-of: 2026-10-01 · reconcile (audit closed) · e16a2b0
 - README.md (user request, PHASE-08)
 - minted: IMP-001 — public session string / display setting; IMP-002 — one scan per command (SL-004); IMP-003 — consolidate test state-capture helpers; IMP-004 — diagnose invalid org-iw-queues keys (SL-005); CHR-001 — `just mutate` recipe
 - Draft standards: STD-001 test quality, STD-002 VT evidence, STD-003 pre-close review roster
+- Reconcile: design.md and slice-001.md brought to as-built (RV-002 § Reconciliation Outcome); selectors F-26; REV-001 → POL-001 § Verification (F-27)
 - Review artefacts: research/raw/rv-002/ (test-strategy.md, governance-proposals.md, mutation harness and results, remediation sheets)
 
 ### Learned
@@ -628,5 +629,6 @@ fresh-as-of: 2026-10-01 · reconcile (audit closed) · e16a2b0
 - Org API sharp edges in design.md § 3
 
 ### Open
-- /reconcile: RV-002 Reconciliation Brief (design deltas in this file, selectors F-26, POL-001 text F-27)
+- ISS-001 — put-rank / continue docstrings omit preflight refusals (found at reconcile)
+- IMP-001..004, CHR-001 — backlog, as minted above
 - QUE-001 — which RV-002 governance proposals to adopt (STD-001..003 drafts and more); settle before SL-002 planning
