@@ -88,9 +88,15 @@ tests the gap R − L > 1; place drops its nil-target guard). Harness:
 /home/scratch/sl-002/p01/mutate.py (string-replace mutants, core + command
 suites).
 
+## PHASE-02 (2026-10-01)
+
+Continue and Add go through place with `end`; empty queue reported. Mutation
+8/10. The two survivors are equivalent until labels exist: Continue's reorder
+and Add's depth in the report. They are carried to PHASE-04 / PHASE-06.
+
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: 2026-10-01 · PHASE-01 completed
+fresh-as-of: 2026-10-01 · PHASE-02 completed
 
 ### Produced
 - design.md locked (run dr-01a0f578, rev 36); research/research.md; slice scope updated

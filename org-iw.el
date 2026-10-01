@@ -133,10 +133,11 @@ Entries whose key is not a valid queue ID are left out."
   "Return the members of QUEUE, a canonical queue ID, in SCAN, in order."
   (org-iw-core-queue-order (org-iw-scan-entries scan) queue))
 
-(defun org-iw--append-rank (order queue)
-  "Return the rank after ORDER, members of QUEUE; refuse at the limit."
-  (or (org-iw-core-rank-at order queue (length order))
-      (org-iw-core-refuse "rank limit; redistribution needed")))
+(defun org-iw--refuse-no-room (where name)
+  "Refuse because queue NAME has no rank left at WHERE, a placement's text."
+  (org-iw-core-refuse (concat "no room at %s in %s; redistribution is not"
+                              " yet available — choose another placement")
+                      where name))
 
 (defun org-iw--read-queue (scan)
   "Prompt for a queue ID and return the string entered, unchecked.
@@ -297,12 +298,14 @@ Return the message shown."
     (if-let* ((position (org-iw--check-heading marker scan order queue-id)))
         (org-iw--report scan "Already in %s at %d/%d"
                         name position (length order))
-      (let* ((rank (org-iw--append-rank order queue-id))
-             (status (org-iw-write-put-rank marker queue-id rank
-                                            :expected :absent :ensure-id t))
-             (total (1+ (length order))))
-        (org-iw--report scan "Added to %s at %d/%d %s"
-                        name total total (org-iw--save-status status))))))
+      (pcase (org-iw-core-place order nil queue-id 'end)
+        (`(no-gap ,_) (org-iw--refuse-no-room "the end" name))
+        (`(moved ,depth ,rank)
+         (let ((status (org-iw-write-put-rank marker queue-id rank
+                                              :expected :absent :ensure-id t)))
+           (org-iw--report scan "Added to %s at %d/%d %s"
+                           name (1+ depth) (1+ (length order))
+                           (org-iw--save-status status))))))))
 
 ;;;; Visit
 
@@ -351,7 +354,7 @@ Return the message shown."
         (org-iw--visit scan (car order) queue-id 1 (length order))
       (org-iw--report scan "Queue %s is empty" (org-iw--queue-name queue-id)))))
 
-;;;; Continue to End
+;;;; Continue
 
 (defun org-iw--refuse-absent (scan session)
   "Refuse because SESSION's entry is not in its queue in SCAN.
@@ -364,14 +367,19 @@ Say whether SCAN excluded the entry's ID as a duplicate."
        "%s is no longer in queue %s" title
        (org-iw--queue-name (org-iw--session-queue session))))))
 
-(defun org-iw--move-to-end (scan entry rest queue)
-  "Rank ENTRY of SCAN after REST, the other members of QUEUE.
-Return the result of `org-iw-write-put-rank'."
-  (let ((rank (org-iw--append-rank rest queue))
-        (marker (org-iw-discovery-resolve scan (org-iw-entry-id entry)
-                                          (org-iw-entry-file entry))))
-    (org-iw-write-put-rank marker queue rank
-                           :expected (org-iw-core-rank entry queue))))
+(defun org-iw--session-or-refuse ()
+  "Return the session, or refuse if there is none."
+  (or org-iw--session
+      (org-iw-core-refuse "no session; run org-iw-visit-next first")))
+
+(defun org-iw--put-rank (scan entry queue rank)
+  "Write RANK to ENTRY of SCAN in QUEUE, a canonical queue ID.
+The write expects ENTRY's scanned rank.  Return the result of
+`org-iw-write-put-rank'."
+  (org-iw-write-put-rank
+   (org-iw-discovery-resolve scan (org-iw-entry-id entry)
+                             (org-iw-entry-file entry))
+   queue rank :expected (org-iw-core-rank entry queue)))
 
 ;;;###autoload
 (defun org-iw-continue ()
@@ -382,41 +390,45 @@ other members through its buffer, which is saved unless it already
 had unsaved changes.  Then the first of the other members is visited
 and becomes the session's entry.
 
-An entry already last is not written, and the only entry in its
-queue is left alone.  Continue refuses, writing and visiting nothing,
-if there is no session, the entry has left its queue or its ID is
-duplicated, the queue has no rank left, or the write refuses (the
-file changed on disk or is not writable, or the rank changed since
-the scan).
+An entry already last is not written, the only entry in its queue is
+left alone, and an empty queue is reported; none of these change
+anything.  Continue refuses, writing and visiting nothing, if there
+is no session, the entry has left its queue or its ID is duplicated,
+the queue has no rank left, or the write refuses (the file changed
+on disk or is not writable, or the rank changed since the scan).
 
 Return the message shown."
   (interactive)
-  (unless org-iw--session
-    (org-iw-core-refuse "no session; run org-iw-visit-next first"))
-  (let* ((queue (org-iw--session-queue org-iw--session))
-         (id (org-iw--session-id org-iw--session))
+  (let* ((session (org-iw--session-or-refuse))
+         (queue (org-iw--session-queue session))
+         (id (org-iw--session-id session))
          (scan (org-iw--scan))
          (order (org-iw--order scan queue))
-         (retained (or (seq-find (lambda (entry)
-                                   (equal (org-iw-entry-id entry) id))
-                                 order)
-                       (org-iw--refuse-absent scan org-iw--session)))
-         (rest (remq retained order))
-         (title (org-iw-entry-title retained)))
-    (if (null rest)
-        (org-iw--report scan "%s is the only entry in queue %s"
-                        title (org-iw--queue-name queue))
-      (let ((save-status
-             (unless (eq retained (car (last order)))
-               (org-iw--save-status
-                (org-iw--move-to-end scan retained rest queue))))
-            (next (car rest)))
-        (org-iw--visit scan next queue 1 (length order))
-        (org-iw--report scan "%s. Now 1/%d: %s"
-                        (if save-status
-                            (format "Moved %s to end %s" title save-status)
-                          (format "%s already at end" title))
-                        (length order) (org-iw-entry-title next))))))
+         (name (org-iw--queue-name queue)))
+    (if (null order)
+        (org-iw--report scan "Queue %s is empty" name)
+      (let* ((retained (or (seq-find (lambda (entry)
+                                       (equal (org-iw-entry-id entry) id))
+                                     order)
+                           (org-iw--refuse-absent scan session)))
+             (title (org-iw-entry-title retained)))
+        (if (null (cdr order))
+            (org-iw--report scan "%s is the only entry in queue %s"
+                            title name)
+          (pcase-let
+              ((`(,text . ,new-order)
+                (pcase (org-iw-core-place order retained queue 'end)
+                  (`(no-gap ,_) (org-iw--refuse-no-room "the end" name))
+                  (`(unchanged ,_)
+                   (cons (format "%s already at end" title) order))
+                  (`(moved ,depth ,rank)
+                   (cons (format "Moved %s to end %s" title
+                                 (org-iw--save-status
+                                  (org-iw--put-rank scan retained queue rank)))
+                         (org-iw-core-reorder order retained depth))))))
+            (org-iw--visit scan (car new-order) queue 1 (length order))
+            (org-iw--report scan "%s. Now 1/%d: %s" text (length order)
+                            (org-iw-entry-title (car new-order)))))))))
 
 ;;;; End session
 

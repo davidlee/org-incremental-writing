@@ -71,6 +71,11 @@ at the prompt, proving BODY never prompts."
 
 ;;;; Private helpers
 
+(defconst org-iw-cmd-test--no-room-at-end
+  (concat "no room at the end in ESSAYS; redistribution is not yet"
+          " available — choose another placement")
+  "The refusal when ESSAYS has no rank left after its last member.")
+
 (ert-deftest org-iw-cmd-test-files-honour-exclude-regexp ()
   "A file matching `org-iw-exclude-regexp' is not a source file."
   (org-iw-test-with-corpus '(("a.org" . "* A\n") ("skip.org" . "* S\n"))
@@ -321,7 +326,7 @@ Nothing changes and no Org parsing runs, so no warnings appear."
   (org-iw-cmd-test--refuses
    (concat (org-iw-test-heading "Last" "l1" ":IW_ESSAYS: 9007199254740991")
            (org-iw-test-heading "H" "h1"))
-   "ESSAYS" "rank limit" "H"))
+   "ESSAYS" org-iw-cmd-test--no-room-at-end "H"))
 
 (ert-deftest org-iw-cmd-test-add-refusal-order ()
   "When two refusals apply, the earlier in the design's order wins."
@@ -975,6 +980,19 @@ Nothing is written: a.org's buffer and every file are unchanged."
     (should (equal (org-iw-cmd-test--should-change-nothing #'org-iw-continue)
                    "D is the only entry in queue DRAFTS"))))
 
+(ert-deftest org-iw-cmd-test-continue-empty-queue ()
+  "A session whose queue was emptied is reported, changing nothing."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (org-iw-cmd-test--open-all)
+    (org-iw-visit-next "DRAFTS")
+    (with-current-buffer (org-iw-test-visit "d.org")
+      (org-with-wide-buffer
+       (goto-char (point-min))
+       (re-search-forward "^:IW_DRAFTS: 1\n")
+       (replace-match "")))
+    (should (equal (org-iw-cmd-test--should-change-nothing #'org-iw-continue)
+                   "Queue DRAFTS is empty"))))
+
 (ert-deftest org-iw-cmd-test-continue-already-last ()
   "An entry already last is not written; the head of the rest is visited.
 B and C are re-ranked before A in b.org's unsaved buffer."
@@ -997,8 +1015,9 @@ B and C are re-ranked before A in b.org's unsaved buffer."
                                          ":IW_ESSAYS: 9007199254740991")))
     (org-iw-cmd-test--open-all)
     (org-iw-visit-next "ESSAYS")
-    (org-iw-cmd-test--should-refuse-cleanly
-     "rank limit; redistribution needed" #'org-iw-continue)))
+    (should (equal (org-iw-cmd-test--should-refuse-cleanly
+                    "no room at the end in ESSAYS" #'org-iw-continue)
+                   org-iw-cmd-test--no-room-at-end))))
 
 (ert-deftest org-iw-cmd-test-continue-refuses-read-only-buffer ()
   "Continue refuses when the session entry's buffer is read-only (RV-002 F-1).
