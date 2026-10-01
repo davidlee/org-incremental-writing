@@ -6,7 +6,7 @@ slug = "no-parallel-implementation"
 title = "One implementation per concept"
 status = "required"
 created = "2026-09-30"
-updated = "2026-09-30"
+updated = "2026-10-01"
 tags = ["process"]
 
 [relationships]

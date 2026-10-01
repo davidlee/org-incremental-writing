@@ -2,7 +2,7 @@
 
 ## Statement
 
-Proposed (draft). Rules for authoring a plan's VT (verified-by-test)
+Rules for authoring a plan's VT (verified-by-test)
 criteria:
 
 1. A VT's `keywords` name `ert-deftest` test names or symbols used in test

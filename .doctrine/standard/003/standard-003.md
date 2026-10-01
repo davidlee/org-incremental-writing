@@ -2,7 +2,7 @@
 
 ## Statement
 
-Proposed (draft). The default pre-close code review of a slice (the audit's
+The default pre-close code review of a slice (the audit's
 code-review lens) runs:
 
 1. **Modelling and architecture reviewer** (opus): domain model,

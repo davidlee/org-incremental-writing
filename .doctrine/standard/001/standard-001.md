@@ -2,7 +2,7 @@
 
 ## Statement
 
-Proposed (draft). Applies on top of POL-001.
+Applies on top of POL-001.
 
 1. **Independent tests.** Every test passes alone and in any order. No test
    relies on buffers, files, options or global state another test left

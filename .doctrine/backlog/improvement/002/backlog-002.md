@@ -11,3 +11,8 @@ doubles the journal-scale cost (~1 s → ~2 s). Surviving mutant A16 (extra scan
 Fix: pass the interactive scan into the body, or prompt from a scan the body reuses;
 add a scan-counter test per command. Fold into SL-004's scan re-measure; clarify
 DEC-003 as "a command, including its interactive spec, scans exactly once".
+
+QUE-001 (2026-10-01): the proposed DEC-003 clarification — a command,
+including its interactive spec, scans exactly once, with a scan-counter
+test per command — was deferred to SL-004, which owns this fix. SL-004's
+design should record it (DEC-003 amendment or a new DEC).

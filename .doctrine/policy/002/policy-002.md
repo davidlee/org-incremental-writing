@@ -2,12 +2,18 @@
 
 ## Statement
 
+- A **concept** is a rule, invariant or message contract that two callers
+  must agree on: a validity test, a limit, a refusal and its wording, a
+  reader of source state. An incidental idiom becomes a concept once it
+  recurs (STD-004).
 - Each concept (queue ordering, entry resolution, property writes,
   placement, save policy, and so on) has exactly one implementation.
 - Before writing new code, search for an existing owner and adapt or
   extend it. Don't write a parallel version.
 - Duplicated or parallel logic is a blocking review finding, even when the
-  duplication is small.
+  duplication is small. Confirmed duplication is fixed before the slice
+  closes. It is never deferred to the backlog unless the user waives it
+  explicitly.
 - When code is replaced, the old path is deleted in the same change. No
   dead paths or "legacy" branches.
 - No speculative abstraction: no wrappers, options or extension points
@@ -38,3 +44,5 @@ to agents and humans alike.
 
 - ADR-003.
 - RFC-001 governance candidate P2.
+- REV-002; RV-002 F-7..F-9 (reviewers proposed deferral; user ruled
+  fix-now, 2026-10-01).
