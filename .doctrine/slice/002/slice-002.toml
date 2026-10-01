@@ -43,6 +43,10 @@ label = "governed_by"
 target = "POL-003"
 
 [[relation]]
+label = "governed_by"
+target = "ADR-004"
+
+[[relation]]
 label = "related"
 target = "PRD-001"
 
