@@ -467,16 +467,17 @@ Invalid configured IDs are dropped; a new queue may be typed."
   (org-iw--session-create :queue queue :id "x1" :title title))
 
 (ert-deftest org-iw-cmd-test-mode-line-escapes-percent ()
-  "`org-iw--mode-line' shows the queue name and title, % escaped as %%."
+  "`org-iw--mode-line' shows the queue name and title, % escaped as %%.
+A trailing space separates it from the next mode-line item."
   (let ((org-iw-queues '(("essays" :name "50% Club")))
         (org-iw--session (org-iw-cmd-test--session "ESSAYS" "100% done")))
-    (should (equal (org-iw--mode-line) "IW[50%% Club: 100%% done]"))))
+    (should (equal (org-iw--mode-line) "IW[50%% Club: 100%% done] "))))
 
 (ert-deftest org-iw-cmd-test-mode-line-unconfigured-queue ()
   "An unconfigured queue is shown by its ID."
   (let ((org-iw-queues nil)
         (org-iw--session (org-iw-cmd-test--session "ESSAYS" "A")))
-    (should (equal (org-iw--mode-line) "IW[ESSAYS: A]"))))
+    (should (equal (org-iw--mode-line) "IW[ESSAYS: A] "))))
 
 (ert-deftest org-iw-cmd-test-mode-line-without-session ()
   "Without a session the mode line shows nothing."

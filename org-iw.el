@@ -195,11 +195,12 @@ Set only by `org-iw--visit'; cleared only by `org-iw-end-session'.")
 
 (defun org-iw--mode-line ()
   "Return the mode-line text for the session, or nil without one.
-The text is IW[NAME: TITLE], with % doubled in both so that the mode
-line shows it literally."
+The text is IW[NAME: TITLE] and a space, which separates it from the
+next item, with % doubled in both so that the mode line shows it
+literally."
   (when org-iw--session
     (let ((escape (lambda (text) (string-replace "%" "%%" text))))
-      (format "IW[%s: %s]"
+      (format "IW[%s: %s] "
               (funcall escape (org-iw--queue-name
                                (org-iw--session-queue org-iw--session)))
               (funcall escape (org-iw--session-title org-iw--session))))))
