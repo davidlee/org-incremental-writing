@@ -367,6 +367,13 @@ For PHASE-08 (human trial):
   runs against their real corpus from documented usage: install,
   configure, commands, write/save semantics, refusals, dev recipes.
   Sandbox trial kit: /home/scratch/sl-001-trial/ (TRIAL.md).
+- VH-1 trial on the user's real corpus (2026-10-01): steps 1–3 pass, and
+  the mode line, end-session and messages behave as described. Step 4
+  (unsaved edit, then Continue) was not observed: the user's auto-save
+  hook saves the buffer first. Covered in batch by
+  `org-iw-cmd-test-continue-leaves-dirty-buffer-unsaved`. N2 confirmed
+  (`…shpool]Thu …`); fixed by a trailing space on the mode-line item
+  (test first: 2 red, then 135/135 green on 31.1 and 30.2; lint clean).
 
 ## Design deltas for /reconcile
 
@@ -426,6 +433,10 @@ For PHASE-08 (human trial):
 - § 5.4 Visit step 2: "outside the narrowing" includes a marker at
   `point-max` (the heading line is then hidden); visit widens unless
   point-min <= marker < point-max.
+- § 5.4 / mode line (line ~390): the item renders `IW[NAME: TITLE] `
+  with a trailing space, so it is separated from the next
+  `global-mode-string` item (user request after the VH-1 trial,
+  2026-10-01).
 - Scope: README.md is not in the plan; added in PHASE-08 at the user's
   request (2026-10-01).
 
