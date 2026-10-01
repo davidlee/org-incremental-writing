@@ -348,7 +348,7 @@ For PHASE-08 (human trial):
 - Continue shows two echoes in quick succession (G4); only the second
   stays visible, both are in *Messages*.
 
-## PHASE-08 (G9 fix, VA-1)
+## PHASE-08 (2026-10-01) — completed, 8d5909f, 64b8e53
 
 - G9 resolved in `org-iw.el`: `org-iw--visit` wraps a non-list
   `global-mode-string` into a one-element list before `add-to-list`;
@@ -374,6 +374,11 @@ For PHASE-08 (human trial):
   `org-iw-cmd-test-continue-leaves-dirty-buffer-unsaved`. N2 confirmed
   (`…shpool]Thu …`); fixed by a trailing space on the mode-line item
   (test first: 2 red, then 135/135 green on 31.1 and 30.2; lint clean).
+- Step 4 then passed: the user ran `M-: (org-iw-continue)` straight after
+  an edit, before their save hook fired, and got the "buffer has unsaved
+  changes … not saved" message. VH-1 held; PHASE-08 completed.
+- User's headline finding: one vertical slice in, org-iw is usable on
+  real notes — evidence for RFC-001's vertical delivery.
 
 ## Design deltas for /reconcile
 
