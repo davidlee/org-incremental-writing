@@ -23,8 +23,8 @@
 ;;; Commentary:
 
 ;; Pure data and ordering rules for org-iw queues: entry structs,
-;; queue-ID and property classification, rank parsing, queue order and
-;; rank allocation.  No Org, no buffers.
+;; queue-ID and property classification, rank parsing, queue order,
+;; placements and rank allocation.  No Org, no buffers.
 
 ;;; Code:
 
@@ -136,17 +136,83 @@ modified."
          #'string=)
         #'string<))
 
-(defun org-iw-core-append-rank (ordered queue)
-  "Return a rank placing a new member after ORDERED in QUEUE.
-ORDERED is a list of entries in queue order.  The result is
-`org-iw-core-rank-spacing' if ORDERED is empty, else the last rank
-plus the spacing.  Return nil if the result would exceed
-`org-iw-core-rank-limit'."
-  (let ((rank (if ordered
-                  (+ (org-iw-core-rank (car (last ordered)) queue)
-                     org-iw-core-rank-spacing)
-                org-iw-core-rank-spacing)))
+;;;; Placements
+
+(defun org-iw-core-placement-p (object)
+  "Return non-nil if OBJECT is a placement.
+A placement says where a member goes among the others of its queue:
+\(after N) after N others, N a natural number; (fraction NUM DEN)
+NUM/DEN of the way back, natural numbers with 0 < DEN and NUM <= DEN;
+\(percent P) P percent of the way back, a natural number P <= 100;
+or `end', after all the others."
+  (pcase object
+    ('end t)
+    (`(after ,(pred natnump)) t)
+    (`(fraction ,(and (pred natnump) num) ,(and (pred natnump) den))
+     (and (< 0 den) (<= num den)))
+    (`(percent ,(and (pred natnump) p)) (<= p 100))))
+
+(defun org-iw-core-placement-depth (placement count)
+  "Return how many of COUNT others precede a member at PLACEMENT.
+The result is in [0, COUNT].  A fraction rounds down, in exact integer
+arithmetic.  Signal `wrong-type-argument' if PLACEMENT is not a
+placement."
+  (unless (org-iw-core-placement-p placement)
+    (signal 'wrong-type-argument (list 'org-iw-core-placement-p placement)))
+  (pcase placement
+    ('end count)
+    (`(after ,n) (min n count))
+    (`(fraction ,num ,den) (floor (* count num) den))
+    (`(percent ,p) (org-iw-core-placement-depth `(fraction ,p 100) count))))
+
+;;;; Allocation
+
+(defun org-iw-core-rank-at (others queue depth)
+  "Return a rank placing a member at DEPTH among OTHERS in QUEUE, or nil.
+OTHERS are members of QUEUE in queue order, and DEPTH, in [0, length
+of OTHERS], is how many of them precede the member.  The rank is
+`org-iw-core-rank-spacing' when OTHERS is empty, a spacing past the
+last or before the first, and otherwise the floor of the mean of the
+neighbours' ranks.  Return nil if that rank is not strictly between
+the neighbours or exceeds `org-iw-core-rank-limit'."
+  (let* ((ranks (mapcar (lambda (entry) (org-iw-core-rank entry queue))
+                        others))
+         (before (and (< 0 depth) (nth (1- depth) ranks)))
+         (after (nth depth ranks))
+         (rank (cond ((and before after)
+                      (and (< 1 (- after before)) (floor (+ before after) 2)))
+                     (before (+ before org-iw-core-rank-spacing))
+                     (after (- after org-iw-core-rank-spacing))
+                     (t org-iw-core-rank-spacing))))
     (and (org-iw-core-rank-p rank) rank)))
+
+;;;; Placing
+
+(defun org-iw-core-place (order target queue placement)
+  "Decide how to put TARGET at PLACEMENT among ORDER, members of QUEUE.
+ORDER is in queue order.  TARGET is an element of ORDER, compared with
+`eq', or nil for an entry joining QUEUE.  DEPTH below is the
+placement's depth among ORDER without TARGET.  Return one of:
+
+  (unchanged DEPTH)   TARGET is already at DEPTH; write nothing.
+  (moved DEPTH RANK)  write RANK to TARGET.
+  (no-gap DEPTH)      no rank is allowed there; write nothing.
+
+A nil TARGET is never unchanged."
+  (let* ((others (remq target order))
+         (depth (org-iw-core-placement-depth placement (length others))))
+    (if (eql (seq-position order target #'eq) depth)
+        (list 'unchanged depth)
+      (if-let* ((rank (org-iw-core-rank-at others queue depth)))
+          (list 'moved depth rank)
+        (list 'no-gap depth)))))
+
+(defun org-iw-core-reorder (order target depth)
+  "Return ORDER with TARGET moved to DEPTH among the others.
+TARGET is an element of ORDER, compared with `eq'.  ORDER is not
+modified."
+  (let ((others (remq target order)))
+    (append (seq-take others depth) (list target) (seq-drop others depth))))
 
 (provide 'org-iw-core)
 ;;; org-iw-core.el ends here

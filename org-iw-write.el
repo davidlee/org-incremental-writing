@@ -103,7 +103,7 @@ heading, or at `point-min' for a document entry, in a buffer whose
 base buffer visits a file; it may be indirect or narrowed.  QUEUE is
 a canonical queue ID, as from `org-iw-core-queue-id'; anything else
 is an error.  RANK is an integer of magnitude at most
-`org-iw-core-rank-limit', as from `org-iw-core-append-rank'; anything
+`org-iw-core-rank-limit', as from `org-iw-core-rank-at'; anything
 else is an error.
 
 EXPECTED is the rank the caller scanned, or :absent for an entry not

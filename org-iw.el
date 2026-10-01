@@ -135,7 +135,7 @@ Entries whose key is not a valid queue ID are left out."
 
 (defun org-iw--append-rank (order queue)
   "Return the rank after ORDER, members of QUEUE; refuse at the limit."
-  (or (org-iw-core-append-rank order queue)
+  (or (org-iw-core-rank-at order queue (length order))
       (org-iw-core-refuse "rank limit; redistribution needed")))
 
 (defun org-iw--read-queue (scan)
