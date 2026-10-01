@@ -10,13 +10,19 @@ raiser    = "raiser"
 responder = "responder"
 rounds_base = 0
 contests_base = 0
+concluded = true
+
+[[review.turn]]
+act = "conclude"
+role = "raiser"
+note = "SL-002 pre-close conformance audit (reconciliation facet) on main, code range 30b4a8d..0341dd7: org-iw-core.el, org-iw.el, org-iw-write.el, both test files and README, against design.md (locked), DEC-007..011, ADR-002/003/004, POL-002, STD-001/002/004 and plan.toml EX/VT. STD-003 roster: opus modelling/architecture reviewer (behaviour proved by execution, chooser checked in a real terminal on 30.2/31.1), opus test reviewer (99-mutant pass, generator distribution measured, test-each), opus verifier re-checking every candidate. Also: slice conformance, doctrine check gate, verify-vt. 19 findings: 12 fix-now (landed in 0341dd7, all targeted mutants killed, gate 200/200 on both Emacs), 3 tolerated, 1 follow-up (IMP-004), 3 design-wrong carried in the Reconciliation Brief. No blockers."
 
 [target]                   # the outbound `reviews` edge: RV-NNN ──reviews──▶ <ref>
 ref   = "SL-002"
 
 [[finding]]
 id = "F-1"
-status = "open"
+status = "verified"
 severity = "major"
 title = "Expected every SL-002 VT keyword to name test names or test-code symbols (STD-002 item 1) and verify-vt to pass; observed PHASE-02 VT-1/VT-2 fail and several rows key on message text"
 detail = """
@@ -24,214 +30,461 @@ detail = """
 STD-002 (scope: every VT authored from SL-002 on) item 1 forbids user-facing message text as a keyword. Rows that pass but key on message text: PHASE-02 VT-1 `is empty`; PHASE-03 VT-1 `:placements:`, `org-iw-placements:`, `org-iw-default-placement:`; PHASE-03 VT-2 `Placement: `; PHASE-04 VT-1 `Moved E1 to Soon`, `already at End`; PHASE-04 VT-2 `already at Soon`; PHASE-06 VT-1 `Added to ESSAYS at Soon`.
 The earlier per-phase claim "all VT checks pass" was wrong: it was checked per phase before PHASE-04 changed the messages, and not re-run after (STD-002 item 4).
 Verified by the verifier (opus) and by re-running verify-vt."""
+disposition = "fix-now"
+response = "Fixed in 0341dd7: plan.toml appends re-keyed rows keyed on ert-deftest names (PHASE-02 VT-3/4, PHASE-03 VT-3/4, PHASE-04 VT-3/4, PHASE-06 VT-2); the seven message-text rows are waived with waived_reason citing STD-002 item 1 and this finding (ids unchanged; append rule). verify-vt: all PASS or WAIVED-with-reason."
 
 [[finding.turn]]
 act = "raise"
 role = "raiser"
 
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Fixed in 0341dd7: plan.toml appends re-keyed rows keyed on ert-deftest names (PHASE-02 VT-3/4, PHASE-03 VT-3/4, PHASE-04 VT-3/4, PHASE-06 VT-2); the seven message-text rows are waived with waived_reason citing STD-002 item 1 and this finding (ids unchanged; append rule). verify-vt: all PASS or WAIVED-with-reason."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Checked against 0341dd7 and the gate (200/200 on 31.1 and 30.2, test-each green, verify-vt clean)."
+
 [[finding]]
 id = "F-2"
-status = "open"
+status = "verified"
 severity = "major"
 title = "Expected the property checker's self-test to show the `moved` arm rejects a wrong rank (STD-001 item 2); observed deleting the moved-arm checks leaves the suite green"
 detail = """
 test/org-iw-core-test.el ~345-351 (moved arm of org-iw-core-test--check-place), ~381-399 (self-test).
 Mutants that survive the whole suite (test reviewer, confirmed by the verifier): H3 replace the `unless (equal ... wanted)` sort check with `(ignore moved wanted)`; H2 drop the `org-iw-core-rank-p` check on the moved rank; H1 drop the `(pred (eql depth))` depth check on moved results.
 Cause: none of the four wrong placers in the self-test (design § 9) ever returns a `moved` result with a bad depth or rank, and the self-test asserts only "at least one rejection" overall. Production code is still covered by example tests (3584, -1536), so no user-visible risk; the oracle's main arm is unverified."""
+disposition = "fix-now"
+response = "Fixed in 0341dd7: the checker self-test's wrong placers now include a moved result at depth+1, a moved rank 0, and a moved rank past the limit into an empty queue (only the limit check can reject it). Mutants H1, H2, H3 now killed."
 
 [[finding.turn]]
 act = "raise"
 role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Fixed in 0341dd7: the checker self-test's wrong placers now include a moved result at depth+1, a moved rank 0, and a moved rank past the limit into an empty queue (only the limit check can reject it). Mutants H1, H2, H3 now killed."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Checked against 0341dd7 and the gate (200/200 on 31.1 and 30.2, test-each green, verify-vt clean)."
 
 [[finding]]
 id = "F-3"
-status = "open"
+status = "verified"
 severity = "minor"
 title = 'Expected one owner of the "Queue NAME is empty" report (POL-002); observed the format string at two call sites'
 detail = 'org-iw.el:494 (org-iw-visit-next) `(org-iw--report scan "Queue %s is empty" (org-iw--queue-name queue-id))` and org-iw.el:561 (org-iw-continue) `(org-iw--report scan "Queue %s is empty" name)`. The Continue copy is new in SL-002 (design § 5.4 step 4). POL-002 duplication is fix-now unless waived (STD-003).'
+disposition = "fix-now"
+response = "Fixed in 0341dd7: `org-iw--report-empty SCAN QUEUE` is the one owner; visit-next and Continue call it. Existing empty-queue tests cover both callers."
 
 [[finding.turn]]
 act = "raise"
 role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Fixed in 0341dd7: `org-iw--report-empty SCAN QUEUE` is the one owner; visit-next and Continue call it. Existing empty-queue tests cover both callers."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Checked against 0341dd7 and the gate (200/200 on 31.1 and 30.2, test-each green, verify-vt clean)."
 
 [[finding]]
 id = "F-4"
-status = "open"
+status = "verified"
 severity = "minor"
 title = """Expected a test that plain Add appends when the queue's default is not End (DEC-011 as amended, § 9 "plain Add appends"); observed no such test"""
 detail = "org-iw.el ~430: mutant replacing `'(nil . end)` with `(cons nil (cdr (org-iw--placement queue-id nil)))` — plain Add uses the queue default but keeps the plain message — survives. Every plain-Add test runs with the default End, which is indistinguishable from append. Behaviour is correct today; the user-ruled behaviour (RV-003 F-5) is unpinned."
+disposition = "fix-now"
+response = 'Fixed in 0341dd7: org-iw-cmd-test-add-plain-appends-whatever-the-default (queue :default "Soon", plain Add → 9/9, last). Mutant A1 killed.'
 
 [[finding.turn]]
 act = "raise"
 role = "raiser"
 
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = 'Fixed in 0341dd7: org-iw-cmd-test-add-plain-appends-whatever-the-default (queue :default "Soon", plain Add → 9/9, last). Mutant A1 killed.'
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Checked against 0341dd7 and the gate (200/200 on 31.1 and 30.2, test-each green, verify-vt clean)."
+
 [[finding]]
 id = "F-5"
-status = "open"
+status = "verified"
 severity = "minor"
 title = "Expected Continue's and Add's docstrings to list every refusal accurately (PHASE-04 EX-6, ISS-001 Continue half); observed omissions and two wrong claims"
 detail = """
 org-iw.el ~539-545 (Continue): the write-refusal list still omits the read-only buffer (org-iw-write.el:72) and the unrecognised property drawer (:78-79) — exactly the two ISS-001 names — and also the resolve refusals (org-iw-discovery.el ~442/446/452) and the not-in-Org-mode scan refusal (~395). It also says an unknown LABEL is "checked before the prompt"; only config is checked before the prompt (a typed label is REQUIRE-MATCH; a Lisp label is checked before the scan).
 org-iw.el ~411-413 (Add): implies a plain Add refuses misconfigured placements; plain Add never reads the vocabulary (design § 5.4: `end` when LABEL is nil) — probe: `:placements nil` plus plain Add succeeds.
 notes.md (PHASE-04, Harvest Open) records ISS-001's Continue half as fixed; it is not."""
+disposition = "fix-now"
+response = "Fixed in 0341dd7: Continue's docstring lists every refusal as a list (no session; misconfigured placements before the prompt, unknown LABEL before any scan; non-Org buffer; entry left / ID duplicated, missing or ambiguous; no room; write refusals incl. read-only and unrecognised drawer). Add's docstring: only a labelled Add reads the vocabulary, plus the write preflight refusals. notes.md corrected: ISS-001's Continue half is fixed at audit; put-rank half stays open."
 
 [[finding.turn]]
 act = "raise"
 role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Fixed in 0341dd7: Continue's docstring lists every refusal as a list (no session; misconfigured placements before the prompt, unknown LABEL before any scan; non-Org buffer; entry left / ID duplicated, missing or ambiguous; no room; write refusals incl. read-only and unrecognised drawer). Add's docstring: only a labelled Add reads the vocabulary, plus the write preflight refusals. notes.md corrected: ISS-001's Continue half is fixed at audit; put-rank half stays open."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Checked against 0341dd7 and the gate (200/200 on 31.1 and 30.2, test-each green, verify-vt clean)."
 
 [[finding]]
 id = "F-6"
-status = "open"
+status = "verified"
 severity = "minor"
 title = "Expected C-u Add to refuse an invalid queue ID before the placement prompt (§ 5.4: canonicalise, then read the placement); observed this ordering unpinned"
 detail = "org-iw.el ~426: mutant `(org-iw--read-placement (or (org-iw-core-queue-id queue) queue))` survives; it prompts for a placement before refusing."
+disposition = "fix-now"
+response = 'Fixed in 0341dd7: org-iw-cmd-test-add-chooser-refuses-invalid-queue-first (one prompt recorded, refusal "invalid queue ID"). Mutant A3 killed.'
 
 [[finding.turn]]
 act = "raise"
 role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = 'Fixed in 0341dd7: org-iw-cmd-test-add-chooser-refuses-invalid-queue-first (one prompt recorded, refusal "invalid queue ID"). Mutant A3 killed.'
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Checked against 0341dd7 and the gate (200/200 on 31.1 and 30.2, test-each green, verify-vt clean)."
 
 [[finding]]
 id = "F-7"
-status = "open"
+status = "verified"
 severity = "minor"
 title = "Expected Add's placement to resolve before the scan to be pinned (PHASE-06 EX-2); observed no test"
 detail = "org-iw.el ~429-431: mutant moving the placement binding after `(scan (org-iw--scan))` survives. Continue has `continue-refuses-placement-before-scan`; Add has no counterpart."
+disposition = "fix-now"
+response = "Fixed in 0341dd7: org-iw-cmd-test-add-refuses-placement-before-scan (scan stubbed to ert-fail). Mutant A7 killed."
 
 [[finding.turn]]
 act = "raise"
 role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Fixed in 0341dd7: org-iw-cmd-test-add-refuses-placement-before-scan (scan stubbed to ert-fail). Mutant A7 killed."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Checked against 0341dd7 and the gate (200/200 on 31.1 and 30.2, test-each green, verify-vt clean)."
 
 [[finding]]
 id = "F-8"
-status = "open"
+status = "verified"
 severity = "minor"
 title = 'Expected one "changes nothing" oracle with self-tests (POL-002 via STD-001 item 7, item 2); observed four overlapping state checks, two without self-tests'
 detail = "test/org-iw-test.el: `--should-write-nothing` (~975, new in SL-002) repeats the state comparison inside `--should-change-nothing` (~996); `--should-refuse` (~415) and `--should-be-no-op` (~388) repeat it inline. Mutants dropping the session/shown checks from `--should-change-nothing` (H9) and the substring check from `--should-refuse-cleanly` (H8) survive."
+disposition = "fix-now"
+response = "Fixed in 0341dd7: --should-change-nothing = --should-write-nothing plus session and shown checks; Add's --should-refuse delegates to --should-refuse-cleanly; --should-be-no-op uses --should-change-nothing. New org-iw-cmd-test-should-refuse-cleanly-self-test (another refusal, plain error, an edit, cleared session, navigation). Mutants H8, H9, H14 killed."
 
 [[finding.turn]]
 act = "raise"
 role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Fixed in 0341dd7: --should-change-nothing = --should-write-nothing plus session and shown checks; Add's --should-refuse delegates to --should-refuse-cleanly; --should-be-no-op uses --should-change-nothing. New org-iw-cmd-test-should-refuse-cleanly-self-test (another refusal, plain error, an edit, cleared session, navigation). Mutants H8, H9, H14 killed."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Checked against 0341dd7 and the gate (200/200 on 31.1 and 30.2, test-each green, verify-vt clean)."
 
 [[finding]]
 id = "F-9"
-status = "open"
+status = "verified"
 severity = "minor"
 title = "Expected the property generator's guard to fail if the generator loses its edge cases; observed it counts outcomes only"
 detail = "test/org-iw-core-test.el ~306, ~379. Generator mutants survive: no near-limit ranks (G1), never a nil target (G2), orders of length <= 2 (G4), only `end` placements (G5), no ranks at exactly ±limit (G6), `after` only, small ranks only. Today's distribution does reach every § 9 case (measured: 192 nil targets, 90 ties, 340 negative, 265 near-limit of 500), so this is a regression guard, not a current gap."
+disposition = "fix-now"
+response = "Fixed in 0341dd7: org-iw-core-test-place-cases-reach-edges asserts counts of nil targets, orders of 4+, each placement kind, negatives, ties, adjacency and ±limit ranks over the seeded cases. Generator mutants G1, G2, G4-G8 killed."
 
 [[finding.turn]]
 act = "raise"
 role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Fixed in 0341dd7: org-iw-core-test-place-cases-reach-edges asserts counts of nil targets, orders of 4+, each placement kind, negatives, ties, adjacency and ±limit ranks over the seeded cases. Generator mutants G1, G2, G4-G8 killed."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Checked against 0341dd7 and the gate (200/200 on 31.1 and 30.2, test-each green, verify-vt clean)."
 
 [[finding]]
 id = "F-10"
-status = "open"
+status = "verified"
 severity = "nit"
 title = "Expected the `proper-list-p` vocabulary guard to be killed; observed weakening it to `listp` survives"
 detail = "org-iw.el ~218: no bad-config row has a dotted list. Removing the guard is killed; `proper-list-p` → `listp` survives."
+disposition = "fix-now"
+response = "Fixed in 0341dd7: dotted-list row in org-iw-cmd-test-vocabulary-refuses-bad-config. Mutant V17 killed."
 
 [[finding.turn]]
 act = "raise"
 role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Fixed in 0341dd7: dotted-list row in org-iw-cmd-test-vocabulary-refuses-bad-config. Mutant V17 killed."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Checked against 0341dd7 and the gate (200/200 on 31.1 and 30.2, test-each green, verify-vt clean)."
 
 [[finding]]
 id = "F-11"
-status = "open"
+status = "verified"
 severity = "nit"
 title = 'Expected README to say a Continue or Add changes at most one IW_ line (I2′); observed "each changes one"'
 detail = "README.md ~154-155. An unchanged Continue and a member Add write nothing; README ~138 already says so."
+disposition = "fix-now"
+response = 'Fixed in 0341dd7: README says "changes at most one IW_ line".'
 
 [[finding.turn]]
 act = "raise"
 role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = 'Fixed in 0341dd7: README says "changes at most one IW_ line".'
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Checked against 0341dd7 and the gate (200/200 on 31.1 and 30.2, test-each green, verify-vt clean)."
 
 [[finding]]
 id = "F-12"
-status = "open"
+status = "verified"
 severity = "nit"
 title = "Expected label matching to be pinned as exact (case-sensitive); observed it unpinned"
 detail = "org-iw.el ~262 `assoc`: mutant `assoc-string ... t` survives. Design is silent; completing-read with REQUIRE-MATCH and default completion-ignore-case is exact."
+disposition = "fix-now"
+response = 'Fixed in 0341dd7: org-iw-cmd-test-placement asserts "soon" refuses in a queue with "Soon". Mutant V16 killed. Exact matching is the natural reading of REQUIRE-MATCH completion with default case handling.'
 
 [[finding.turn]]
 act = "raise"
 role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = 'Fixed in 0341dd7: org-iw-cmd-test-placement asserts "soon" refuses in a queue with "Soon". Mutant V16 killed. Exact matching is the natural reading of REQUIRE-MATCH completion with default case handling.'
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Checked against 0341dd7 and the gate (200/200 on 31.1 and 30.2, test-each green, verify-vt clean)."
 
 [[finding]]
 id = "F-13"
-status = "open"
+status = "verified"
 severity = "nit"
 title = "Expected the Customize types to reject placements the commands refuse; observed they accept (fraction 3 2), (percent 150) and :placements nil"
 detail = "org-iw.el ~74-85, ~131-136. All are refused on use naming the source. Design § 5.2 quotes `org-iw--placement-type` verbatim."
+disposition = "tolerated"
+response = 'Validation is on use by design (design § 4 "Refuse config on use"; § 7 local choice), and every value the :type admits but the commands refuse is refused before any prompt, scan or write, naming the option at fault (tested). The :type is quoted verbatim in the locked design § 5.2; tightening it with :match is a diagnostics improvement IMP-004/SL-005 can absorb. Accepted drift: Customize may save a value the next command refuses with a precise message.'
 
 [[finding.turn]]
 act = "raise"
 role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "tolerated"
+response = 'Validation is on use by design (design § 4 "Refuse config on use"; § 7 local choice), and every value the :type admits but the commands refuse is refused before any prompt, scan or write, naming the option at fault (tested). The :type is quoted verbatim in the locked design § 5.2; tightening it with :match is a diagnostics improvement IMP-004/SL-005 can absorb. Accepted drift: Customize may save a value the next command refuses with a precise message.'
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Accepted: rationale holds; brief entry or backlog capture exists."
 
 [[finding]]
 id = "F-14"
-status = "open"
+status = "verified"
 severity = "nit"
 title = "Expected org-iw-core-rank-at to reject an out-of-range DEPTH; observed it returns an out-of-order rank"
 detail = "org-iw-core.el:178-187: others 5000/6000, depth 5 → 1024; depth -1 → 3976. Unreachable through org-iw-core-place (placement-depth clamps to [0, COUNT]); the docstring states the precondition."
+disposition = "tolerated"
+response = "The [0, length] precondition is documented in the docstring, and the only caller, org-iw-core-place, clamps DEPTH via placement-depth (property-tested over 500 cases). A runtime guard would be dead in every production path and add a guard to kill only by direct misuse. Accepted: misuse of a core function outside place is a programming error, not user input."
 
 [[finding.turn]]
 act = "raise"
 role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "tolerated"
+response = "The [0, length] precondition is documented in the docstring, and the only caller, org-iw-core-place, clamps DEPTH via placement-depth (property-tested over 500 cases). A runtime guard would be dead in every production path and add a guard to kill only by direct misuse. Accepted: misuse of a core function outside place is a programming error, not user input."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Accepted: rationale holds; brief entry or backlog capture exists."
 
 [[finding]]
 id = "F-15"
-status = "open"
+status = "verified"
 severity = "nit"
 title = "Expected two org-iw-queues entries whose IDs differ only in case to be refused or merged; observed the first silently wins"
 detail = """org-iw.el ~168-170 (alist-get over canonical IDs). `'(("A" :name "first") ("a" :placements (("Z" end))))` ignores the second entry's placements. Pre-existing for :name (SL-001); SL-002 widens it to :placements/:default."""
+disposition = "follow-up"
+response = "Captured in IMP-004 (Diagnose invalid org-iw-queues keys): body extended with the duplicate-canonical-key case and its SL-002 widening to :placements/:default. Config diagnostics belong to SL-005 (SL-001 design § 4, IMP-004)."
 
 [[finding.turn]]
 act = "raise"
 role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "follow-up"
+response = "Captured in IMP-004 (Diagnose invalid org-iw-queues keys): body extended with the duplicate-canonical-key case and its SL-002 widening to :placements/:default. Config diagnostics belong to SL-005 (SL-001 design § 4, IMP-004)."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Accepted: rationale holds; brief entry or backlog capture exists."
 
 [[finding]]
 id = "F-16"
-status = "open"
+status = "verified"
 severity = "nit"
 title = "Expected `C-u` Add at Soon to be tested through the chooser (§ 9); observed it tested from Lisp, with the chooser exercised via Later"
 detail = 'test/org-iw-test.el: `(org-iw-add ... "Soon")` from Lisp; C-u Add path tested with Later (5/9). Same code path after the prompt.'
+disposition = "tolerated"
+response = "After the prompt returns a label, C-u Add and (org-iw-add … LABEL) run the same code; Soon is covered from Lisp (org-iw-cmd-test-add-at-placement, 3/9 rank 2560) and the chooser path end-to-end with Later (org-iw-cmd-test-add-chooser). A second chooser test differing only in the label would add no killing power."
 
 [[finding.turn]]
 act = "raise"
 role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "tolerated"
+response = "After the prompt returns a label, C-u Add and (org-iw-add … LABEL) run the same code; Soon is covered from Lisp (org-iw-cmd-test-add-at-placement, 3/9 rank 2560) and the chooser path end-to-end with Later (org-iw-cmd-test-add-chooser). A second chooser test differing only in the label would add no killing power."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Accepted: rationale holds; brief entry or backlog capture exists."
 
 [[finding]]
 id = "F-17"
-status = "open"
+status = "verified"
 severity = "minor"
 title = "Expected slice conformance to show only declared paths; observed org-iw-write.el undeclared"
 detail = "`doctrine slice conformance 2`: undeclared org-iw-write.el (a one-line docstring edit: append-rank → rank-at reference, required by POL-002 once append-rank was deleted), plus doctrine bookkeeping (.doctrine memory item, notes.md, slice-002.toml). Design § 2/§ 5.1/§ 10 say the write path is untouched and § 10 omits org-iw-write.el."
+disposition = "design-wrong"
+response = 'Design § 10 omits org-iw-write.el, and § 2/§ 5.1 say the write path is untouched; the only edit is the docstring reference append-rank → rank-at, forced by POL-002 when append-rank was deleted. Reconcile: `doctrine slice selector add` org-iw-write.el as design-target, mirrored by a § 10 row ("docstring cites rank-at") and a § 2 qualifier. The .doctrine paths (memory item, notes.md, slice-002.toml) are bookkeeping, as at RV-002, and need no selector. See the Reconciliation Brief.'
 
 [[finding.turn]]
 act = "raise"
 role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = 'Design § 10 omits org-iw-write.el, and § 2/§ 5.1 say the write path is untouched; the only edit is the docstring reference append-rank → rank-at, forced by POL-002 when append-rank was deleted. Reconcile: `doctrine slice selector add` org-iw-write.el as design-target, mirrored by a § 10 row ("docstring cites rank-at") and a § 2 qualifier. The .doctrine paths (memory item, notes.md, slice-002.toml) are bookkeeping, as at RV-002, and need no selector. See the Reconciliation Brief.'
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Accepted: rationale holds; brief entry or backlog capture exists."
 
 [[finding]]
 id = "F-18"
-status = "open"
+status = "verified"
 severity = "minor"
 title = "Expected design § 5.2/§ 8 to name the sort metadata the chooser needs; observed it names only display-sort-function, while icomplete and fido order by cycle-sort-function"
 detail = 'org-iw.el `org-iw--read-placement` sets both `display-sort-function` and `cycle-sort-function` to `identity`. Design § 5.2 ("a completion table whose metadata sets display-sort-function to identity") and § 8 (same) omit cycle-sort-function. Without it, `completion-all-sorted-completions` (Emacs 30 minibuffer.el:1806, 31 :1929) sorts by length/alpha/history in icomplete and fido. Confirmed in a real terminal on 30.2 and 31.1 by the modelling reviewer (configured order, default first under icomplete/fido; RET picks the default). The code is right; the locked design under-specifies.'
+disposition = "design-wrong"
+response = "The code is right (verified on 30.2/31.1 under default completion, icomplete, fido, fido-vertical); the locked design under-specifies. Reconcile: design § 5.2 (read-placement) and § 8 (chooser order) name both display-sort-function and cycle-sort-function, with the reason. See the Reconciliation Brief."
 
 [[finding.turn]]
 act = "raise"
 role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = "The code is right (verified on 30.2/31.1 under default completion, icomplete, fido, fido-vertical); the locked design under-specifies. Reconcile: design § 5.2 (read-placement) and § 8 (chooser order) name both display-sort-function and cycle-sort-function, with the reason. See the Reconciliation Brief."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Accepted: rationale holds; brief entry or backlog capture exists."
 
 [[finding]]
 id = "F-19"
-status = "open"
+status = "verified"
 severity = "minor"
 title = 'Expected PRD-001 OQ-3 to record its settlement; observed it still open ("Confirm before the session slice")'
 detail = 'PRD-001 § open questions, OQ-3: "Default placement depths for the standard Soon / Later / End vocabulary (brief suggests after-2, halfway, tail). Confirm before the session slice." DEC-009 (accepted, decided_by user) settled it: Soon (after 2), Later (fraction 1 2), End end, default End; SL-002 implements it and pins the defaults (org-iw-cmd-test-placement-options-defaults).'
+disposition = "design-wrong"
+response = "Governance text lags an accepted decision. Reconcile: REV on PRD-001 to mark OQ-3 settled by DEC-009 (Soon (after 2), Later (fraction 1 2), End end; default End). See the Reconciliation Brief."
 
 [[finding.turn]]
 act = "raise"
 role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = "Governance text lags an accepted decision. Reconcile: REV on PRD-001 to mark OQ-3 settled by DEC-009 (Soon (after 2), Later (fraction 1 2), End end; default End). See the Reconciliation Brief."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Accepted: rationale holds; brief entry or backlog capture exists."
 
 # Findings are append-only `[[finding]]` tables, added by `review raise`.
 # Empty here at creation — a fresh review is Active, awaiting the raiser.
