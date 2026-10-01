@@ -1,7 +1,7 @@
 id = 1
 slug = "walking-skeleton"
 title = "Walking skeleton"
-status = "audit"
+status = "reconcile"
 created = "2026-09-30"
 updated = "2026-10-01"
 tags = ["roadmap"]

@@ -1,0 +1,46 @@
+memory_uid = "mem_01a0f54d81cb725084f7b11be316b6e3"
+memory_key = "mem.pattern.doctrine.vt-keywords-match-prose"
+schema_version = 1
+memory_type = "pattern"
+status = "active"
+title = "verify-vt keywords can be met by comments"
+summary = "verify-vt matches keywords literally anywhere in test_file (comments, docstrings, helpers) and only in committed files; key VTs on ert-deftest names"
+created = "2026-10-01"
+updated = "2026-10-01"
+
+[scope]
+paths = []
+globs = []
+commands = []
+tags = ["doctrine", "testing"]
+workspace = "default"
+repo = "github.com/davidlee/org-incremental-writing"
+repo_id_kind = "remote"
+repo_id_confidence = "high"
+
+[git]
+anchor_kind = "checkout_state"
+commit = ""
+tree = "07617b40452b2372966ea0ae6588d28cc4c6aa2c"
+ref_name = "refs/heads/main"
+checkout_state_id = "505b95aeabc809fa9f1e787851ed7ea69e5acbd76665c6befed0ae454d3d81cd"
+base_commit = "8ac1d0b8a8ade512ccae7b2f0d8da169632e0052"
+verified_sha = ""
+normalizer = "forget.checkout.v1"
+
+[review]
+verification_state = "unverified"
+reviewed = ""
+review_by = ""
+
+[trust]
+trust_level = "medium"
+
+[ranking]
+severity = "none"
+weight = 0
+
+[[source]]
+kind = "review"
+ref = "RV-002"
+

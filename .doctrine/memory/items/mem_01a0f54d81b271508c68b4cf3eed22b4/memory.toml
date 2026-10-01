@@ -1,0 +1,46 @@
+memory_uid = "mem_01a0f54d81b271508c68b4cf3eed22b4"
+memory_key = "mem.fact.emacs.batch-test-gotchas"
+schema_version = 1
+memory_type = "fact"
+status = "active"
+title = "Batch ERT gotchas: prompts block, display is empty, private buffers appear"
+summary = "Run batch tests with </dev/null; current-message nil and format-mode-line empty under --batch; first insert-file-contents creates ' *code-conversion-work*'"
+created = "2026-10-01"
+updated = "2026-10-01"
+
+[scope]
+paths = []
+globs = []
+commands = []
+tags = ["emacs", "testing"]
+workspace = "default"
+repo = "github.com/davidlee/org-incremental-writing"
+repo_id_kind = "remote"
+repo_id_confidence = "high"
+
+[git]
+anchor_kind = "checkout_state"
+commit = ""
+tree = "07617b40452b2372966ea0ae6588d28cc4c6aa2c"
+ref_name = "refs/heads/main"
+checkout_state_id = "45fa2c37fdd685743672c914299a1099a7bab59f9cf6749078f27b872a890f2c"
+base_commit = "8ac1d0b8a8ade512ccae7b2f0d8da169632e0052"
+verified_sha = ""
+normalizer = "forget.checkout.v1"
+
+[review]
+verification_state = "unverified"
+reviewed = ""
+review_by = ""
+
+[trust]
+trust_level = "medium"
+
+[ranking]
+severity = "none"
+weight = 0
+
+[[source]]
+kind = "review"
+ref = "RV-002"
+

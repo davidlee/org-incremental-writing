@@ -1,0 +1,46 @@
+memory_uid = "mem_01a0f54d819b7a82bac713238fa4a500"
+memory_key = "mem.fact.emacs.save-hook-errors-demoted"
+schema_version = 1
+memory_type = "fact"
+status = "active"
+title = "before-save-hook errors never fail a save"
+summary = "basic-save-buffer demotes before-save-hook errors (Emacs 30, 31); fail a save in tests via write-file-functions"
+created = "2026-10-01"
+updated = "2026-10-01"
+
+[scope]
+paths = []
+globs = []
+commands = []
+tags = ["emacs", "testing"]
+workspace = "default"
+repo = "github.com/davidlee/org-incremental-writing"
+repo_id_kind = "remote"
+repo_id_confidence = "high"
+
+[git]
+anchor_kind = "checkout_state"
+commit = ""
+tree = "07617b40452b2372966ea0ae6588d28cc4c6aa2c"
+ref_name = "refs/heads/main"
+checkout_state_id = "e5cf33f63b9a0a8abd193d61c47910063e5f9690580e465ea7120b3a78966341"
+base_commit = "8ac1d0b8a8ade512ccae7b2f0d8da169632e0052"
+verified_sha = ""
+normalizer = "forget.checkout.v1"
+
+[review]
+verification_state = "unverified"
+reviewed = ""
+review_by = ""
+
+[trust]
+trust_level = "medium"
+
+[ranking]
+severity = "none"
+weight = 0
+
+[[source]]
+kind = "review"
+ref = "RV-002"
+

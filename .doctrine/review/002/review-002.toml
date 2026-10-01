@@ -10,13 +10,21 @@ raiser    = "auditor"
 responder = "author"
 rounds_base = 0
 contests_base = 0
+concluded = true
+
+[[review.turn]]
+act = "conclude"
+role = "raiser"
+note = """
+Pre-close conformance audit of SL-001 with a code-review lens on main (ce0b766^..8ac1d0b plus PHASE-01). Examined: all four source modules and five test files against design.md (locked), plan.toml EX/VT, ADR-001..003, POL-001..003; three opus reviewers (modelling/architecture; legibility/factoring/DRY; tests + forward strategy, incl. 71-mutant run) and one opus verifier re-checking every candidate by reading and execution; slice conformance; doctrine check gate. 26 findings: 20 fixed and re-verified (gate 158/158 on Emacs 31.1 and 30.2, lint clean, mutation 71/79), 3 follow-up (IMP-002..004), 2 tolerated, 1 design-wrong (selectors) in the brief.
+"""
 
 [target]                   # the outbound `reviews` edge: RV-NNN ──reviews──▶ <ref>
 ref   = "SL-001"
 
 [[finding]]
 id = "F-1"
-status = "answered"
+status = "verified"
 severity = "minor"
 title = "Expected the write path to refuse a read-only buffer; observed it edits and saves it"
 detail = """
@@ -36,9 +44,14 @@ role = "responder"
 disposition = "fix-now"
 response = "User ruled (2026-10-01): refuse. Add a buffer-read-only refusal on the base buffer to write preflight, plus tests for Add and Continue. Design §5.2 preflight list gains it at /reconcile (brief)."
 
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in 62e981c, 31fdb54. Seat re-ran gate: just lint 0 warnings; just test-all 158/158 on Emacs 31.1 and 30.2. Mutation re-run (like-for-like, re-anchored): 71/79 killed vs 63/80 before; all named probes killed."
+
 [[finding]]
 id = "F-2"
-status = "answered"
+status = "verified"
 severity = "minor"
 title = "Expected the write path to own the second-drawer guard for :expected :absent; observed it only in Add"
 detail = '''
@@ -57,9 +70,14 @@ role = "responder"
 disposition = "fix-now"
 response = "User ruled (2026-10-01): fix now. The second-drawer guard for :expected :absent moves into write preflight, so every caller of the one write path is protected. Design §4/§5.4 reconciled at /reconcile (brief)."
 
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in f2e8dda, 31fdb54. Seat re-ran gate: just lint 0 warnings; just test-all 158/158 on Emacs 31.1 and 30.2. Mutation re-run (like-for-like, re-anchored): 71/79 killed vs 63/80 before; all named probes killed."
+
 [[finding]]
 id = "F-3"
-status = "answered"
+status = "verified"
 severity = "minor"
 title = "Expected every source buffer to be handled as Org; observed explicitly listed non-.org files run Org calls in their own mode"
 detail = """[M3] Scan forces (org-mode) in its temp buffer (org-iw-discovery.el:310) but resolve (:382-400), write preflight and visit run in the visiting buffer's mode. org-iw-sources '("a.txt") -> text-mode; visit+Continue succeed via Org fallbacks but emit `org-element-at-point' cannot be used in non-Org buffer warnings (40 on a 2-entry corpus) and pop *Warnings*. Docstring org-iw.el:50 / design §5.2 "a file is used as is" doesn't say. Needs a decision: refuse non-org-mode buffers, restrict to *.org, or enable org-mode. Verifier CONFIRMED."""
@@ -75,6 +93,11 @@ act = "dispose"
 role = "responder"
 disposition = "fix-now"
 response = "User ruled (2026-10-01): refuse. Resolve refuses an entry whose visiting buffer is not in org-mode (derived modes count); message names the file. Design §5.2/§5.4 gain the rule at /reconcile (brief)."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in 62e981c; extended to Add in the following fix commit. Seat re-ran gate: just lint 0 warnings; just test-all 158/158 on Emacs 31.1 and 30.2. Mutation re-run (like-for-like, re-anchored): 71/79 killed vs 63/80 before; all named probes killed."
 
 [[finding]]
 id = "F-4"
@@ -124,7 +147,7 @@ role = "raiser"
 
 [[finding]]
 id = "F-6"
-status = "answered"
+status = "verified"
 severity = "nit"
 title = "Expected put-rank to check RANK as it checks QUEUE and EXPECTED; observed RANK written unchecked"
 detail = "[M6] org-iw-write.el:106-109 has cl-check-type on EXPECTED, none on RANK; :137-138 number-to-string. put-rank with 1.5 wrote `:IW_ESSAYS: 1.5`, returned `saved`; next scan reports invalid-rank and the entry silently leaves its queue. Docstring already promises an integer. Matters for SL-002 midpoint placement. Verifier CONFIRMED."
@@ -141,9 +164,14 @@ role = "responder"
 disposition = "fix-now"
 response = "cl-check-type on RANK in put-rank plus a limit check via a core predicate shared with append-rank/parse-rank (POL-002). Docstring already promises an integer; no contract change."
 
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in b44c9a4. Seat re-ran gate: just lint 0 warnings; just test-all 158/158 on Emacs 31.1 and 30.2. Mutation re-run (like-for-like, re-anchored): 71/79 killed vs 63/80 before; all named probes killed."
+
 [[finding]]
 id = "F-7"
-status = "answered"
+status = "verified"
 severity = "minor"
 title = "Expected one refusal constructor (POL-002); observed three with different message shapes"
 detail = """[L1] org-iw.el:90-92 (bare), org-iw-discovery.el:371-373 ("ID %s in %s: %s"), org-iw-write.el:46-52 ("FILE: msg"): each is signal+list+format around core's org-iw-refusal (org-iw-core.el:41). Discovery shape repeats the ID (:390). POL-002 makes duplicated logic blocking even when small. Remedy: org-iw-core-refuse; layer helpers keep only their prefix. Verifier CONFIRMED."""
@@ -160,9 +188,14 @@ role = "responder"
 disposition = "fix-now"
 response = "User ruled (2026-10-01): POL-002, fix now. Add org-iw-core-refuse beside the define-error; layer helpers keep only their message prefix."
 
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in b44c9a4. Seat re-ran gate: just lint 0 warnings; just test-all 158/158 on Emacs 31.1 and 30.2. Mutation re-run (like-for-like, re-anchored): 71/79 killed vs 63/80 before; all named probes killed."
+
 [[finding]]
 id = "F-8"
-status = "answered"
+status = "verified"
 severity = "minor"
 title = "Expected one owner for canonicalise-queue-ID-or-refuse (POL-002); observed two with the same message"
 detail = "[L2] org-iw.el:131-134 and org-iw-write.el:128-130. Both put-rank callers already pass canonical IDs (org-iw.el:318, :396), so put-rank's documented any-case QUEUE contract (write:108) has no caller. Narrowing it is a public API change. Verifier CONFIRMED."
@@ -179,9 +212,14 @@ role = "responder"
 disposition = "fix-now"
 response = "User ruled (2026-10-01): fix now. One owner for canonicalise-or-refuse; put-rank's QUEUE contract narrows to canonical IDs (public API change, no caller affected). Design §5.2 delta at /reconcile (brief)."
 
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in b44c9a4. Seat re-ran gate: just lint 0 warnings; just test-all 158/158 on Emacs 31.1 and 30.2. Mutation re-run (like-for-like, re-anchored): 71/79 killed vs 63/80 before; all named probes killed."
+
 [[finding]]
 id = "F-9"
-status = "answered"
+status = "verified"
 severity = "nit"
 title = "Expected one base-buffer helper (POL-002); observed the expression three times"
 detail = "[L3] org-iw-write.el:40-44 org-iw-write--base; org-iw.el:105-106 (or (buffer-base-buffer) (current-buffer)); org-iw-discovery.el:360; plus org-iw-test-base in test helpers. The indirect-buffer rule is a design concept. Verifier CONFIRMED, downgraded minor->nit."
@@ -198,9 +236,14 @@ role = "responder"
 disposition = "fix-now"
 response = "User ruled (2026-10-01): POL-002, fix now. One public discovery base-buffer helper used by write and the commands."
 
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in b44c9a4. Seat re-ran gate: just lint 0 warnings; just test-all 158/158 on Emacs 31.1 and 30.2. Mutation re-run (like-for-like, re-anchored): 71/79 killed vs 63/80 before; all named probes killed."
+
 [[finding]]
 id = "F-10"
-status = "answered"
+status = "verified"
 severity = "nit"
 title = "Expected Org's org-with-point-at; observed it hand-rolled"
 detail = "[L4] org-iw-write.el:77-80 and org-iw.el:270-272 are exact equivalents of org-with-point-at (macroexpand identical on Org 9.7.11 and 9.8.10). write:92-95 can shrink to (with-current-buffer B (atomic-change-group (org-with-point-at m ...))) - outer with-current-buffer must stay for atomic-change-group. Behaviour-neutral; indirect-buffer tests cover it. Verifier CONFIRMED (partly), downgraded."
@@ -217,9 +260,14 @@ role = "responder"
 disposition = "fix-now"
 response = "Use org-with-point-at where it is an exact equivalent (write:77-80, org-iw.el:270-272); at write:92-95 keep the outer with-current-buffer for atomic-change-group. Behaviour-neutral."
 
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in b44c9a4. Seat re-ran gate: just lint 0 warnings; just test-all 158/158 on Emacs 31.1 and 30.2. Mutation re-run (like-for-like, re-anchored): 71/79 killed vs 63/80 before; all named probes killed."
+
 [[finding]]
 id = "F-11"
-status = "answered"
+status = "verified"
 severity = "minor"
 title = "Expected Org-structure readers and scan queries in discovery (ADR-003); observed them in the command layer"
 detail = '[L5] org-iw.el:222-234 --problem-types repeats the problem-by-ID filter of org-iw-discovery.el:375-380 --excluded-id-p; --shared-id-p (:253-263) and --unrecognised-drawer-p (:236-251, uses org-property-start-re and the discovery block test) read Org/scan. ADR-003 gives reading and diagnostics to discovery; design §5.4 puts them in Add, against §4 "commands only let refusals surface". Overlaps logged delta G10 (privates) but is about placement of logic. Pairs with F-2. Verifier CONFIRMED.'
@@ -236,9 +284,14 @@ role = "responder"
 disposition = "fix-now"
 response = "User ruled (2026-10-01): fix now. Org-structure and scan readers (--unrecognised-drawer-p, --shared-id-p, --problem-types) move to public discovery functions, sharing one problem-by-ID filter; also closes logged delta G10 (commands calling discovery privates). Design §5.2/§5.4 reconciled at /reconcile (brief)."
 
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in f2e8dda, 31fdb54 (G10 closed: no discovery -- privates referenced from org-iw.el or org-iw-write.el). Seat re-ran gate: just lint 0 warnings; just test-all 158/158 on Emacs 31.1 and 30.2. Mutation re-run (like-for-like, re-anchored): 71/79 killed vs 63/80 before; all named probes killed."
+
 [[finding]]
 id = "F-12"
-status = "answered"
+status = "verified"
 severity = "nit"
 title = "Expected the session lifecycle to have one owner; observed start inlined in visit and end in the command"
 detail = "[L6] org-iw.el:343-350 org-iw--visit sets org-iw--session and installs the global-mode-string item (five jobs: resolve, show, session, mode line, report); :452-457 org-iw-end-session clears and deletes. Remedy: --session-start/--session-end pair owning global-mode-string (also IMP-001's natural seam). Verifier CONFIRMED, downgraded."
@@ -255,9 +308,14 @@ role = "responder"
 disposition = "fix-now"
 response = "Extract a session start/end pair that owns org-iw--session and the global-mode-string item; org-iw--visit and org-iw-end-session call it."
 
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in b44c9a4. Seat re-ran gate: just lint 0 warnings; just test-all 158/158 on Emacs 31.1 and 30.2. Mutation re-run (like-for-like, re-anchored): 71/79 killed vs 63/80 before; all named probes killed."
+
 [[finding]]
 id = "F-13"
-status = "answered"
+status = "verified"
 severity = "nit"
 title = "Expected --check-heading's docstring to be self-contained; observed it cites steps that exist only in the design"
 detail = """[L7] org-iw.el:265-269 returns position, nil, or refuses; docstring says "steps 4 to 6 of `org-iw-add'" but org-iw-add's docstring (:292-306) has no numbered steps - they are in design.md §5.4. Verifier CONFIRMED."""
@@ -274,9 +332,14 @@ role = "responder"
 disposition = "fix-now"
 response = "Make the docstring self-contained (list the checks), or split lookup from refusal."
 
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in b44c9a4. Seat re-ran gate: just lint 0 warnings; just test-all 158/158 on Emacs 31.1 and 30.2. Mutation re-run (like-for-like, re-anchored): 71/79 killed vs 63/80 before; all named probes killed."
+
 [[finding]]
 id = "F-14"
-status = "answered"
+status = "verified"
 severity = "nit"
 title = "Expected interactive specs to say why they call --add-target for effect; observed no comment"
 detail = "[L8] org-iw.el:307-308 (interactive (progn (org-iw--add-target) ...)) discards the result: it refuses before prompting (design Add steps 1-3). Unexplained. The second scan aspect is F-5. Verifier CONFIRMED."
@@ -293,9 +356,14 @@ role = "responder"
 disposition = "fix-now"
 response = "One-line comment on the interactive spec: --add-target is called to refuse before prompting (Add steps 1-3). Double scan itself is F-5 / IMP-002."
 
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in b44c9a4. Seat re-ran gate: just lint 0 warnings; just test-all 158/158 on Emacs 31.1 and 30.2. Mutation re-run (like-for-like, re-anchored): 71/79 killed vs 63/80 before; all named probes killed."
+
 [[finding]]
 id = "F-15"
-status = "answered"
+status = "verified"
 severity = "nit"
 title = "Expected property-name classification in core (ADR-003); observed the accumulate rule in discovery"
 detail = "[L9] org-iw-discovery.el:156-166 --line-class wraps org-iw-core-classify-property twice to produce (accumulate . Q); pure, no Org. ADR-003 assigns property-name classification to core; design §5.2's classify-property table omits accumulate while §5.4 classifies in discovery. Design/ADR drift. Verifier CONFIRMED."
@@ -312,9 +380,14 @@ role = "responder"
 disposition = "fix-now"
 response = "User ruled (2026-10-01): fix now. org-iw-core-classify-property returns (accumulate . Q) itself; --line-class goes. Design §5.2 classify table updated at /reconcile (brief)."
 
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in f2e8dda. Seat re-ran gate: just lint 0 warnings; just test-all 158/158 on Emacs 31.1 and 30.2. Mutation re-run (like-for-like, re-anchored): 71/79 killed vs 63/80 before; all named probes killed."
+
 [[finding]]
 id = "F-16"
-status = "answered"
+status = "verified"
 severity = "nit"
 title = "Expected precise names and side-effect-free core matching; observed three slips"
 detail = "[L10] org-iw.el:432-434 `moved` holds the save-status string or nil; org-iw-core.el:74 string-match clobbers match data in a pure function (harmless today); org-iw-discovery-buffer (:347) name is ambiguous but public and in design §5.2. Verifier CONFIRMED."
@@ -331,9 +404,14 @@ role = "responder"
 disposition = "fix-now"
 response = "Rename `moved` to say it holds the save status; string-match-p in core. Renaming public org-iw-discovery-buffer is tolerated: named in design §5.2, docstring clear."
 
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in b44c9a4. Seat re-ran gate: just lint 0 warnings; just test-all 158/158 on Emacs 31.1 and 30.2. Mutation re-run (like-for-like, re-anchored): 71/79 killed vs 63/80 before; all named probes killed."
+
 [[finding]]
 id = "F-17"
-status = "answered"
+status = "verified"
 severity = "minor"
 title = "Expected each test to pass alone; observed scan-without-buffers fails in isolation"
 detail = "[T1] test/org-iw-discovery-test.el:262-271 asserts (equal (buffer-list) buffers); run alone on Emacs 31 and 30, the first insert-file-contents creates ` *code-conversion-work*`. Passes only by suite order. Remedy: compare corpus-visiting buffers only (fixture already has the predicate). Reviewer 3 ran all 135 in separate processes; verifier CONFIRMED."
@@ -350,9 +428,14 @@ role = "responder"
 disposition = "fix-now"
 response = "Compare corpus-visiting buffers only (the fixture's predicate), so the test passes alone; add a recipe that runs each test in its own Emacs."
 
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in 5846207. Seat re-ran gate: just lint 0 warnings; just test-all 158/158 on Emacs 31.1 and 30.2. Mutation re-run (like-for-like, re-anchored): 71/79 killed vs 63/80 before; all named probes killed."
+
 [[finding]]
 id = "F-18"
-status = "answered"
+status = "verified"
 severity = "minor"
 title = "Expected fixtures to cover neighbouring, narrowed, folded and same-ID headings; observed four plausible bugs ship green"
 detail = """
@@ -375,9 +458,14 @@ role = "responder"
 disposition = "fix-now"
 response = "Port the four probes (A1, B2, B3, D12) from /home/scratch/sl-001-review/mutation/org-iw-probe-test.el into the suite."
 
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in 5846207. Seat re-ran gate: just lint 0 warnings; just test-all 158/158 on Emacs 31.1 and 30.2. Mutation re-run (like-for-like, re-anchored): 71/79 killed vs 63/80 before; all named probes killed."
+
 [[finding]]
 id = "F-19"
-status = "answered"
+status = "verified"
 severity = "minor"
 title = "Expected the change-detection oracles to be tested; observed they are not, so I1/I7 assertions can go vacuous"
 detail = "[T3] test/org-iw-test-helpers.el:238 org-iw-test-snapshot, :247 org-iw-test-state. Making either return nil leaves the suite green, including org-iw-cmd-test-visit-next-writes-nothing (I1). Remedy: self-tests that a known edit, modified flag and disk change each alter the capture. Verifier CONFIRMED, worse than reported."
@@ -393,6 +481,11 @@ act = "dispose"
 role = "responder"
 disposition = "fix-now"
 response = "Self-tests for org-iw-test-snapshot and org-iw-test-state: a known edit, modified flag and disk change must each change the capture. They are the oracle for I1/I7."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in 5846207. Seat re-ran gate: just lint 0 warnings; just test-all 158/158 on Emacs 31.1 and 30.2. Mutation re-run (like-for-like, re-anchored): 71/79 killed vs 63/80 before; all named probes killed."
 
 [[finding]]
 id = "F-20"
@@ -419,7 +512,7 @@ role = "raiser"
 
 [[finding]]
 id = "F-21"
-status = "answered"
+status = "verified"
 severity = "nit"
 title = "Expected the 2^53-1 rank limit pinned by a test; observed it is only checked against itself"
 detail = "[T5] org-iw-core.el:38; core tests derive boundaries from the constant, so an (expt 2 53) mutant survives. probe-c4 kills it. Verifier CONFIRMED."
@@ -436,9 +529,14 @@ role = "responder"
 disposition = "fix-now"
 response = "Pin the limit as the literal 2^53-1 (probe-c4)."
 
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in 5846207. Seat re-ran gate: just lint 0 warnings; just test-all 158/158 on Emacs 31.1 and 30.2. Mutation re-run (like-for-like, re-anchored): 71/79 killed vs 63/80 before; all named probes killed."
+
 [[finding]]
 id = "F-22"
-status = "answered"
+status = "verified"
 severity = "nit"
 title = "Expected the visit-message test to observe computed position; observed it asserts numbers it supplied"
 detail = """[T7] test/org-iw-test.el:516-520 helper passes pos/total into org-iw--visit; :574-582 asserts the "1/3" it passed. Remedy: drive through org-iw-visit-next. (Reviewer's broader claim that stubs never assert calls was REFUTED by the verifier: :851 is a must-not-be-called ert-fail; discovery-test:279 asserts (= calls 1). 14 private-symbol uses are mostly legitimate.)"""
@@ -454,6 +552,11 @@ act = "dispose"
 role = "responder"
 disposition = "fix-now"
 response = "Drive the visit-message test through org-iw-visit-next so the position is computed, not supplied."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in 5846207. Seat re-ran gate: just lint 0 warnings; just test-all 158/158 on Emacs 31.1 and 30.2. Mutation re-run (like-for-like, re-anchored): 71/79 killed vs 63/80 before; all named probes killed."
 
 [[finding]]
 id = "F-23"
@@ -503,7 +606,7 @@ role = "raiser"
 
 [[finding]]
 id = "F-25"
-status = "answered"
+status = "verified"
 severity = "nit"
 title = "Expected the not-a-regular-file rule tested distinctly; observed only inputs file-exists-p also rejects"
 detail = "[T10] Mutant D10 (file-exists-p for the regular-file check) survives. Verifier put a FIFO named f.org in a source dir: real code excludes it, mutant selects it and insert-file-contents would block. Other survivors: A14 (wrong total in Continue's intermediate visit echo - overwritten, equivalent in practice), A16 (merged into F-5). Verifier CONFIRMED."
@@ -519,6 +622,41 @@ act = "dispose"
 role = "responder"
 disposition = "fix-now"
 response = "Add a FIFO-in-source-dir selection test for the regular-file rule (D10). A14 is equivalent in practice (echo overwritten, logged G4); A16 is F-5."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in 5846207. Seat re-ran gate: just lint 0 warnings; just test-all 158/158 on Emacs 31.1 and 30.2. Mutation re-run (like-for-like, re-anchored): 71/79 killed vs 63/80 before; all named probes killed."
+
+[[finding]]
+id = "F-26"
+status = "verified"
+severity = "nit"
+title = "Expected the slice's design-target selectors to match what was edited; observed justfile/README.md undeclared and Makefile/flake.nix undelivered"
+detail = """
+`doctrine slice conformance 1` (audit open): undeclared README.md, justfile (plus doctrine notes/observations, which are bookkeeping); undelivered Makefile, flake.nix. justfile-for-Makefile is a known delta (plan.md § Deltas); README.md was added at the user's request in PHASE-08. flake.nix: the design declared a flake change (input name) that no recorded source-delta touches; PHASE-01's VH-1 had the user re-lock the flake outside the agent commits.
+"""
+disposition = "design-wrong"
+response = """
+The selector registry (and design §6, its human mirror) is stale, not the code. Reconcile fixes it via `doctrine slice selector` (load-bearing: rm Makefile, add justfile and README.md; flake.nix per the brief), with §6 as mirror. Brief entry: RV-002 § Reconciliation Brief, item F-26.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = """
+The selector registry (and design §6, its human mirror) is stale, not the code. Reconcile fixes it via `doctrine slice selector` (load-bearing: rm Makefile, add justfile and README.md; flake.nix per the brief), with §6 as mirror. Brief entry: RV-002 § Reconciliation Brief, item F-26.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Brief entry exists (Reconciliation Brief, Selectors item)."
 
 # Findings are append-only `[[finding]]` tables, added by `review raise`.
 # Empty here at creation — a fresh review is Active, awaiting the raiser.

@@ -608,20 +608,22 @@ For PHASE-08 (human trial):
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: 2026-10-01 · started · PHASE-01 completed; PHASE-02 next · 4eae0e7
+fresh-as-of: 2026-10-01 · audit (RV-002 concluded) · 8ac1d0b
 
 ### Produced
-- design.md (materialised, run dr-01a0f222…); DEC-001..DEC-006 (accepted)
-- RV-001 (24 findings, all verified; instrument ones as transcriptions)
-- plan.toml / plan.md (8 phases); phase sheets materialised
-- research/research.md (+ raw/), T2-1..T2-12; DEC-003 evidence corrected (F-19)
+- PHASE-01..08 completed (405af23..64b8e53); VH-1 held on the user's real corpus
+- RV-002 audit: 26 findings, 20 fixed in 5846207..31fdb54, 8ac1d0b; Synthesis + Reconciliation Brief in review-002.md
+- README.md (user request, PHASE-08)
+- minted: IMP-001 — public session string and display setting; IMP-002 — one scan per command (SL-004); IMP-003 — consolidate test state-capture helpers; IMP-004 — diagnose invalid org-iw-queues keys (SL-005)
+- Review artefacts outside the repo: /home/scratch/sl-001-review/ (test-strategy.md, governance-proposals.md, mutation/)
 
 ### Learned
-- Org API sharp edges recorded in design.md § 3 (org-find-entry-with-id, org-entry-properties upcasing, lock files, indirect buffers, shared byte-compile masking) — candidates for /record-memory at close
-- No Linux Emacs 30 in nixos-unstable / emacs-overlay; nixos-26.05 has 30.2 (research T2-11)
+- mem.fact.emacs.save-hook-errors-demoted — before-save-hook can't fail a save
+- mem.fact.emacs.batch-test-gotchas — </dev/null, empty display, order-dependent buffer lists
+- mem.pattern.doctrine.vt-keywords-match-prose — verify-vt keyword matching traps
+- Org API sharp edges in design.md § 3 (org-find-entry-with-id, upcasing, lock files, indirect buffers)
 
 ### Open
-- PHASE-02..08 via /capsule-driver (agents in .claude/agents/, spawn depth 2 in settings); PHASE-08 VH-1 human trial is the user's
-- /reconcile: Makefile→justfile, `clean` recipe (plan.md § Deltas)
-- Post-implementation /code-review (user intent)
-- `just test-all` on 30.2 needs the rebuilt shell (PHASE-08)
+- /reconcile: RV-002 Reconciliation Brief (design deltas above, selector registry F-26)
+- Governance proposals (RV-002 Synthesis): test-quality and VT-evidence standards, ADR-003 write/reader ownership, Elisp module conventions, POL-002 and DEC-003 clarifications — user to accept or decline
+- Vertical-delivery evidence for RFC-001 (user's finding) — optional /knowledge EVD
