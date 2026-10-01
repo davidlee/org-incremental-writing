@@ -37,19 +37,13 @@
 (require 'org-iw-core)
 (require 'org-iw-discovery)
 
-(defun org-iw-write--base (marker)
-  "Return the base buffer of MARKER's buffer.
-An indirect buffer has no file of its own; its base visits the file."
-  (let ((buffer (marker-buffer marker)))
-    (or (buffer-base-buffer buffer) buffer)))
-
 (defun org-iw-write--refuse (marker format-string &rest args)
   "Signal an `org-iw-refusal' naming the file of MARKER.
 The message is FORMAT-STRING with ARGS, after the file name."
-  (signal 'org-iw-refusal
-          (list (format "%s: %s"
-                        (buffer-file-name (org-iw-write--base marker))
-                        (apply #'format format-string args)))))
+  (org-iw-core-refuse
+   "%s: %s"
+   (buffer-file-name (org-iw-discovery-base-buffer (marker-buffer marker)))
+   (apply #'format format-string args)))
 
 (defun org-iw-write--expected-p (lines expected)
   "Return non-nil if the queue LINES hold the rank EXPECTED.
@@ -67,17 +61,15 @@ line whose value parses to it."
 The base buffer's file must be unchanged on disk since visited and
 writable, and the entry at MARKER must hold the rank EXPECTED in
 QUEUE, a canonical queue ID.  Nothing is changed."
-  (let* ((base (org-iw-write--base marker))
+  (let* ((base (org-iw-discovery-base-buffer (marker-buffer marker)))
          (file (buffer-file-name base)))
     (unless (verify-visited-file-modtime base)
       (org-iw-write--refuse marker "changed on disk; revert first"))
     (unless (file-writable-p file)
       (org-iw-write--refuse marker "not writable"))
     (unless (org-iw-write--expected-p
-             (with-current-buffer (marker-buffer marker)
-               (org-with-wide-buffer
-                (goto-char marker)
-                (org-iw-discovery--queue-lines queue)))
+             (org-with-point-at marker
+               (org-iw-discovery--queue-lines queue))
              expected)
       (org-iw-write--refuse marker "IW_%s changed since scan" queue))))
 
@@ -87,12 +79,11 @@ FN runs in MARKER's buffer, widened, with point at MARKER.  If it
 signals, its changes are undone, which also restores the modified
 flag of a clean buffer, and the error propagates.  Return `saved',
 `unsaved', or (save-failed . ERROR) if saving signalled ERROR."
-  (let* ((base (org-iw-write--base marker))
+  (let* ((base (org-iw-discovery-base-buffer (marker-buffer marker)))
          (was-clean (not (buffer-modified-p base))))
     (with-current-buffer (marker-buffer marker)
       (atomic-change-group
-        (save-excursion
-          (save-restriction (widen) (goto-char marker) (funcall fn)))))
+        (org-with-point-at marker (funcall fn))))
     (if (not was-clean)
         'unsaved
       (condition-case err
@@ -105,18 +96,20 @@ flag of a clean buffer, and the error propagates.  Return `saved',
 This is the one write path of org-iw.  MARKER is at an entry's
 heading, or at `point-min' for a document entry, in a buffer whose
 base buffer visits a file; it may be indirect or narrowed.  QUEUE is
-a queue ID in any case.  RANK is an integer, written as is: callers
-take it from `org-iw-core-append-rank', which checks the limit.
+a canonical queue ID, as from `org-iw-core-queue-id'; anything else
+is an error.  RANK is an integer of magnitude at most
+`org-iw-core-rank-limit', as from `org-iw-core-append-rank'; anything
+else is an error.
 
 EXPECTED is the rank the caller scanned, or :absent for an entry not
 in QUEUE; anything else is an error.  With ENSURE-ID non-nil, an
 entry without an ID is given one.
 
 Before anything changes, refuse with `org-iw-refusal', naming the
-file, if QUEUE is not a valid queue ID, the file changed on disk
-since visited, the file is not writable, or the entry's IW_ lines for
-QUEUE are not exactly EXPECTED: one membership line whose value
-parses to it, or none for :absent.  A duplicated or accumulated key
+file, if the file changed on disk since visited, the file is not
+writable, or the entry's IW_ lines for QUEUE are not exactly
+EXPECTED: one membership line whose value parses to it, or none for
+:absent.  A duplicated or accumulated key
 never matches.
 
 The ID and rank are then written atomically: if either signals, the
@@ -124,18 +117,16 @@ buffer is restored and the error propagates.  A base buffer that had
 no unsaved changes is saved, returning `saved'; if saving signals
 ERROR, the edit stands and the result is (save-failed . ERROR).  A
 buffer with unsaved changes is left modified, returning `unsaved'."
+  (cl-check-type queue (satisfies org-iw-core-canonical-queue-id-p))
+  (cl-check-type rank (satisfies org-iw-core-rank-p))
   (cl-check-type expected (or integer (member :absent)))
-  (let ((queue-id (or (org-iw-core-queue-id queue)
-                      (org-iw-write--refuse marker "invalid queue ID %S"
-                                            queue))))
-    (org-iw-write--preflight marker queue-id expected)
-    (org-iw-write--apply
-     marker
-     (lambda ()
-       (when ensure-id
-         (org-id-get-create))
-       (org-entry-put marker (concat "IW_" queue-id)
-                      (number-to-string rank))))))
+  (org-iw-write--preflight marker queue expected)
+  (org-iw-write--apply
+   marker
+   (lambda ()
+     (when ensure-id
+       (org-id-get-create))
+     (org-entry-put marker (concat "IW_" queue) (number-to-string rank)))))
 
 (provide 'org-iw-write)
 ;;; org-iw-write.el ends here

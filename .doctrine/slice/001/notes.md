@@ -405,6 +405,44 @@ For PHASE-08 (human trial):
   `org-iw-test-make-fifo` (mkfifo; Emacs 30/31 have no `make-fifo`); kills D10.
 - Gate: `just lint` clean; `just test-all` 143/143 on 31.1 and 30.2.
 
+### R2a — POL-002 DRY and legibility
+
+- F-7: core `org-iw-core-refuse FORMAT-STRING &rest ARGS` is the one
+  `org-iw-refusal` constructor (`format`, not `format-message`).
+  `org-iw--refuse` deleted, its 10 calls now go to core;
+  `org-iw-write--refuse` and `org-iw-discovery--refuse` keep only their
+  prefixes. Resolve's causes reworded to "duplicated, excluded from the
+  queue", "not found", "ambiguous, more than one heading" (the message no
+  longer says "ID" twice). No test edit needed.
+- F-9: `org-iw-discovery-base-buffer &optional BUFFER` is the one base-buffer
+  helper (replaces `org-iw-write--base`, `org-iw--buffer-truename`'s and
+  `--id-positions`' hand-rolled forms). `org-iw-test-base` stays independent
+  (docstring says so): an oracle must not call the code under test.
+- F-10: `org-with-point-at` in write preflight, write apply (inside the
+  outer `with-current-buffer`/`atomic-change-group`) and `--check-heading`.
+- F-6: core `org-iw-core-rank-p`, the one limit test (`parse-rank`,
+  `append-rank`, put-rank's `cl-check-type` on RANK). New tests
+  `org-iw-core-test-rank-p`, `org-iw-write-test-rank-is-checked`.
+  Red: 1.5 returned `saved` ("did not signal an error", corpus changed).
+- F-8: core `org-iw-core-canonical-queue-id-p`; put-rank `cl-check-type`s
+  QUEUE and no longer canonicalises or refuses. `invalid queue ID` has one
+  owner, `org-iw--queue-id`. New `org-iw-core-test-canonical-queue-id-p`;
+  `org-iw-write-test-refuses-invalid-queue` became
+  `org-iw-write-test-queue-is-checked`. Red: "ESS_AYS" signalled
+  `org-iw-refusal`, not `wrong-type-argument`. `saves-clean-buffer` passes
+  "ESSAYS" now (the any-case contract is gone).
+- F-12: `org-iw--session-start QUEUE ENTRY` / `org-iw--session-end` own the
+  session variable and its `global-mode-string` item; `--visit` and
+  `org-iw-end-session` call them (the IMP-001 seam; IMP-001 not done).
+- F-13: `--check-heading` docstring self-contained. F-14: comment on `Add`'s
+  interactive spec. F-16: `moved` -> `save-status`, `string-match` ->
+  `string-match-p` in `classify-property`.
+- Process note: the core predicates were written in the same edit as steps
+  1-4, before their tests, so the two core tests were never seen red (they
+  are one-line predicates; the write-level red proves the contract).
+- Gate: `just lint` clean; `just test-all` 146/146 on 31.1 and 30.2;
+  `just test-each` 146 pass alone.
+
 ## Design deltas for /reconcile
 
 - § 5.2 `org-iw-core-append-rank` takes `(ORDERED QUEUE)`, not `(ORDERED)`
@@ -469,6 +507,11 @@ For PHASE-08 (human trial):
   2026-10-01).
 - Scope: README.md is not in the plan; added in PHASE-08 at the user's
   request (2026-10-01).
+- § 5.1 / § 5.2 core (RV-002 F-7, user ruling 2026-10-01): core gains `org-iw-core-refuse FORMAT-STRING &rest ARGS`, the one `org-iw-refusal` constructor (uses `format`). Write keeps a "FILE: " prefix and discovery an "ID X in FILE: " prefix. The command layer calls it directly. Resolve's causes now read "duplicated, excluded from the queue", "not found" and "ambiguous, more than one heading".
+- § 5.2 `org-iw-write-put-rank` (RV-002 F-8, user ruling 2026-10-01): QUEUE must be canonical (`org-iw-core-canonical-queue-id-p`), else `wrong-type-argument`, as for EXPECTED. The "invalid queue ID" refusal has one owner, `org-iw--queue-id` in org-iw.el, which § 5.2's private-helper list gains.
+- § 5.2 core and put-rank (RV-002 F-6 fix-now disposition 2026-10-01): core gains `org-iw-core-rank-p`, the one limit test, used by `parse-rank`, `append-rank` and put-rank's `cl-check-type` on RANK. An out-of-limit or non-integer RANK is `wrong-type-argument`. This supersedes PHASE-05 gap 5's "RANK not range-checked".
+- § 5.2 discovery, write preflight, `org-iw--source-file-p` (RV-002 F-9, user ruling 2026-10-01): `(or (buffer-base-buffer b) b)` is `org-iw-discovery-base-buffer &optional BUFFER`, the one base-buffer helper. `org-iw-write--base` is gone.
+- § 5.3 Session (RV-002 F-12 fix-now disposition 2026-10-01): set only by `org-iw--session-start QUEUE ENTRY` (called by `org-iw--visit`) and cleared only by `org-iw--session-end` (called by `org-iw-end-session`). The pair owns the `global-mode-string` item.
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->

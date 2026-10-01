@@ -87,10 +87,6 @@ chosen; they are shown by their ID."
 
 ;;;; Private helpers
 
-(defun org-iw--refuse (format-string &rest args)
-  "Signal an `org-iw-refusal' with FORMAT-STRING applied to ARGS."
-  (signal 'org-iw-refusal (list (apply #'format format-string args))))
-
 (defun org-iw--files ()
   "Return the source files selected by the user options."
   (org-iw-discovery-files org-iw-sources org-iw-exclude-regexp))
@@ -102,8 +98,7 @@ chosen; they are shown by their ID."
 (defun org-iw--buffer-truename ()
   "Return the truename of the current buffer's file, or nil.
 An indirect buffer's file is its base buffer's."
-  (when-let* ((file (buffer-file-name (or (buffer-base-buffer)
-                                          (current-buffer)))))
+  (when-let* ((file (buffer-file-name (org-iw-discovery-base-buffer))))
     (file-truename file)))
 
 (defun org-iw--source-file-p ()
@@ -131,7 +126,7 @@ Entries whose key is not a valid queue ID are left out."
 (defun org-iw--queue-id (queue)
   "Return QUEUE, a queue ID in any case, canonical; refuse if invalid."
   (or (org-iw-core-queue-id queue)
-      (org-iw--refuse "invalid queue ID %S" queue)))
+      (org-iw-core-refuse "invalid queue ID %S" queue)))
 
 (defun org-iw--order (scan queue)
   "Return the members of QUEUE, a canonical queue ID, in SCAN, in order."
@@ -140,7 +135,7 @@ Entries whose key is not a valid queue ID are left out."
 (defun org-iw--append-rank (order queue)
   "Return the rank after ORDER, members of QUEUE; refuse at the limit."
   (or (org-iw-core-append-rank order queue)
-      (org-iw--refuse "rank limit; redistribution needed")))
+      (org-iw-core-refuse "rank limit; redistribution needed")))
 
 (defun org-iw--read-queue (scan)
   "Prompt for a queue ID and return the string entered, unchecked.
@@ -188,7 +183,8 @@ Return the message."
 
 (defvar org-iw--session nil
   "The current `org-iw--session', or nil.
-Set only by `org-iw--visit'; cleared only by `org-iw-end-session'.")
+Set only by `org-iw--session-start'; cleared only by
+`org-iw--session-end'.")
 
 (defconst org-iw--mode-line-construct '(:eval (org-iw--mode-line))
   "The `global-mode-string' item showing the session.")
@@ -205,6 +201,28 @@ literally."
                                (org-iw--session-queue org-iw--session)))
               (funcall escape (org-iw--session-title org-iw--session))))))
 
+(defun org-iw--session-start (queue entry)
+  "Make ENTRY, of QUEUE, a canonical queue ID, the session's entry.
+Show the session in the mode line."
+  (setq org-iw--session (org-iw--session-create
+                         :queue queue
+                         :id (org-iw-entry-id entry)
+                         :title (org-iw-entry-title entry)))
+  (unless (listp global-mode-string)
+    (setq global-mode-string (list global-mode-string)))
+  (add-to-list 'global-mode-string org-iw--mode-line-construct)
+  (force-mode-line-update t))
+
+(defun org-iw--session-end ()
+  "End the session and take it off the mode line.
+Return the session that ended, or nil if there was none."
+  (prog1 org-iw--session
+    (setq org-iw--session nil)
+    (when (listp global-mode-string)
+      (setq global-mode-string (delete org-iw--mode-line-construct
+                                       global-mode-string)))
+    (force-mode-line-update t)))
+
 ;;;; Add
 
 (defun org-iw--add-target ()
@@ -212,10 +230,10 @@ literally."
 The heading is the one at or above point, ignoring narrowing, in the
 current buffer, which must visit a source file."
   (unless (org-iw--source-file-p)
-    (org-iw--refuse "%s is not under org-iw-sources" (buffer-name)))
+    (org-iw-core-refuse "%s is not under org-iw-sources" (buffer-name)))
   (org-with-wide-buffer
    (when (org-before-first-heading-p)
-     (org-iw--refuse "document targets are not yet supported"))
+     (org-iw-core-refuse "document targets are not yet supported"))
    (org-back-to-heading t)
    (point-marker)))
 
@@ -263,29 +281,30 @@ or SCAN excluded it as a duplicate."
       (org-iw-discovery--excluded-id-p scan id)))
 
 (defun org-iw--check-heading (marker scan order queue)
-  "Refuse unless the heading at MARKER may join QUEUE.
-ORDER is QUEUE's members in SCAN.  Return the heading's 1-based
-position in ORDER if it is already a member there, else nil.  The
-checks are steps 4 to 6 of `org-iw-add'."
-  (with-current-buffer (marker-buffer marker)
-    (org-with-wide-buffer
-     (goto-char marker)
-     (when (org-iw--unrecognised-drawer-p)
-       (org-iw--refuse "heading has a property drawer Org doesn't recognise"))
-     (let ((id (org-iw-discovery--entry-id))
-           (file (org-iw--buffer-truename)))
-       (cond
-        ((org-iw-discovery--queue-lines queue)
-         (if-let* ((index (cl-position-if
-                           (lambda (entry)
-                             (and (equal (org-iw-entry-id entry) id)
-                                  (equal (org-iw-entry-file entry) file)))
-                           order)))
-             (1+ index)
-           (org-iw--refuse "heading has IW_%s but it is excluded (%s)"
-                           queue (org-iw--problem-types scan id))))
-        ((and id (org-iw--shared-id-p scan id file))
-         (org-iw--refuse "ID shared with another heading")))))))
+  "Refuse unless the heading at MARKER may join QUEUE, a canonical queue ID.
+ORDER is QUEUE's members in SCAN.  Refuse if Org does not recognise
+the heading's property drawer, if the heading has an IW_ line for
+QUEUE but is not in ORDER (the scan excluded it), or if another
+heading has its ID.  Return the heading's 1-based position in ORDER
+if it is already a member, else nil."
+  (org-with-point-at marker
+    (when (org-iw--unrecognised-drawer-p)
+      (org-iw-core-refuse
+       "heading has a property drawer Org doesn't recognise"))
+    (let ((id (org-iw-discovery--entry-id))
+          (file (org-iw--buffer-truename)))
+      (cond
+       ((org-iw-discovery--queue-lines queue)
+        (if-let* ((index (cl-position-if
+                          (lambda (entry)
+                            (and (equal (org-iw-entry-id entry) id)
+                                 (equal (org-iw-entry-file entry) file)))
+                          order)))
+            (1+ index)
+          (org-iw-core-refuse "heading has IW_%s but it is excluded (%s)"
+                              queue (org-iw--problem-types scan id))))
+       ((and id (org-iw--shared-id-p scan id file))
+        (org-iw-core-refuse "ID shared with another heading"))))))
 
 ;;;###autoload
 (defun org-iw-add (queue)
@@ -304,6 +323,8 @@ drawer Org does not see, its IW property for QUEUE was excluded by
 the scan, another heading has its ID, or QUEUE has no rank left.
 
 Return the message shown."
+  ;; Called for its refusals: a buffer or point Add cannot use fails
+  ;; before the prompt.
   (interactive (progn (org-iw--add-target)
                       (list (org-iw--read-queue (org-iw--scan)))))
   (let* ((marker (org-iw--add-target))
@@ -340,14 +361,7 @@ Return the message shown."
     (goto-char marker)
     (org-fold-reveal)
     (org-fold-show-entry)
-    (setq org-iw--session (org-iw--session-create
-                           :queue queue
-                           :id (org-iw-entry-id entry)
-                           :title (org-iw-entry-title entry)))
-    (unless (listp global-mode-string)
-      (setq global-mode-string (list global-mode-string)))
-    (add-to-list 'global-mode-string org-iw--mode-line-construct)
-    (force-mode-line-update t)
+    (org-iw--session-start queue entry)
     (org-iw--report scan "IW %s %d/%d: %s" (org-iw--queue-name queue)
                     pos total (org-iw-entry-title entry))))
 
@@ -383,8 +397,8 @@ Say whether SCAN excluded the entry's ID as a duplicate."
   (let ((id (org-iw--session-id session))
         (title (org-iw--session-title session)))
     (if (org-iw-discovery--excluded-id-p scan id)
-        (org-iw--refuse "ID %s is duplicated; %s not moved" id title)
-      (org-iw--refuse "%s is no longer in queue %s" title
+        (org-iw-core-refuse "ID %s is duplicated; %s not moved" id title)
+      (org-iw-core-refuse "%s is no longer in queue %s" title
                       (org-iw--queue-name (org-iw--session-queue session))))))
 
 (defun org-iw--move-to-end (scan entry rest queue)
@@ -415,7 +429,7 @@ the scan).
 Return the message shown."
   (interactive)
   (unless org-iw--session
-    (org-iw--refuse "no session; run org-iw-visit-next first"))
+    (org-iw-core-refuse "no session; run org-iw-visit-next first"))
   (let* ((queue (org-iw--session-queue org-iw--session))
          (id (org-iw--session-id org-iw--session))
          (scan (org-iw--scan))
@@ -429,14 +443,15 @@ Return the message shown."
     (if (null rest)
         (org-iw--report scan "%s is the only entry in queue %s"
                         title (org-iw--queue-name queue))
-      (let ((moved (unless (eq retained (car (last order)))
-                     (org-iw--save-status
-                      (org-iw--move-to-end scan retained rest queue))))
+      (let ((save-status
+             (unless (eq retained (car (last order)))
+               (org-iw--save-status
+                (org-iw--move-to-end scan retained rest queue))))
             (next (car rest)))
         (org-iw--visit scan next queue 1 (length order))
         (org-iw--report scan "%s. Now 1/%d: %s"
-                        (if moved
-                            (format "Moved %s to end %s" title moved)
+                        (if save-status
+                            (format "Moved %s to end %s" title save-status)
                           (format "%s already at end" title))
                         (length order) (org-iw-entry-title next))))))
 
@@ -449,13 +464,9 @@ Without a session this does nothing but say so.  Nothing is written.
 
 Return the message shown."
   (interactive)
-  (let ((ended org-iw--session))
-    (setq org-iw--session nil)
-    (when (listp global-mode-string)
-      (setq global-mode-string (delete org-iw--mode-line-construct
-                                       global-mode-string)))
-    (force-mode-line-update t)
-    (message (if ended "org-iw session ended" "No org-iw session"))))
+  (message (if (org-iw--session-end)
+               "org-iw session ended"
+             "No org-iw session")))
 
 (provide 'org-iw)
 ;;; org-iw.el ends here

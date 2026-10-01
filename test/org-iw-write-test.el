@@ -80,7 +80,7 @@ KEYS are extra keyword arguments.  Return the put-rank result."
   "A clean buffer is saved; only the IW_ESSAYS line changes (I4)."
   (org-iw-test-with-corpus `(("a.org" . ,org-iw-write-test--target))
     (let ((marker (org-iw-test-marker "a.org" "Target")))
-      (should (eq (org-iw-write-put-rank marker "essays" 3072
+      (should (eq (org-iw-write-put-rank marker "ESSAYS" 3072
                                          :expected 2048)
                   'saved))
       (should-not (buffer-modified-p (marker-buffer marker)))
@@ -200,12 +200,17 @@ DRAWER-LINES are the IW lines of a heading with an ID."
   (org-iw-write-test--check-refuses '(":IW_ESSAYS: 1" ":IW_ESSAYS+: 2") 1)
   (org-iw-write-test--check-refuses '(":IW_ESSAYS+: 2") :absent))
 
-(ert-deftest org-iw-write-test-refuses-invalid-queue ()
-  "An invalid queue ID refuses before anything changes."
-  (org-iw-test-with-corpus `(("a.org" . ,org-iw-write-test--target))
-    (org-iw-write-test--should-refuse
-     (org-iw-test-marker "a.org" "Target") "ESS_AYS"
-     :expected :absent)))
+(ert-deftest org-iw-write-test-queue-is-checked ()
+  "QUEUE must be a canonical queue ID; anything else is an error.
+The error comes before anything changes."
+  (dolist (queue '("ESS_AYS" "essays" nil))
+    (org-iw-test-with-corpus `(("a.org" . ,org-iw-write-test--target))
+      (let* ((marker (org-iw-test-marker "a.org" "Target"))
+             (before (org-iw-test-snapshot marker)))
+        (should-error (org-iw-write-put-rank marker queue 3072
+                                             :expected 2048)
+                      :type 'wrong-type-argument)
+        (should (equal (org-iw-test-snapshot marker) before))))))
 
 (ert-deftest org-iw-write-test-expected-is-checked ()
   "EXPECTED must be an integer or :absent; omitting it is an error."
@@ -213,6 +218,18 @@ DRAWER-LINES are the IW lines of a heading with an ID."
     (should-error (org-iw-write-put-rank
                    (org-iw-test-marker "a.org" "Target") "ESSAYS" 1)
                   :type 'wrong-type-argument)))
+
+(ert-deftest org-iw-write-test-rank-is-checked ()
+  "RANK must be an integer within the limit; anything else is an error.
+The error comes before anything changes."
+  (dolist (rank '(1.5 "3072" nil 9007199254740992))
+    (org-iw-test-with-corpus `(("a.org" . ,org-iw-write-test--target))
+      (let* ((marker (org-iw-test-marker "a.org" "Target"))
+             (before (org-iw-test-snapshot marker)))
+        (should-error (org-iw-write-put-rank marker "ESSAYS" rank
+                                             :expected 2048)
+                      :type 'wrong-type-argument)
+        (should (equal (org-iw-test-snapshot marker) before))))))
 
 (ert-deftest org-iw-write-test-expected-compares-parsed-rank ()
   "A stored 007 equals :expected 7."

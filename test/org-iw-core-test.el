@@ -46,6 +46,13 @@
   (org-iw-core-append-rank
    (list (org-iw-core-test--entry "a" (cons queue rank))) queue))
 
+(ert-deftest org-iw-core-test-canonical-queue-id-p ()
+  "Only an already-canonical queue ID string is canonical."
+  (dolist (good '("ESSAYS" "AFTER-X"))
+    (should (org-iw-core-canonical-queue-id-p good)))
+  (dolist (bad '("essays" "Essays" "ESS_AYS" "" nil))
+    (should-not (org-iw-core-canonical-queue-id-p bad))))
+
 (ert-deftest org-iw-core-test-queue-id ()
   "Queue IDs are validated raw, then upcased."
   (should (equal (org-iw-core-queue-id "essays") "ESSAYS"))
@@ -89,6 +96,13 @@
                      (number-to-string (1+ org-iw-core-rank-limit))
                      (number-to-string (- (1+ org-iw-core-rank-limit)))))
     (should-not (org-iw-core-parse-rank bad))))
+
+(ert-deftest org-iw-core-test-rank-p ()
+  "A rank is an integer of magnitude at most the literal limit."
+  (dolist (good '(0 -5 9007199254740991 -9007199254740991))
+    (should (org-iw-core-rank-p good)))
+  (dolist (bad '(9007199254740992 -9007199254740992 1.5 "1024" nil))
+    (should-not (org-iw-core-rank-p bad))))
 
 (ert-deftest org-iw-core-test-rank-limit-literal ()
   "The rank limit is exactly 2^53-1, in both signs, as the file format says."

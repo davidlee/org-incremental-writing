@@ -237,7 +237,9 @@ The file is visited first; the marker is in its buffer."
      (copy-marker (line-beginning-position)))))
 
 (defun org-iw-test-base (marker)
-  "Return the base buffer of MARKER's buffer."
+  "Return the base buffer of MARKER's buffer.
+Deliberately independent of `org-iw-discovery-base-buffer': tests use
+it as an oracle."
   (let ((buffer (marker-buffer marker)))
     (or (buffer-base-buffer buffer) buffer)))
 

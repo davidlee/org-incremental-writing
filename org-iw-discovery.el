@@ -344,9 +344,17 @@ buffer is changed."
 
 ;;;; ID resolution
 
+(defun org-iw-discovery-base-buffer (&optional buffer)
+  "Return the base buffer of BUFFER, or BUFFER if it is not indirect.
+BUFFER defaults to the current buffer.  See also
+`org-iw-discovery-buffer'."
+  (let ((buffer (or buffer (current-buffer))))
+    (or (buffer-base-buffer buffer) buffer)))
+
 (defun org-iw-discovery-buffer (file)
   "Return the buffer visiting FILE, visiting it first if need be.
-An indirect buffer has no file name, so this is always a base buffer.
+An indirect buffer has no file name, so this is always a base buffer;
+see also `org-iw-discovery-base-buffer'.
 The lookup is by file, so it finds a buffer visiting FILE through a
 symlink."
   (or (find-buffer-visiting file)
@@ -357,7 +365,7 @@ symlink."
 The search covers the whole of the current buffer's base buffer,
 whatever its narrowing or the current buffer's.  Positions are in
 the base buffer."
-  (with-current-buffer (or (buffer-base-buffer) (current-buffer))
+  (with-current-buffer (org-iw-discovery-base-buffer)
     (org-with-wide-buffer
      (cl-loop for (value . position) in (org-iw-discovery--id-lines)
               when (string= value id) collect position))))
@@ -370,7 +378,7 @@ narrowing.  The key matches in any case; the value, case-sensitively."
 
 (defun org-iw-discovery--refuse (what id file)
   "Signal an `org-iw-refusal' that WHAT is wrong with ID in FILE."
-  (signal 'org-iw-refusal (list (format "ID %s in %s: %s" id file what))))
+  (org-iw-core-refuse "ID %s in %s: %s" id file what))
 
 (defun org-iw-discovery--excluded-id-p (scan id)
   "Return non-nil if SCAN excluded ID as a duplicate, in any file."
@@ -387,16 +395,16 @@ scan that found the entry; refuse with `org-iw-refusal' if it excluded
 ID as a duplicate (in any file), or if ID is not on exactly one ID
 property line in FILE, which catches copies the scan cannot know of."
   (when (org-iw-discovery--excluded-id-p scan id)
-    (org-iw-discovery--refuse "duplicate ID, excluded from the queue" id file))
+    (org-iw-discovery--refuse "duplicated, excluded from the queue" id file))
   (with-current-buffer (org-iw-discovery-buffer file)
     (pcase (org-iw-discovery--id-positions id)
-      ('() (org-iw-discovery--refuse "ID not found" id file))
+      ('() (org-iw-discovery--refuse "not found" id file))
       (`(,position)
        (org-with-wide-buffer
         (goto-char position)
         (org-back-to-heading-or-point-min t)
         (copy-marker (point))))
-      (_ (org-iw-discovery--refuse "ID ambiguous, more than one heading"
+      (_ (org-iw-discovery--refuse "ambiguous, more than one heading"
                                    id file)))))
 
 (provide 'org-iw-discovery)
