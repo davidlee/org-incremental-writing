@@ -117,6 +117,9 @@ Add takes LABEL and the C-u chooser (queue, then placement, defaulting to the
 queue's default); the placement resolves before the scan. README documents
 placements. Mutation 7/7 after merging the two Add message branches. Gotcha:
 org-iw-test-with-corpus binds org-iw-queues to nil, so bind config inside it.
+The PHASE-06/VT-1 keyword is corrected from "no room at Soon" to the no-gap test's
+`(org-iw-cmd-test--no-room "Second")`. Lesson: VT keywords guessed before the
+tests exist go stale; check them at phase-plan.
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->

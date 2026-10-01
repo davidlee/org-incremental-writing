@@ -139,7 +139,7 @@ exit_criteria = [
   { id = "EX-6", text = "just gate and just test-each green; mutation pass over the new guards recorded." },
 ]
 verification = [
-  { id = "VT-1", expects = "Add at a placement, its prompt default, no-gap Add, existing member with unknown label refuses (F-2), bad config refuses before the placement prompt (F-7)", test_file = "test/org-iw-test.el", keywords = ["Added to ESSAYS at Soon", "call-interactively #'org-iw-add", "no room at Soon"], waived = false },
+  { id = "VT-1", expects = "Add at a placement, its prompt default, no-gap Add, existing member with unknown label refuses (F-2), bad config refuses before the placement prompt (F-7)", test_file = "test/org-iw-test.el", keywords = ["Added to ESSAYS at Soon", "call-interactively #'org-iw-add", "(org-iw-cmd-test--no-room \"Second\")"], waived = false },
   { id = "VA-1", text = "Agent reads Add's docstring and the README section against design § 5.2/§ 5.4 and DEC-007..011; checkdoc clean." },
 ]
 specs        = []
