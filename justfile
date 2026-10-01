@@ -70,6 +70,26 @@ test bin=emacs:
 # Run the suite on Emacs 31 and Emacs 30.
 test-all: (test emacs) (test emacs30)
 
+# Run each ERT test in its own Emacs with BIN: catches order-dependent tests (not a gate).
+test-each bin=emacs:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    shopt -s nullglob
+    loads=()
+    for f in test/*-test.el; do loads+=(-l "$f"); done
+    names=$({{bin}} -Q --batch -L . -L test "${loads[@]}" \
+      --eval '(dolist (test (ert-select-tests t t)) (princ (format "%s\n" (ert-test-name test))))' 2>/dev/null)
+    fail=0
+    count=0
+    while read -r name; do
+      count=$((count + 1))
+      {{bin}} -Q --batch -L . -L test --eval "(setq load-prefer-newer t)" "${loads[@]}" \
+        --eval "(ert-run-tests-batch-and-exit '(member $name))" >/dev/null 2>&1 \
+        || { echo "FAIL alone: $name"; fail=1; }
+    done <<<"$names"
+    echo "test-each: $count tests, $([ $fail = 0 ] && echo all passed alone || echo FAILURES)"
+    exit $fail
+
 # Per-commit check (`doctrine check commit`).
 check: lint test
 

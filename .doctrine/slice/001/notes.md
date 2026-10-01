@@ -380,6 +380,31 @@ For PHASE-08 (human trial):
 - User's headline finding: one vertical slice in, org-iw is usable on
   real notes — evidence for RFC-001's vertical delivery.
 
+## Audit remediation (RV-002)
+
+### R1 — test safety net before R2 (test-only; no production change)
+
+- F-17: `scan-without-buffers` compares only corpus buffers (fails alone
+  before: ` *code-conversion-work*`). New `just test-each [bin]` runs each ERT
+  test in its own Emacs (not a gate). Run once: 143 tests, all pass alone on
+  Emacs 31.1 and 30.2. It reports the pre-fix test as `FAIL alone`.
+- F-18: ported probes as `org-iw-cmd-test-add-refuses-nonmember-shared-id-in-file`
+  (A1), `-add-drawerless-before-drawer-heading` (B2),
+  `-visit-next-narrowed-to-later-subtree` (B3),
+  `-visit-next-reveals-nested-folded-entry` (D12). Each mutant killed by its
+  test alone.
+- F-19: `org-iw-discovery-test-fixture-snapshot-detects-change` and
+  `-state-detects-change`; killed helper mutants: return nil, drop text, flag,
+  disk, buffers.
+- F-21: `org-iw-core-test-rank-limit-literal`; kills C4 (`(expt 2 53)`).
+- F-22: `org-iw-cmd-test-visit-message` now goes through `org-iw-visit-next`
+  (adds DRAFTS 1/1); kills a wrong-total mutant. Position is always 1 via
+  Visit and Continue, so only total is pinned. `org-iw--visit` taking pos/total
+  is an R2 concern.
+- F-25: `org-iw-discovery-test-files-skip-fifo` with new helper
+  `org-iw-test-make-fifo` (mkfifo; Emacs 30/31 have no `make-fifo`); kills D10.
+- Gate: `just lint` clean; `just test-all` 143/143 on 31.1 and 30.2.
+
 ## Design deltas for /reconcile
 
 - § 5.2 `org-iw-core-append-rank` takes `(ORDERED QUEUE)`, not `(ORDERED)`

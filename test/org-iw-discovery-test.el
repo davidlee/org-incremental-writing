@@ -136,6 +136,63 @@ ENTRIES and PROBLEMS are as returned by
   (should (equal (org-iw-test-changed-lines "same\n" "same\n")
                  '(nil . nil))))
 
+(ert-deftest org-iw-discovery-test-fixture-snapshot-detects-change ()
+  "A snapshot differs after a buffer edit, a modified flag or a disk change."
+  (let ((files '(("a.org" . "* A\n"))))
+    (org-iw-test-with-corpus files
+      (let* ((marker (org-iw-test-marker "a.org" "A"))
+             (before (org-iw-test-snapshot marker)))
+        (should (consp before))
+        (should (equal (org-iw-test-snapshot marker) before))))
+    (org-iw-test-with-corpus files
+      (let* ((marker (org-iw-test-marker "a.org" "A"))
+             (before (org-iw-test-snapshot marker)))
+        (org-iw-test-edit-elsewhere marker)
+        (should-not (equal (org-iw-test-snapshot marker) before))))
+    (org-iw-test-with-corpus files
+      (let* ((marker (org-iw-test-marker "a.org" "A"))
+             (before (org-iw-test-snapshot marker)))
+        (with-current-buffer (org-iw-test-base marker)
+          (set-buffer-modified-p t))
+        (should (equal (org-iw-test-text marker) (car before)))
+        (should-not (equal (org-iw-test-snapshot marker) before))))
+    (org-iw-test-with-corpus files
+      (let* ((marker (org-iw-test-marker "a.org" "A"))
+             (before (org-iw-test-snapshot marker)))
+        (org-iw-test-rewrite-behind "a.org" "* A\nbehind\n")
+        (should (equal (org-iw-test-text marker) (car before)))
+        (should-not (equal (org-iw-test-snapshot marker) before))))))
+
+(ert-deftest org-iw-discovery-test-fixture-state-detects-change ()
+  "A state differs after an edit, a flag, a disk change, a visit or a new file."
+  (let ((files '(("a.org" . "* A\n") ("b.org" . "* B\n"))))
+    (org-iw-test-with-corpus files
+      (let* ((marker (org-iw-test-marker "a.org" "A"))
+             (before (org-iw-test-state)))
+        (should before)
+        (should (equal (org-iw-test-state) before))
+        (org-iw-test-edit-elsewhere marker)
+        (should-not (equal (org-iw-test-state) before))))
+    (org-iw-test-with-corpus files
+      (let* ((marker (org-iw-test-marker "a.org" "A"))
+             (before (org-iw-test-state)))
+        (with-current-buffer (org-iw-test-base marker)
+          (set-buffer-modified-p t))
+        (should-not (equal (org-iw-test-state) before))))
+    (org-iw-test-with-corpus files
+      (let ((before (org-iw-test-state)))
+        (org-iw-test-rewrite-behind "b.org" "* B\nbehind\n")
+        (should-not (equal (org-iw-test-state) before))))
+    (org-iw-test-with-corpus files
+      (let ((before (org-iw-test-state)))
+        (org-iw-test-visit "b.org")
+        (should-not (equal (org-iw-test-state) before))))
+    (org-iw-test-with-corpus files
+      (let ((before (org-iw-test-state)))
+        (org-iw-test--write "c.org" "* C\n")
+        (push "c.org" org-iw-test--extras)
+        (should-not (equal (org-iw-test-state) before))))))
+
 ;;;; File selection (`org-iw-discovery-files')
 
 (ert-deftest org-iw-discovery-test-files-directory-rules ()
@@ -152,6 +209,12 @@ ENTRIES and PROBLEMS are as returned by
     (org-iw-test-make-symlink "sub/notes.txt" ".#n.org")
     (should (equal (org-iw-discovery-test--files)
                    '("a.org" "dir.org/d.org" "sub/b.org")))))
+
+(ert-deftest org-iw-discovery-test-files-skip-fifo ()
+  "A named pipe named *.org is not selected, so a scan cannot block on it."
+  (org-iw-test-with-corpus '(("a.org" . ""))
+    (org-iw-test-make-fifo "f.org")
+    (should (equal (org-iw-discovery-test--files) '("a.org")))))
 
 (ert-deftest org-iw-discovery-test-files-hidden-root ()
   "A source directory that is itself hidden is still searched."
@@ -260,14 +323,15 @@ ENTRIES and PROBLEMS are as returned by
    nil))
 
 (ert-deftest org-iw-discovery-test-scan-without-buffers ()
-  "Scanning unvisited files creates, visits and keeps no buffer."
+  "Scanning unvisited files creates, visits and keeps no corpus buffer."
   (org-iw-test-with-corpus `(("a.org" . ,org-iw-discovery-test--member)
                              ("b.org" . "No properties.\n"))
-    (let ((buffers (buffer-list))
+    (let ((buffers (seq-filter #'org-iw-test--corpus-buffer-p (buffer-list)))
           (scan (org-iw-discovery-test--scan)))
       (should (equal (org-iw-discovery-test--entries scan)
                      '(("m1" ("ESSAYS" . 1024)))))
-      (should (equal (buffer-list) buffers))
+      (should (equal (seq-filter #'org-iw-test--corpus-buffer-p (buffer-list))
+                     buffers))
       (should-not (find-buffer-visiting (org-iw-test-path "a.org"))))))
 
 (ert-deftest org-iw-discovery-test-scan-org-mode-only-on-iw-line ()

@@ -145,6 +145,14 @@ at the prompt, proving BODY never prompts."
                        "Added to ESSAYS at 1/1 (saved)"))
         (org-iw-test-should-add-drawer text marker "* New")))))
 
+(ert-deftest org-iw-cmd-test-add-drawerless-before-drawer-heading ()
+  "A drawerless heading is given its own drawer, not a later heading's."
+  (org-iw-test-with-corpus
+      `(("a.org" . ,(concat (org-iw-test-org "* New" "Body.")
+                            (org-iw-test-heading "Later" "l1"))))
+    (should (string-prefix-p "Added" (org-iw-cmd-test--add "a.org" "New"
+                                                           "ESSAYS")))))
+
 (ert-deftest org-iw-cmd-test-add-leaves-dirty-buffer-unsaved ()
   "A buffer with unsaved edits is changed but not saved (I5)."
   (org-iw-test-with-corpus org-iw-cmd-test--corpus
@@ -340,6 +348,15 @@ third, and Member's line is untouched."
                `(("a.org" . ,(concat org-iw-cmd-test--member
                                      (org-iw-cmd-test--copy)))))))
     (should-not (org-iw-scan-entries scan))))
+
+(ert-deftest org-iw-cmd-test-add-refuses-nonmember-shared-id-in-file ()
+  "Add refuses a heading whose ID another non-member in the file has."
+  (org-iw-test-with-corpus
+      `(("a.org" . ,(concat (org-iw-test-heading "One" "x1")
+                            (org-iw-test-heading "Two" "x1"))))
+    (org-iw-cmd-test--should-refuse (org-iw-test-marker "a.org" "One")
+                                    "ESSAYS"
+                                    "ID shared with another heading")))
 
 (ert-deftest org-iw-cmd-test-add-refuses-id-shared-across-files ()
   "Add refuses a heading whose ID a member in another file has.
@@ -572,13 +589,15 @@ A folded entry is revealed, body included."
                    1))))
 
 (ert-deftest org-iw-cmd-test-visit-message ()
-  "Visit echoes and returns IW NAME POS/TOTAL: TITLE, counting problems."
+  "Visit echoes and returns IW NAME POS/TOTAL: TITLE, counting problems.
+The total is the size of the queue visited."
   (org-iw-test-with-corpus org-iw-cmd-test--queue
     (let ((org-iw-queues '(("essays" :name "Essays"))))
-      (should (equal (org-iw-cmd-test--visit "a1") "IW Essays 1/3: A"))))
+      (should (equal (org-iw-visit-next "essays") "IW Essays 1/3: A")))
+    (should (equal (org-iw-visit-next "drafts") "IW DRAFTS 1/1: D")))
   (org-iw-test-with-corpus `(,@org-iw-cmd-test--queue
                              ,org-iw-cmd-test--problem)
-    (should (equal (org-iw-cmd-test--visit "a1")
+    (should (equal (org-iw-visit-next "ESSAYS")
                    "IW ESSAYS 1/3: A [1 source problems ignored]"))))
 
 (defun org-iw-cmd-test--narrow-to (name title)
@@ -720,6 +739,31 @@ The refusal must be an `org-iw-refusal'.  Return its message."
       (org-iw-visit-next "ESSAYS")
       (should (equal (org-iw-cmd-test--shown) '("a.org" "A")))
       (should-not (with-current-buffer buffer (buffer-narrowed-p))))))
+
+(ert-deftest org-iw-cmd-test-visit-next-narrowed-to-later-subtree ()
+  "A buffer narrowed to a later subtree is widened to reach the entry."
+  (org-iw-test-with-corpus
+      `(("a.org" . ,(concat (org-iw-test-heading "A" "a1" ":IW_ESSAYS: 1")
+                            (org-iw-test-org "* Later" "Text."))))
+    (let ((marker (org-iw-test-marker "a.org" "Later")))
+      (with-current-buffer (marker-buffer marker)
+        (narrow-to-region marker (point-max))))
+    (org-iw-visit-next "ESSAYS")
+    (should (equal (org-iw-cmd-test--shown) '("a.org" "A")))))
+
+(ert-deftest org-iw-cmd-test-visit-next-reveals-nested-folded-entry ()
+  "An entry under a folded parent is made visible when visited."
+  (org-iw-test-with-corpus
+      `(("a.org" . ,(concat (org-iw-test-org "* Parent" "Parent text.")
+                            "*" (org-iw-test-heading
+                                 "Child" "c1" ":IW_ESSAYS: 1")
+                            (org-iw-test-org "Child body."))))
+    (with-current-buffer (org-iw-test-visit "a.org")
+      (org-overview))
+    (org-iw-visit-next "ESSAYS")
+    (should (equal (org-iw-cmd-test--shown) '("a.org" "Child")))
+    (with-current-buffer (window-buffer (selected-window))
+      (should-not (invisible-p (window-point))))))
 
 ;;;; End session (EX-1, VT-1)
 

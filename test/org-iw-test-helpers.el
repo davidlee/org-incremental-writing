@@ -27,7 +27,7 @@
 ;; org-iw options and org-id's global state isolated.  Afterwards it
 ;; kills the corpus buffers (releasing lock files) and asserts I8: no
 ;; file appeared or vanished apart from backups and paths the test
-;; declared with `org-iw-test-make-symlink'.
+;; declared with `org-iw-test-make-symlink' or `org-iw-test-make-fifo'.
 
 ;;; Code:
 
@@ -143,7 +143,8 @@ Afterwards, even if BODY fails, the corpus buffers are killed with
 their edits discarded and file modes changed through
 `org-iw-test-set-modes' are restored.  Then I8 is asserted: the
 corpus listing must equal the one before BODY, apart from *~ backups
-and paths declared by `org-iw-test-make-symlink'.  A violation fails
+and paths declared by `org-iw-test-make-symlink' or
+`org-iw-test-make-fifo'.  A violation fails
 the test, unless BODY already failed.  Finally the corpus is deleted."
   (declare (indent 1) (debug t))
   `(org-iw-test--call-with-corpus ,files (lambda () ,@body)))
@@ -153,6 +154,17 @@ the test, unless BODY already failed.  Finally the corpus is deleted."
 NAME is declared as an expected extra for the I8 check."
   (let ((path (org-iw-test-path name)))
     (make-symbolic-link target path)
+    (push name org-iw-test--extras)
+    path))
+
+(defun org-iw-test-make-fifo (name)
+  "Make corpus path NAME a named pipe; return its path.
+Skip the test where `mkfifo' is unavailable.  NAME is declared as an
+expected extra for the I8 check."
+  (unless (executable-find "mkfifo")
+    (ert-skip "mkfifo is unavailable"))
+  (let ((path (org-iw-test-path name)))
+    (should (zerop (call-process "mkfifo" nil nil nil path)))
     (push name org-iw-test--extras)
     path))
 

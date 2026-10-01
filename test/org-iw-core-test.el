@@ -90,6 +90,14 @@
                      (number-to-string (- (1+ org-iw-core-rank-limit)))))
     (should-not (org-iw-core-parse-rank bad))))
 
+(ert-deftest org-iw-core-test-rank-limit-literal ()
+  "The rank limit is exactly 2^53-1, in both signs, as the file format says."
+  (should (= org-iw-core-rank-limit 9007199254740991))
+  (should (= (org-iw-core-parse-rank "9007199254740991") 9007199254740991))
+  (should (= (org-iw-core-parse-rank "-9007199254740991") -9007199254740991))
+  (should-not (org-iw-core-parse-rank "9007199254740992"))
+  (should-not (org-iw-core-parse-rank "-9007199254740992")))
+
 (ert-deftest org-iw-core-test-rank ()
   "Rank reads the membership for one queue."
   (let ((e (org-iw-core-test--entry "a" '("X" . 3) '("Y" . -1))))
