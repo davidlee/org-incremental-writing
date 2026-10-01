@@ -121,9 +121,19 @@ The PHASE-06/VT-1 keyword is corrected from "no room at Soon" to the no-gap test
 `(org-iw-cmd-test--no-room "Second")`. Lesson: VT keywords guessed before the
 tests exist go stale; check them at phase-plan.
 
+## PHASE-05 (2026-10-01)
+
+VH-1 passed on the user's word ("yeah, it works") in their live Emacs, steps
+1, 2, 4 and 5. Step 3 (repeat a label to no room) was waived by the user; the
+no-gap path is covered by org-iw-cmd-test-continue-refuses-without-gap and the
+Add no-gap test, and by EVD-002. No product defects. One defect in the trial
+guidance, not the code: the bindings handed to the user named org-iw-visit and
+org-iw-queue, which don't exist; the README's bindings (org-iw-visit-next,
+org-iw-end-session) are correct. No fixes, so the gate stands at c3761c5.
+
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: 2026-10-01 · PHASE-06 completed; PHASE-05 (human trial) next
+fresh-as-of: 2026-10-01 · PHASE-05 completed (VH-1, step 3 waived); slice → audit
 
 ### Produced
 - design.md locked (run dr-01a0f578, rev 36); research/research.md; slice scope updated
