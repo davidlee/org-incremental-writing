@@ -160,19 +160,21 @@ Emacs; test-each green. Scratch: /home/scratch/sl-002/audit/.
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: 2026-10-01 · PHASE-05 completed (VH-1, step 3 waived); slice → audit
+fresh-as-of: 2026-10-01 · audit · 2d51c8f
 
 ### Produced
 - design.md locked (run dr-01a0f578, rev 36); research/research.md; slice scope updated
 - RV-003 — adversarial design review, 9 findings, all verified
 - selectors: org-iw-core.el, org-iw.el, test/org-iw-core-test.el, test/org-iw-test.el, README.md
 - plan.toml / plan.md — PHASE-01..06; phase sheets materialised
+- RV-004 — audit, 19 findings; fixes 0341dd7; brief → /reconcile (F-17 selector, F-18 design § 5.2/§ 8, F-19 PRD-001 OQ-3)
 
 ### Learned
 - EVD-002 — repeated fixed placement exhausts its gap in ~11 Continues
 - mem.fact.emacs.completing-read-default-bubbles — UIs float DEF to the top
 - mem.pattern.doctrine.design-review-gate-gotchas — policy label bound, att- section review, routes before lock
 - mem.fact.emacs.completion-table-with-metadata-31-only — chooser table must be hand-rolled
+- mem.pattern.doctrine.vt-keywords-match-prose — re-run verify-vt slice-wide; waived_reason repair
 
 ### Open
 - DEC-007 — placement forms (after / fraction / percent / end)
@@ -182,3 +184,4 @@ fresh-as-of: 2026-10-01 · PHASE-05 completed (VH-1, step 3 waived); slice → a
 - DEC-011 — prefix + completing-read surface (amended per RV-003 F-1, F-5)
 - ISS-001 — Continue half fixed at audit (RV-004 F-5); put-rank half stays open
 - CHR-001 — mutation recipe; until then mutation is ad hoc per phase
+- IMP-004 — now also duplicate case-variant queue keys (RV-004 F-15)
