@@ -111,9 +111,16 @@ outcomes that re-visit. ISS-001 Continue half is fixed in the docstring. The PHA
 corrected from "Moved A to Soon" (a planning guess) to "Moved E1 to Soon", the
 queue-of-8 fixture's text.
 
+## PHASE-06 (2026-10-01)
+
+Add takes LABEL and the C-u chooser (queue, then placement, defaulting to the
+queue's default); the placement resolves before the scan. README documents
+placements. Mutation 7/7 after merging the two Add message branches. Gotcha:
+org-iw-test-with-corpus binds org-iw-queues to nil, so bind config inside it.
+
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: 2026-10-01 · PHASE-04 completed
+fresh-as-of: 2026-10-01 · PHASE-06 completed; PHASE-05 (human trial) next
 
 ### Produced
 - design.md locked (run dr-01a0f578, rev 36); research/research.md; slice scope updated

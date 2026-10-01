@@ -1,14 +1,14 @@
 # org-incremental-writing
 
 Incremental writing queues for Org. A queue is a named, ordered list of
-existing Org headings. You open the first one, work on it, then send it to
-the back of the queue and move on to the next.
+existing Org headings. You open the first one, work on it, then put it
+back — soon, later, or at the end — and move on to the next.
 
 Queue state lives on each heading as an `IW_<QUEUE>` property holding an
 integer rank. There is no index file, and content never moves.
 
-Status: 0.1.0, pre-release. The feature set covers adding, visiting and
-Continue to End.
+Status: 0.1.0, pre-release. The feature set covers adding, visiting, and
+Continue with a choice of placement.
 
 ## Requirements
 
@@ -54,6 +54,51 @@ Or with `use-package`:
   - `:name` is the name shown in prompts and the mode line.
   - Queues found in your files but not listed here can still be chosen;
     they show by ID.
+  - `:placements` and `:default` give the queue its own placements (see
+    below).
+
+### Placements
+
+Continue puts the entry back at a *placement*, and Add can enrol a heading
+at one. A placement is one of:
+
+| Form | Puts the entry |
+|---|---|
+| `(after N)` | after N of the other entries (at the end if there are fewer) |
+| `(fraction NUM DEN)` | NUM/DEN of the way back, rounded towards the front |
+| `(percent P)` | P percent of the way back, rounded likewise |
+| `end` | after all of them |
+
+`(after 0)`, `(fraction 0 1)` and `(percent 0)` put the entry first, so
+Continue reopens it at once.
+
+Placements are named by labels. Unless a queue says otherwise, the labels
+are `org-iw-placements`, and the default is `org-iw-default-placement`:
+
+```elisp
+(setq org-iw-placements '(("Soon"  (after 2))        ; the standard set
+                          ("Later" (fraction 1 2))
+                          ("End"   end))
+      org-iw-default-placement "End")                ; nil: the first label
+```
+
+A queue can have its own labels and default:
+
+```elisp
+(setq org-iw-queues
+      '(("ARTICLES" :name "Articles"
+         :placements (("Soon" (after 2)) ("Later" (fraction 1 2)) ("End" end))
+         :default "Soon")
+        ("TWEETS" :name "Tweets"
+         :placements (("Another pass" (after 5)) ("Later" (percent 75))))))
+                                       ; no :default: the first label
+```
+
+A queue with `:default` but no `:placements` uses the global labels.
+Labels are not written to your files, so renaming one changes nothing on
+disk. Bad configuration (an invalid placement, a duplicate label, a default
+that is not a label) is refused when a command uses it, naming the option
+at fault.
 
 No keys are bound. Suggested bindings:
 
@@ -68,9 +113,9 @@ No keys are bound. Suggested bindings:
 
 | Command | Does |
 |---|---|
-| `org-iw-add` | Add the heading at point to the end of a queue. |
+| `org-iw-add` | Add the heading at point to the end of a queue; with `C-u`, at a chosen placement. |
 | `org-iw-visit-next` | Show the first entry of a queue and start a session on it. |
-| `org-iw-continue` | Move the session's entry to the end of its queue and visit the next one. |
+| `org-iw-continue` | Put the session's entry back at the queue's default placement and visit the first entry; with `C-u`, choose the placement. |
 | `org-iw-end-session` | End the session and remove it from the mode line. |
 
 A typical round:
@@ -82,12 +127,27 @@ A typical round:
    entry, and the mode line shows `IW[Essays: Title]`. Visiting changes
    nothing; visiting again shows the same entry.
 3. Work on the entry and save as usual.
-4. Run `org-iw-continue`. The entry is ranked after the others, which
-   changes exactly one `IW_` line, and the next entry is shown.
+4. Run `org-iw-continue`. The entry goes back at the default placement,
+   which changes exactly one `IW_` line, and the first entry is shown.
+   Run `C-u M-x org-iw-continue` to pick Soon, Later or End instead.
 5. Repeat step 4, or run `org-iw-end-session` when done.
 
 With a session running, `org-iw-visit-next` reuses its queue; give it a
 prefix argument (`C-u`) to choose another.
+
+An entry already at its placement is not written. In a small queue that
+can mean Continue reopens the same entry: with two entries, Later is the
+front.
+
+The chooser lists the labels in configured order. Completion UIs that
+float the default to the top (icomplete, fido, vertico) show it first;
+`RET` always picks the default.
+
+Bound to a key, a placement needs no prompt:
+
+```elisp
+(keymap-global-set "C-c i s" (lambda () (interactive) (org-iw-continue "Soon")))
+```
 
 ### What gets written, and when
 
@@ -106,7 +166,13 @@ prefix argument (`C-u`) to choose another.
 When something is off, a command refuses with an `org-iw refused: "…"`
 message and changes nothing. Examples: the file changed on disk, the
 heading's ID is shared with another heading, the entry has left the queue,
-or there is no session for Continue.
+there is no session for Continue, or there is no room at the chosen
+placement.
+
+"No room" means the ranks around that placement are used up. Using one
+placement over and over, such as Soon, uses up its gap after about ten
+Continues. Choose another placement for now; the end always has room.
+Automatic rebalancing is planned.
 
 Malformed or duplicated `IW_` properties and IDs are skipped, not fatal.
 Messages then end with `[N source problems ignored]`.

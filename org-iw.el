@@ -392,43 +392,59 @@ if it is already a member, else nil."
         (org-iw-core-refuse "ID shared with another heading"))))))
 
 ;;;###autoload
-(defun org-iw-add (queue)
-  "Add the heading at point to the end of QUEUE.
+(defun org-iw-add (queue &optional label)
+  "Add the heading at point to QUEUE, at the placement LABEL.
 QUEUE is a queue ID in any case; interactively, it is read with
 completion over the configured and discovered queues, and a new
-one may be typed.  The heading is the one at or above point, even
-outside a narrowing; indirect buffers work.  It is given an ID and
-a property drawer if it lacks them, and its file is saved unless
-its buffer already had unsaved changes.
+one may be typed.  LABEL names one of the queue's placements (see
+`org-iw-placements' and `org-iw-queues'); nil means the end.
+Interactively, a prefix argument reads LABEL after QUEUE, with
+completion over the queue's labels, defaulting to its default.
+
+The heading is the one at or above point, even outside a narrowing;
+indirect buffers work.  It is given an ID and a property drawer if
+it lacks them, and its file is saved unless its buffer already had
+unsaved changes.
 
 A heading already in QUEUE is left alone.  Add refuses, changing
 nothing, if the buffer is not a source file or not in Org mode (a
 derived mode counts), point is before the first heading, QUEUE is
-not a valid ID, the heading has a property drawer Org does not see,
-its IW property for QUEUE was excluded by the scan, another heading
-has its ID, or QUEUE has no rank left.
+not a valid ID, LABEL is not one of the queue's labels or the
+queue's placements are misconfigured, the heading has a property
+drawer Org does not see, its IW property for QUEUE was excluded by
+the scan, another heading has its ID, or there is no room for a rank
+at the placement.
 
 Return the message shown."
   ;; Called for its refusals: a buffer or point Add cannot use fails
   ;; before the prompt.
-  (interactive (progn (org-iw--add-target)
-                      (list (org-iw--read-queue (org-iw--scan)))))
-  (let* ((marker (org-iw--add-target))
-         (queue-id (org-iw--queue-id queue))
-         (scan (org-iw--scan))
-         (order (org-iw--order scan queue-id))
-         (name (org-iw--queue-name queue-id)))
+  (interactive
+   (progn (org-iw--add-target)
+          (let ((queue (org-iw--read-queue (org-iw--scan))))
+            (list queue
+                  (and current-prefix-arg
+                       (org-iw--read-placement (org-iw--queue-id queue)))))))
+  (pcase-let* ((marker (org-iw--add-target))
+               (queue-id (org-iw--queue-id queue))
+               (`(,where . ,placement)
+                (if label (org-iw--placement queue-id label) '(nil . end)))
+               (scan (org-iw--scan))
+               (order (org-iw--order scan queue-id))
+               (total (1+ (length order)))
+               (name (org-iw--queue-name queue-id)))
     (if-let* ((position (org-iw--check-heading marker scan order queue-id)))
         (org-iw--report scan "Already in %s at %d/%d"
                         name position (length order))
-      (pcase (org-iw-core-place order nil queue-id 'end)
-        (`(no-gap ,_) (org-iw--refuse-no-room "the end" name))
+      (pcase (org-iw-core-place order nil queue-id placement)
+        (`(no-gap ,_) (org-iw--refuse-no-room (or where "the end") name))
         (`(moved ,depth ,rank)
-         (let ((status (org-iw-write-put-rank marker queue-id rank
-                                              :expected :absent :ensure-id t)))
-           (org-iw--report scan "Added to %s at %d/%d %s"
-                           name (1+ depth) (1+ (length order))
-                           (org-iw--save-status status))))))))
+         (let ((status (org-iw--save-status
+                        (org-iw-write-put-rank marker queue-id rank
+                                               :expected :absent
+                                               :ensure-id t))))
+           (org-iw--report scan "Added to %s at %s%d/%d %s"
+                           name (if where (concat where ", ") "")
+                           (1+ depth) total status)))))))
 
 ;;;; Visit
 

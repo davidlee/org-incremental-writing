@@ -37,16 +37,17 @@
 
 ;;;; Helpers
 
-(defun org-iw-cmd-test--add-at (marker queue)
-  "Call `org-iw-add' for QUEUE with point at MARKER, in its buffer.
+(defun org-iw-cmd-test--add-at (marker queue &optional label)
+  "Call `org-iw-add' for QUEUE and LABEL with point at MARKER, in its buffer.
 Return its result."
   (with-current-buffer (marker-buffer marker)
     (goto-char marker)
-    (org-iw-add queue)))
+    (org-iw-add queue label)))
 
-(defun org-iw-cmd-test--add (name title queue)
-  "Add the heading TITLE of corpus file NAME to QUEUE; return the result."
-  (org-iw-cmd-test--add-at (org-iw-test-marker name title) queue))
+(defun org-iw-cmd-test--add (name title queue &optional label)
+  "Add the heading TITLE of corpus file NAME to QUEUE at LABEL.
+Return the result."
+  (org-iw-cmd-test--add-at (org-iw-test-marker name title) queue label))
 
 (defvar org-iw-cmd-test--prompts nil
   "The `completing-read' calls seen by `org-iw-cmd-test--with-prompt'.")
@@ -872,6 +873,99 @@ The ID is copied after the scan, so resolve finds it ambiguous."
       (should (eq org-iw--session session))
       (should (equal (org-iw-cmd-test--shown) '("b.org" "B"))))))
 
+;;;; Add: placements
+
+(defconst org-iw-cmd-test--eight
+  `(("q.org" . ,(mapconcat (lambda (i)
+                             (org-iw-test-heading
+                              (format "E%d" i) (format "e%d" i)
+                              (format ":IW_ESSAYS: %d" (* 1024 i))))
+                           (number-sequence 1 8))))
+  "E1 to E8, in ESSAYS at 1024 to 8192, so seven others for E1.")
+
+(defconst org-iw-cmd-test--target-and-eight
+  `(("a.org" . ,org-iw-cmd-test--target) ,@org-iw-cmd-test--eight)
+  "Target, not yet queued, and ESSAYS holding E1 to E8.")
+
+(defun org-iw-cmd-test--add-chosen (marker)
+  "Call `org-iw-add' interactively with a prefix argument at MARKER."
+  (with-current-buffer (marker-buffer marker)
+    (goto-char marker)
+    (let ((current-prefix-arg '(4)))
+      (call-interactively #'org-iw-add))))
+
+(ert-deftest org-iw-cmd-test-add-at-placement ()
+  "Add at Soon ranks the heading 3rd of 9, writing one line."
+  (org-iw-test-with-corpus org-iw-cmd-test--target-and-eight
+    (should (equal (org-iw-cmd-test--add "a.org" "Target" "essays" "Soon")
+                   "Added to ESSAYS at Soon, 3/9 (saved)"))
+    (should (equal (org-iw-test-changed-lines
+                    org-iw-cmd-test--target (org-iw-test-file-string "a.org"))
+                   '(nil ":IW_ESSAYS: 2560")))
+    (should (equal (seq-take (org-iw-cmd-test--order "ESSAYS") 3)
+                   '("e1" "e2" "t1")))))
+
+(ert-deftest org-iw-cmd-test-add-chooser ()
+  "With a prefix argument Add reads the queue, then a placement.
+The placement prompt defaults to the queue's default, not to the end."
+  (org-iw-test-with-corpus org-iw-cmd-test--target-and-eight
+    (let ((org-iw-queues '(("essays" :default "Soon"))))
+      (org-iw-cmd-test--with-prompt '("essays" "Later")
+        (should (equal (org-iw-cmd-test--add-chosen
+                        (org-iw-test-marker "a.org" "Target"))
+                       "Added to ESSAYS at Later, 5/9 (saved)"))
+        (pcase-let ((`(,queue ,placement) org-iw-cmd-test--prompts))
+          (should (equal (plist-get queue :prompt) "Queue: "))
+          (should (equal (plist-get placement :prompt) "Placement: "))
+          (should (equal (plist-get placement :order) '("Soon" "Later" "End")))
+          (should (equal (plist-get placement :default) "Soon")))))))
+
+(ert-deftest org-iw-cmd-test-add-chooser-refuses-before-prompting ()
+  "Bad config refuses after the queue prompt, before the placement prompt."
+  (org-iw-test-with-corpus org-iw-cmd-test--target-and-eight
+    (org-iw-cmd-test--open-all)
+    (let ((org-iw-queues '(("essays" :placements nil))))
+      (org-iw-cmd-test--with-prompt '("essays")
+        (should (equal (cadr (org-iw-cmd-test--should-write-nothing
+                              (lambda ()
+                                (should-error
+                                 (org-iw-cmd-test--add-chosen
+                                  (org-iw-test-marker "a.org" "Target"))
+                                 :type 'org-iw-refusal))))
+                       "queue ESSAYS :placements: no placements"))
+        (should (= (length org-iw-cmd-test--prompts) 1))))))
+
+(ert-deftest org-iw-cmd-test-add-member-at-placement ()
+  "A member is left alone at any valid label; an unknown label refuses."
+  (org-iw-test-with-corpus org-iw-cmd-test--corpus
+    (org-iw-cmd-test--open-all)
+    (let ((member (org-iw-test-marker "b.org" "Member")))
+      (should (equal (org-iw-cmd-test--should-write-nothing
+                      (lambda () (org-iw-cmd-test--add-at member "ESSAYS" "Soon")))
+                     "Already in ESSAYS at 1/1"))
+      (should (equal (cadr (org-iw-cmd-test--should-write-nothing
+                            (lambda ()
+                              (should-error
+                               (org-iw-cmd-test--add-at member "ESSAYS" "Nope")
+                               :type 'org-iw-refusal))))
+                     "queue ESSAYS has no placement \"Nope\"")))))
+
+(ert-deftest org-iw-cmd-test-add-refuses-without-gap ()
+  "Add at a label between neighbours ranked 5 and 6 refuses."
+  (org-iw-test-with-corpus
+      `(("a.org" . ,(concat (org-iw-test-heading "B" "b1" ":IW_ESSAYS: 5")
+                            (org-iw-test-heading "C" "c1" ":IW_ESSAYS: 6")
+                            (org-iw-test-heading "H" "h1"))))
+    (let ((org-iw-queues '(("essays" :placements (("Second" (after 1)))))))
+      (org-iw-cmd-test--open-all)
+      (should (equal (cadr (org-iw-cmd-test--should-write-nothing
+                            (lambda ()
+                              (should-error
+                               (org-iw-cmd-test--add "a.org" "H" "ESSAYS"
+                                                     "Second")
+                               :type 'org-iw-refusal))))
+                     (org-iw-cmd-test--no-room "Second"))))))
+
 ;;;; Visit next (EX-2, VT-1, I1)
 
 (defun org-iw-cmd-test--open-all ()
@@ -1271,14 +1365,6 @@ Nothing is written or visited, and the session is unchanged."
                                             #'org-iw-continue)))
 
 ;;;; Continue: placements
-
-(defconst org-iw-cmd-test--eight
-  `(("q.org" . ,(mapconcat (lambda (i)
-                             (org-iw-test-heading
-                              (format "E%d" i) (format "e%d" i)
-                              (format ":IW_ESSAYS: %d" (* 1024 i))))
-                           (number-sequence 1 8))))
-  "E1 to E8, in ESSAYS at 1024 to 8192, so seven others for E1.")
 
 (defun org-iw-cmd-test--continue-chosen ()
   "Call `org-iw-continue' interactively with a prefix argument."
