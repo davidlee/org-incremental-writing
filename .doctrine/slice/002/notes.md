@@ -94,9 +94,18 @@ Continue and Add go through place with `end`; empty queue reported. Mutation
 8/10. The two survivors are equivalent until labels exist: Continue's reorder
 and Add's depth in the report. They are carried to PHASE-04 / PHASE-06.
 
+## PHASE-03 (2026-10-01)
+
+Vocabulary options and helpers landed; the recorder now answers several
+prompts in turn. Mutation 21/21 (`:default nil` case added). **Design delta
+for reconcile:** the chooser table sets cycle-sort-function as well as
+display-sort-function, because icomplete and fido sort by the former (§ 5.2
+names only the latter). The memory mem.fact.emacs.completing-read-default-bubbles
+is corrected.
+
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: 2026-10-01 · PHASE-02 completed
+fresh-as-of: 2026-10-01 · PHASE-03 completed
 
 ### Produced
 - design.md locked (run dr-01a0f578, rev 36); research/research.md; slice scope updated

@@ -71,19 +71,69 @@ When nil, no file found through `org-iw-sources' is excluded."
   :type '(choice (const :tag "None" nil) regexp)
   :group 'org-iw)
 
+(defconst org-iw--placement-type
+  '(choice (list :tag "After N others" (const after) natnum)
+           (list :tag "Fraction of the way back"
+                 (const fraction) (natnum :tag "Numerator")
+                 (natnum :tag "Denominator"))
+           (list :tag "Percent of the way back" (const percent) natnum)
+           (const :tag "End" end))
+  "Customize type of one placement.")
+
+(defconst org-iw--placements-type
+  `(repeat (list (string :tag "Label") ,org-iw--placement-type))
+  "Customize type of a list of labelled placements.")
+
+(defcustom org-iw-placements
+  '(("Soon" (after 2)) ("Later" (fraction 1 2)) ("End" end))
+  "Placements offered by `org-iw-continue' and `org-iw-add'.
+This is a list of (LABEL PLACEMENT), in the order the chooser lists
+them, used by queues whose entry in `org-iw-queues' has no
+:placements.  LABEL is a non-empty string, distinct within the list.
+PLACEMENT says where an entry goes among the queue's other members:
+
+  (after N)            after N of them, or at the end if there are fewer
+  (fraction NUM DEN)   NUM/DEN of the way back, rounded towards the front
+  (percent P)          P percent of the way back, rounded likewise
+  end                  after all of them
+
+Hence (after 0), (fraction 0 1) and (percent 0) put the entry first,
+so that it comes up again at once.  Labels are not stored in entries:
+renaming one changes no file."
+  :type org-iw--placements-type
+  :group 'org-iw)
+
+(defcustom org-iw-default-placement "End"
+  "Label of the placement used when none is chosen.
+It applies to queues that have neither :default nor :placements in
+`org-iw-queues', and names one of `org-iw-placements'.  When nil,
+the first of them is used."
+  :type '(choice (const :tag "First placement" nil) string)
+  :group 'org-iw)
+
 (defcustom org-iw-queues nil
   "Configured queues, as an alist of (QUEUE-ID . PLIST).
 
 QUEUE-ID is a string of letters, digits and hyphens, compared
 case-insensitively; entries join the queue through an IW_QUEUE-ID
-property.  PLIST supports :name, the display name shown in prompts
-and the mode line.
+property.  PLIST supports:
+
+  :name        the display name shown in prompts and the mode line.
+  :placements  the queue's own placements, in the form of
+               `org-iw-placements', which they replace.
+  :default     the label of the placement used when none is chosen.
+               Without it, a queue with its own :placements uses the
+               first of them, and any other queue uses
+               `org-iw-default-placement'.
 
 Queues found in source files but not listed here can still be
 chosen; they are shown by their ID."
-  :type '(alist :key-type (string :tag "Queue ID")
+  :type `(alist :key-type (string :tag "Queue ID")
                 :value-type (plist :tag "Options"
-                                   :options ((:name string))))
+                                   :options ((:name string)
+                                             (:placements
+                                              ,org-iw--placements-type)
+                                             (:default string))))
   :group 'org-iw)
 
 ;;;; Private helpers
@@ -115,10 +165,13 @@ Entries whose key is not a valid queue ID are left out."
                 (cons queue (cdr config))))
             org-iw-queues))
 
+(defun org-iw--queue-config (queue)
+  "Return the options configured for QUEUE, a canonical queue ID, or nil."
+  (alist-get queue (org-iw--configured-queues) nil nil #'equal))
+
 (defun org-iw--configured-name (queue)
   "Return the :name configured for QUEUE, a canonical queue ID, or nil."
-  (plist-get (alist-get queue (org-iw--configured-queues) nil nil #'equal)
-             :name))
+  (plist-get (org-iw--queue-config queue) :name))
 
 (defun org-iw--queue-name (queue)
   "Return the display name of QUEUE, a canonical queue ID."
@@ -155,6 +208,76 @@ may be typed."
             (append (mapcar #'car (org-iw--configured-queues))
                     (org-iw-core-queue-ids (org-iw-scan-entries scan))))
            #'string<))))
+
+;;;; Vocabulary
+
+(defun org-iw--check-placements (placements source)
+  "Return PLACEMENTS, a list of (LABEL PLACEMENT), or refuse.
+SOURCE names the option they came from, for the refusal."
+  (cond ((null placements) (org-iw-core-refuse "%s: no placements" source))
+        ((not (proper-list-p placements))
+         (org-iw-core-refuse "%s: not a list" source)))
+  (let ((labels nil))
+    (dolist (entry placements placements)
+      (pcase entry
+        (`(,(and (pred stringp) (pred (not string-empty-p)) label)
+           ,(pred org-iw-core-placement-p))
+         (when (member label labels)
+           (org-iw-core-refuse "%s: duplicate label \"%s\"" source label))
+         (push label labels))
+        (_ (org-iw-core-refuse "%s: invalid entry %S" source entry))))))
+
+(defun org-iw--vocabulary (queue)
+  "Return the vocabulary of QUEUE, a canonical queue ID, or refuse.
+The vocabulary is (DEFAULT-LABEL . PLACEMENTS), PLACEMENTS a list of
+\(LABEL PLACEMENT) in configured order: the queue's :placements, else
+`org-iw-placements'.  DEFAULT-LABEL is the queue's :default, else,
+unless the queue has its own :placements, `org-iw-default-placement',
+else the first label.  Refuse, naming the option at fault, unless the
+placements are valid and the default is one of their labels."
+  (let* ((config (org-iw--queue-config queue))
+         (own (plist-member config :placements))
+         (prefix (format "queue %s " (org-iw--queue-name queue)))
+         (placements (org-iw--check-placements
+                      (if own (cadr own) org-iw-placements)
+                      (if own (concat prefix ":placements")
+                        "org-iw-placements")))
+         (default (cond ((plist-member config :default)
+                         (cons (plist-get config :default)
+                               (concat prefix ":default")))
+                        ((and (not own) org-iw-default-placement)
+                         (cons org-iw-default-placement
+                               "org-iw-default-placement"))
+                        (t (list (caar placements))))))
+    (unless (assoc (car default) placements)
+      (org-iw-core-refuse "%s: %S is not a placement label"
+                          (cdr default) (car default)))
+    (cons (car default) placements)))
+
+(defun org-iw--placement (queue label)
+  "Return (LABEL . PLACEMENT) for LABEL in QUEUE's vocabulary, or refuse.
+QUEUE is a canonical queue ID.  A nil LABEL means the default."
+  (pcase-let* ((`(,default . ,placements) (org-iw--vocabulary queue))
+               (label (or label default)))
+    (if-let* ((entry (assoc label placements)))
+        (cons label (cadr entry))
+      (org-iw-core-refuse "queue %s has no placement \"%s\""
+                          (org-iw--queue-name queue) label))))
+
+(defun org-iw--read-placement (queue)
+  "Prompt for a label of QUEUE's vocabulary and return it.
+QUEUE is a canonical queue ID.  The labels are offered in configured
+order, the default as the default.  Bad configuration refuses before
+the prompt."
+  (pcase-let ((`(,default . ,placements) (org-iw--vocabulary queue)))
+    (completing-read
+     "Placement: "
+     (lambda (string predicate action)
+       (if (eq action 'metadata)
+           '(metadata (display-sort-function . identity)
+                      (cycle-sort-function . identity))
+         (complete-with-action action placements string predicate)))
+     nil t nil nil default)))
 
 ;;;; Messages
 

@@ -51,23 +51,69 @@ Return its result."
 (defvar org-iw-cmd-test--prompts nil
   "The `completing-read' calls seen by `org-iw-cmd-test--with-prompt'.")
 
+(defun org-iw-cmd-test--cycle-order (collection predicate)
+  "Return the candidates of COLLECTION as a completion UI cycles them.
+PREDICATE filters them, as in `all-completions'.  The order is the
+table's `cycle-sort-function', or `string<' when it has none, as a
+sorting UI would show them."
+  (let ((all (all-completions "" collection predicate))
+        (sort (completion-metadata-get
+               (completion-metadata "" collection predicate)
+               'cycle-sort-function)))
+    (funcall (or sort (lambda (list) (sort list #'string<))) all)))
+
 (defmacro org-iw-cmd-test--with-prompt (answer &rest body)
-  "Run BODY with `completing-read' stubbed to return ANSWER.
-Each call is recorded in `org-iw-cmd-test--prompts' as a plist
-\(:collection :require-match :annotate).  ANSWER nil fails the test
-at the prompt, proving BODY never prompts."
+  "Run BODY with `completing-read' stubbed to answer from ANSWER.
+ANSWER is a string, or a list of strings answering successive prompts.
+A prompt with no answer left fails the test, so ANSWER nil proves BODY
+never prompts.  Each call is recorded, in order, in
+`org-iw-cmd-test--prompts' as a plist (:prompt :collection
+:require-match :default :order :annotate), :order being
+`org-iw-cmd-test--cycle-order'."
   (declare (indent 1) (debug t))
-  `(let ((org-iw-cmd-test--prompts nil))
-     (cl-letf (((symbol-function 'completing-read)
-                (lambda (_prompt collection &optional _predicate require-match
-                                 &rest _)
-                  (push (list :collection collection
-                              :require-match require-match
-                              :annotate (plist-get completion-extra-properties
-                                                   :annotation-function))
-                        org-iw-cmd-test--prompts)
-                  (or ,answer (ert-fail "Prompted for a queue")))))
-       ,@body)))
+  (let ((answers (make-symbol "answers")))
+    `(let ((org-iw-cmd-test--prompts nil)
+           (,answers (ensure-list ,answer)))
+       (cl-letf (((symbol-function 'completing-read)
+                  (lambda (prompt collection &optional predicate require-match
+                                  _initial _hist default &rest _)
+                    (setq org-iw-cmd-test--prompts
+                          (append
+                           org-iw-cmd-test--prompts
+                           (list
+                            (list :prompt prompt :collection collection
+                                  :require-match require-match
+                                  :default default
+                                  :order (org-iw-cmd-test--cycle-order
+                                          collection predicate)
+                                  :annotate (plist-get
+                                             completion-extra-properties
+                                             :annotation-function)))))
+                    (or (pop ,answers)
+                        (ert-fail (list "Unexpected prompt" prompt))))))
+         ,@body))))
+
+(ert-deftest org-iw-cmd-test-with-prompt-self-test ()
+  "The prompt recorder answers in turn, records, and fails when out."
+  (org-iw-cmd-test--with-prompt '("a" "b")
+    (should (equal (completing-read "One: " '("y" "x") nil t nil nil "x") "a"))
+    (should (equal (completing-read "Two: " '("z")) "b"))
+    (should (equal (mapcar (lambda (call) (plist-get call :prompt))
+                           org-iw-cmd-test--prompts)
+                   '("One: " "Two: ")))
+    (pcase-let ((`(,one ,two) org-iw-cmd-test--prompts))
+      (should (equal (plist-get one :default) "x"))
+      (should (eq (plist-get one :require-match) t))
+      (should (equal (plist-get one :order) '("x" "y")))
+      (should-not (plist-get two :default)))
+    (should-error (completing-read "Three: " '("w")) :type 'ert-test-failed))
+  (org-iw-cmd-test--with-prompt nil
+    (should-error (completing-read "Any: " '("w")) :type 'ert-test-failed))
+  (let ((table (lambda (string pred action)
+                 (if (eq action 'metadata)
+                     '(metadata (cycle-sort-function . identity))
+                   (complete-with-action action '("b" "a") string pred)))))
+    (should (equal (org-iw-cmd-test--cycle-order table nil) '("b" "a")))))
 
 ;;;; Private helpers
 
@@ -106,6 +152,155 @@ at the prompt, proving BODY never prompts."
     (should (equal (org-iw--queue-name "ESSAYS") "Essays"))
     (should (equal (org-iw--queue-name "IDEAS") "IDEAS"))
     (should (equal (org-iw--queue-name "DRAFTS") "DRAFTS"))))
+
+;;;; Vocabulary
+;; The vocabulary helpers are tested directly (STD-001 item 6): they are
+;; the one owner of reading placements from config, and every bad-config
+;; shape is cheaper to pin here than through a command.  The commands'
+;; own tests cover a sample of each through their entry points.
+
+(defconst org-iw-cmd-test--standard
+  '(("Soon" (after 2)) ("Later" (fraction 1 2)) ("End" end))
+  "The standard placements, as a literal.")
+
+(defconst org-iw-cmd-test--queues
+  '(("articles" :name "Articles"
+     :placements (("Soon" (after 2)) ("End" end)) :default "End")
+    ("TWEETS" :placements (("Again" (after 5)) ("Later" (percent 75))))
+    ("NOTES" :default "Soon"))
+  "Queues configuring placements and a default, placements, or a default.")
+
+(defun org-iw-cmd-test--standard-value (symbol)
+  "Return the standard value of the user option SYMBOL."
+  (eval (car (get symbol 'standard-value)) t))
+
+(ert-deftest org-iw-cmd-test-placement-options-defaults ()
+  "The standard vocabulary is Soon, Later and End, defaulting to End."
+  (should (equal (org-iw-cmd-test--standard-value 'org-iw-placements)
+                 '(("Soon" (after 2)) ("Later" (fraction 1 2)) ("End" end))))
+  (should (equal (org-iw-cmd-test--standard-value 'org-iw-default-placement)
+                 "End")))
+
+(ert-deftest org-iw-cmd-test-placement-options-types ()
+  "Each standard value and placement form matches its customize type."
+  (require 'cus-edit)
+  (let ((type (get 'org-iw-placements 'custom-type)))
+    (should (widget-apply (widget-convert type) :match
+                          (append org-iw-cmd-test--standard
+                                  '(("P" (percent 75)) ("F" (fraction 0 1))))))
+    (should-not (widget-apply (widget-convert type) :match '(("S" soon)))))
+  (should (widget-apply (widget-convert
+                         (get 'org-iw-default-placement 'custom-type))
+                        :match nil))
+  (should (widget-apply (widget-convert (get 'org-iw-queues 'custom-type))
+                        :match org-iw-cmd-test--queues)))
+
+(ert-deftest org-iw-cmd-test-queue-config ()
+  "A queue's options are found whatever the key's case; else nil."
+  (let ((org-iw-queues org-iw-cmd-test--queues))
+    (should (equal (org-iw--queue-config "ARTICLES")
+                   (cdar org-iw-cmd-test--queues)))
+    (should (equal (org-iw--queue-config "NOTES") '(:default "Soon")))
+    (should-not (org-iw--queue-config "OTHER"))))
+
+(ert-deftest org-iw-cmd-test-vocabulary ()
+  "A queue's placements and default come from its options, else the globals.
+A queue with its own placements but no default uses the first."
+  (let ((org-iw-queues org-iw-cmd-test--queues))
+    (should (equal (org-iw--vocabulary "ARTICLES")
+                   '("End" ("Soon" (after 2)) ("End" end))))
+    (should (equal (org-iw--vocabulary "TWEETS")
+                   '("Again" ("Again" (after 5)) ("Later" (percent 75)))))
+    (should (equal (org-iw--vocabulary "NOTES")
+                   (cons "Soon" org-iw-cmd-test--standard)))
+    (should (equal (org-iw--vocabulary "OTHER")
+                   (cons "End" org-iw-cmd-test--standard)))
+    (let ((org-iw-default-placement nil))
+      (should (equal (car (org-iw--vocabulary "OTHER")) "Soon")))
+    (let ((org-iw-placements '(("A" end) ("B" (after 1))))
+          (org-iw-default-placement "B"))
+      (should (equal (org-iw--vocabulary "OTHER")
+                     '("B" ("A" end) ("B" (after 1)))))
+      (should (equal (car (org-iw--vocabulary "TWEETS")) "Again")))))
+
+(ert-deftest org-iw-cmd-test-vocabulary-refuses-bad-config ()
+  "Bad placements or a missing default refuse, naming the option at fault.
+Each case is a queue's options, the global placements and default, and
+the refusal."
+  (pcase-dolist
+      (`(,options ,placements ,default ,message)
+       '(((:name "Articles" :placements (("Soon" (after -1)))) nil "End"
+          "queue Articles :placements: invalid entry (\"Soon\" (after -1))")
+         ((:placements (("A" end) ("A" (after 1)))) nil "End"
+          "queue ARTICLES :placements: duplicate label \"A\"")
+         ((:placements (("" end))) nil "End"
+          "queue ARTICLES :placements: invalid entry (\"\" end)")
+         ((:placements ((soon end))) nil "End"
+          "queue ARTICLES :placements: invalid entry (soon end)")
+         ((:placements (("A" end x))) nil "End"
+          "queue ARTICLES :placements: invalid entry (\"A\" end x)")
+         ((:placements nil) nil "End"
+          "queue ARTICLES :placements: no placements")
+         ((:placements end) nil "End"
+          "queue ARTICLES :placements: not a list")
+         ((:placements (("A" end)) :default "B") nil "End"
+          "queue ARTICLES :default: \"B\" is not a placement label")
+         ((:default nil) (("A" end)) "A"
+          "queue ARTICLES :default: nil is not a placement label")
+         ((:default "Nope") (("A" end)) "A"
+          "queue ARTICLES :default: \"Nope\" is not a placement label")
+         (nil nil "End" "org-iw-placements: no placements")
+         (nil (("A" (fraction 1 0))) "A"
+          "org-iw-placements: invalid entry (\"A\" (fraction 1 0))")
+         (nil (("A" end)) "Nope"
+          "org-iw-default-placement: \"Nope\" is not a placement label")))
+    (let ((org-iw-queues (and options (list (cons "articles" options))))
+          (org-iw-placements placements)
+          (org-iw-default-placement default))
+      (should (equal (cadr (should-error (org-iw--vocabulary "ARTICLES")
+                                         :type 'org-iw-refusal))
+                     message)))))
+
+(ert-deftest org-iw-cmd-test-placement ()
+  "A label names its placement; nil names the default's; others refuse."
+  (let ((org-iw-queues org-iw-cmd-test--queues))
+    (should (equal (org-iw--placement "ARTICLES" "Soon") '("Soon" after 2)))
+    (should (equal (org-iw--placement "ARTICLES" nil) '("End" . end)))
+    (should (equal (org-iw--placement "OTHER" "Later")
+                   '("Later" fraction 1 2)))
+    (should (equal (cadr (should-error (org-iw--placement "ARTICLES" "Later")
+                                       :type 'org-iw-refusal))
+                   "queue Articles has no placement \"Later\""))))
+
+(ert-deftest org-iw-cmd-test-read-placement ()
+  "The chooser offers the labels in configured order, defaulting.
+It requires a match, and keeps the order in both cycling and
+*Completions* listings."
+  (let ((org-iw-queues org-iw-cmd-test--queues))
+    (org-iw-cmd-test--with-prompt "Later"
+      (should (equal (org-iw--read-placement "OTHER") "Later"))
+      (pcase-let* ((`(,call) org-iw-cmd-test--prompts)
+                   (table (plist-get call :collection)))
+        (should (equal (plist-get call :prompt) "Placement: "))
+        (should (equal (plist-get call :order) '("Soon" "Later" "End")))
+        (should (equal (plist-get call :default) "End"))
+        (should (eq (plist-get call :require-match) t))
+        (should (eq (completion-metadata-get (completion-metadata "" table nil)
+                                             'display-sort-function)
+                    #'identity))
+        (should (equal (all-completions "L" table) '("Later")))
+        (should (eq (try-completion "End" table) t))))
+    (org-iw-cmd-test--with-prompt "Soon"
+      (org-iw--read-placement "ARTICLES")
+      (should (equal (plist-get (car org-iw-cmd-test--prompts) :order)
+                     '("Soon" "End"))))))
+
+(ert-deftest org-iw-cmd-test-read-placement-refuses-before-prompting ()
+  "Bad config refuses before the chooser prompts."
+  (let ((org-iw-queues '(("ARTICLES" :placements nil))))
+    (org-iw-cmd-test--with-prompt nil
+      (should-error (org-iw--read-placement "ARTICLES")
+                    :type 'org-iw-refusal))))
 
 ;;;; Add: success (VT-1, I2, I4, I5)
 
@@ -492,11 +687,11 @@ Invalid configured IDs are dropped; a new queue may be typed."
                              ("bad_id" :name "Bad"))))
         (org-iw-cmd-test--with-prompt "new-queue"
           (should (equal (org-iw--read-queue (org-iw--scan)) "new-queue"))
-          (pcase-let ((`((:collection ,ids :require-match ,match
-                                      :annotate ,annotate))
-                       org-iw-cmd-test--prompts))
-            (should (equal ids '("DRAFTS" "ESSAYS" "IDEAS")))
-            (should-not match)
+          (pcase-let* ((`(,call) org-iw-cmd-test--prompts)
+                       (annotate (plist-get call :annotate)))
+            (should (equal (plist-get call :collection)
+                           '("DRAFTS" "ESSAYS" "IDEAS")))
+            (should-not (plist-get call :require-match))
             (should (string-search "Essays" (funcall annotate "ESSAYS")))
             (should-not (funcall annotate "DRAFTS"))))))))
 
