@@ -79,9 +79,18 @@ Finding: `completion-table-with-metadata` is absent on Emacs 30.2
 Weak VT: PHASE-02/VT-2's keywords already exist in SL-001's tests. It is a
 regression check, not new signal.
 
+## PHASE-01 (2026-10-01)
+
+Core landed (placement-p/-depth, rank-at, place, reorder; append-rank gone).
+Mutation 22/22 after fixing three first-run survivors: one real gap
+((fraction 0 0)) and two equivalent mutants removed as redundant code (rank-at
+tests the gap R − L > 1; place drops its nil-target guard). Harness:
+/home/scratch/sl-002/p01/mutate.py (string-replace mutants, core + command
+suites).
+
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: 2026-10-01 · plan approved-ready, phases materialised
+fresh-as-of: 2026-10-01 · PHASE-01 completed
 
 ### Produced
 - design.md locked (run dr-01a0f578, rev 36); research/research.md; slice scope updated
