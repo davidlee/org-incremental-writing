@@ -608,7 +608,7 @@ For PHASE-08 (human trial):
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: 2026-10-01 · reconcile (audit closed) · see HEAD
+fresh-as-of: 2026-10-01 · reconcile (audit closed) · e16a2b0
 
 ### Produced
 - PHASE-01..08 completed (405af23..64b8e53); VH-1 held on the user's real corpus
