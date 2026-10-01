@@ -1,0 +1,18 @@
+schema = "doctrine.observation"
+schema_version = 1
+uid = "01a0f544-25cc-79a2-9c27-dfbc7dc44238"
+recorded_at = "2026-10-01T02:21:19.180957199Z"
+kind = "friction"
+summary = "RV-002 mutation count not reproducible from lists"
+detail = "Review reported 57/71 mutants killed; re-running the archived m1/m2 lists at b0b29da gives 62/76 (non-oracle) with identical survivors. The mutant set behind the count wasn't recorded; mut.py hard-codes SRC=/tmp/iwmut. Record mutant-set ids with any kill rate."
+
+[facets.execution]
+schema_version = 1
+interface = "cli"
+interface_origin = "automatic"
+product_surface = "doctrine"
+product_surface_origin = "automatic"
+command = "observation record"
+command_origin = "automatic"
+repository_context = "primary"
+repository_context_origin = "automatic"

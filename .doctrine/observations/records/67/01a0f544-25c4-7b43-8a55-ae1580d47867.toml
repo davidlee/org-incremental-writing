@@ -1,0 +1,18 @@
+schema = "doctrine.observation"
+schema_version = 1
+uid = "01a0f544-25c4-7b43-8a55-ae1580d47867"
+recorded_at = "2026-10-01T02:21:19.172169316Z"
+kind = "friction"
+summary = "Subagent hand-backs: no live task to reap"
+detail = "Every capsule child's TaskStop after reading its hand-back returned 'No task found': foreground children are already reaped on completion. The orchestrator prompt's reap-on-read step is a no-op for foreground spawns (RV-002 remediation, SL-001)."
+
+[facets.execution]
+schema_version = 1
+interface = "cli"
+interface_origin = "automatic"
+product_surface = "doctrine"
+product_surface_origin = "automatic"
+command = "observation record"
+command_origin = "automatic"
+repository_context = "primary"
+repository_context_origin = "automatic"

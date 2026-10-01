@@ -1,0 +1,18 @@
+schema = "doctrine.observation"
+schema_version = 1
+uid = "01a0f544-25ca-7c93-9dc8-b8c154c0bc92"
+recorded_at = "2026-10-01T02:21:19.178743668Z"
+kind = "friction"
+summary = "git checkout blocked in worker; mutant reverts by reverse edit"
+detail = '''A git-guard hook refuses 'git checkout -- <file>', so workers applying temporary mutants for red evidence must revert by reverse edit and confirm with git diff. Also: elisp closure greps using \b mis-match symbols because '-' is a word boundary; and batch indent-region misindents org-with-point-at unless org is required first (RV-002 remediation, SL-001).'''
+
+[facets.execution]
+schema_version = 1
+interface = "cli"
+interface_origin = "automatic"
+product_surface = "doctrine"
+product_surface_origin = "automatic"
+command = "observation record"
+command_origin = "automatic"
+repository_context = "primary"
+repository_context_origin = "automatic"
