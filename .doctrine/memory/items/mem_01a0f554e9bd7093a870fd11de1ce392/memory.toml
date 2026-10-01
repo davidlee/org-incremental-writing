@@ -1,0 +1,46 @@
+memory_uid = "mem_01a0f554e9bd7093a870fd11de1ce392"
+memory_key = "mem.pattern.doctrine.capsule-driver-charter"
+schema_version = 1
+memory_type = "pattern"
+status = "active"
+title = "Capsule-driver: what a good orchestrator charter carries"
+summary = "Lessons from driving SL-001 through capsule orchestrators: env preconditions, charter contents, model-choice demands, reaping"
+created = "2026-10-01"
+updated = "2026-10-01"
+
+[scope]
+paths = []
+globs = []
+commands = []
+tags = ["doctrine", "capsule-driver"]
+workspace = "default"
+repo = "github.com/davidlee/org-incremental-writing"
+repo_id_kind = "remote"
+repo_id_confidence = "high"
+
+[git]
+anchor_kind = "checkout_state"
+commit = ""
+tree = "94e48c16d776e5cc067db7c377be93ac01f2045f"
+ref_name = "refs/heads/main"
+checkout_state_id = "b9ee5b53f51dca5c2980dc5ae1ee2e33c7f6cedaa60f55c5ab0842e3280ee34f"
+base_commit = "945dfbdb5c953317bf3c4ae1ec1a7b076ceb1362"
+verified_sha = ""
+normalizer = "forget.checkout.v1"
+
+[review]
+verification_state = "unverified"
+reviewed = ""
+review_by = ""
+
+[trust]
+trust_level = "medium"
+
+[ranking]
+severity = "none"
+weight = 0
+
+[[source]]
+kind = "review"
+ref = "RV-002"
+

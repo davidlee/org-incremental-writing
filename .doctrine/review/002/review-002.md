@@ -160,7 +160,11 @@ the queue keeps its turn.
 
 ### Governance/spec (REV)
 
-- None required for SL-001's truth: the code now conforms to ADR-003 and
+- POL-001 § Verification (F-27): replace "`make lint` and `make test`"
+  and "The Makefile targets are established in SL-001" with `just lint`
+  and `just test-all` (both Emacs; `just gate` = `doctrine check gate`)
+  and the justfile → REV modify.
+- Otherwise none required for SL-001's truth: the code now conforms to ADR-003 and
   POL-002 more closely than before. The proposed amendments (Synthesis
   § Proposed governance) are new governance for the user to accept, not
   reconciliation of drift.

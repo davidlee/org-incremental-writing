@@ -1,0 +1,128 @@
+[
+[
+"NF1a",
+"org-iw-write.el",
+"(when (buffer-local-value 'buffer-read-only base)",
+"(when nil"
+],
+[
+"NF1b",
+"org-iw-write.el",
+"(buffer-local-value 'buffer-read-only base)",
+"(buffer-local-value 'buffer-read-only (marker-buffer marker))"
+],
+[
+"NF3a",
+"org-iw-discovery.el",
+"(unless (derived-mode-p 'org-mode)",
+"(unless t"
+],
+[
+"NF3b",
+"org-iw-discovery.el",
+"(unless (derived-mode-p 'org-mode)",
+"(unless (eq major-mode 'org-mode)"
+],
+[
+"NF2b",
+"org-iw-discovery.el",
+"(unless (org-get-property-block)\n    (save-excursion",
+"(progn\n    (save-excursion"
+],
+[
+"NF2c",
+"org-iw-discovery.el",
+"(setq found (save-excursion\n                        (goto-char (match-beginning 0))\n                        (not (org-iw-discovery--in-block-p)))))",
+"(setq found t))"
+],
+[
+"NF2d",
+"org-iw-discovery.el",
+"(case-fold-search t)\n            (found nil))",
+"(case-fold-search nil)\n            (found nil))"
+],
+[
+"NF6a",
+"org-iw-core.el",
+"(and (integerp object) (<= (abs object) org-iw-core-rank-limit))",
+"(<= (abs object) org-iw-core-rank-limit)"
+],
+[
+"NF6b",
+"org-iw-core.el",
+"(and (integerp object) (<= (abs object) org-iw-core-rank-limit))",
+"(and (integerp object) (< (abs object) org-iw-core-rank-limit))"
+],
+[
+"NF6c",
+"org-iw-core.el",
+"(and (integerp object) (<= (abs object) org-iw-core-rank-limit))",
+"(and (integerp object) (<= object org-iw-core-rank-limit))"
+],
+[
+"NF8a",
+"org-iw-core.el",
+"(equal (org-iw-core-queue-id object) object)",
+"t"
+],
+[
+"NF8b",
+"org-iw-write.el",
+"(cl-check-type rank (satisfies org-iw-core-rank-p))\n",
+""
+],
+[
+"NF15a",
+"org-iw-core.el",
+"((string-suffix-p \"+\" name)\n      (if-let*",
+"(nil\n      (if-let*"
+],
+[
+"NF15b",
+"org-iw-core.el",
+"(substring name 3 -1)",
+"(substring name 3)"
+],
+[
+"NF15c",
+"org-iw-core.el",
+"(cons 'accumulate id)",
+"(cons 'member id)"
+],
+[
+"NW6o",
+"org-iw-discovery.el",
+"(or (buffer-base-buffer buffer) buffer)))",
+"buffer))"
+],
+[
+"NID1",
+"org-iw-discovery.el",
+"(seq-filter (lambda (problem) (equal (org-iw-problem-id problem) id))",
+"(seq-filter (lambda (problem) t)"
+],
+[
+"NID2",
+"org-iw-discovery.el",
+"(if (not id)\n      '(missing-id)",
+"(if nil\n      '(missing-id)"
+],
+[
+"NPF1",
+"org-iw-write.el",
+"(org-with-point-at marker\n      (unless (org-iw-write--expected-p",
+"(save-excursion (goto-char marker)\n      (unless (org-iw-write--expected-p"
+],
+[
+"NSE1",
+"org-iw.el",
+"(setq org-iw--session nil)\n    (when (listp global-mode-string)",
+"(when (listp global-mode-string)"
+],
+[
+"NSS1",
+"org-iw.el",
+"(add-to-list 'global-mode-string org-iw--mode-line-construct)\n  (force-mode-line-update t))",
+"(force-mode-line-update t))"
+]
+]

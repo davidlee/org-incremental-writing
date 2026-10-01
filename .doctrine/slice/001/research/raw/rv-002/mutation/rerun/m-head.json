@@ -1,0 +1,476 @@
+[
+[
+"W1",
+"org-iw-write.el",
+"(eql (org-iw-core-parse-rank value) expected)",
+"t"
+],
+[
+"W2",
+"org-iw-write.el",
+"('() (eq expected :absent))",
+"('() t)"
+],
+[
+"W3",
+"org-iw-write.el",
+"(`((member . ,value))\n     (and (integerp expected)",
+"(`((member . ,value) . ,_)\n     (and (integerp expected)"
+],
+[
+"W4",
+"org-iw-write.el",
+"(verify-visited-file-modtime base)",
+"(verify-visited-file-modtime (marker-buffer marker))"
+],
+[
+"W5",
+"org-iw-write.el",
+"(unless (file-writable-p file)",
+"(unless t"
+],
+[
+"W7",
+"org-iw-write.el",
+"(atomic-change-group\n",
+"(progn\n"
+],
+[
+"W8",
+"org-iw-write.el",
+"(was-clean (not (buffer-modified-p base))))",
+"(was-clean (not (buffer-modified-p (marker-buffer marker)))))"
+],
+[
+"W9",
+"org-iw-write.el",
+"(if (not was-clean)\n        'unsaved",
+"(if nil\n        'unsaved"
+],
+[
+"W10",
+"org-iw-write.el",
+"(org-with-point-at marker (funcall fn))",
+"(save-excursion (goto-char marker) (funcall fn))"
+],
+[
+"W11",
+"org-iw-write.el",
+"(error (cons 'save-failed err))",
+"(error 'saved)"
+],
+[
+"W12",
+"org-iw-write.el",
+"(when ensure-id\n",
+"(when nil\n"
+],
+[
+"W13",
+"org-iw-write.el",
+"(number-to-string rank)",
+"(number-to-string (1+ rank))"
+],
+[
+"W14",
+"org-iw-write.el",
+"(org-iw-write--preflight marker queue expected)",
+"nil"
+],
+[
+"W15",
+"org-iw-write.el",
+"(with-current-buffer base (save-buffer))",
+"(save-buffer)"
+],
+[
+"C1",
+"org-iw-core.el",
+"(and (org-iw-core-rank-p rank) rank)))\n\n(provide",
+"(and (< rank org-iw-core-rank-limit) rank)))\n\n(provide"
+],
+[
+"C2",
+"org-iw-core.el",
+"(and (org-iw-core-rank-p rank) rank))))))",
+"(and (< (abs rank) org-iw-core-rank-limit) rank))))))"
+],
+[
+"C3",
+"org-iw-core.el",
+"(string< (org-iw-entry-id a) (org-iw-entry-id b))",
+"(string> (org-iw-entry-id a) (org-iw-entry-id b))"
+],
+[
+"C4",
+"org-iw-core.el",
+"(1- (expt 2 53))",
+"(expt 2 53)"
+],
+[
+"C5",
+"org-iw-core.el",
+"(1- (expt 2 53))",
+"(1- (expt 2 62))"
+],
+[
+"C6",
+"org-iw-core.el",
+"(and (org-iw-core-rank-p rank) rank))))))",
+"(and (<= rank org-iw-core-rank-limit) rank))))))"
+],
+[
+"D1",
+"org-iw-discovery.el",
+"(> (gethash (org-iw-entry-id entry) tally) 1)",
+"nil"
+],
+[
+"D2",
+"org-iw-discovery.el",
+"((> (gethash id tally 0) 1) (list nil (problem 'duplicate-id)))",
+"(nil nil)"
+],
+[
+"D3",
+"org-iw-discovery.el",
+"(when (org-at-property-p)\n              (push (cons value (point)) lines))",
+"(push (cons value (point)) lines)"
+],
+[
+"D4",
+"org-iw-discovery.el",
+"(org-element-lineage (org-element-at-point)\n                       org-iw-discovery--block-types t)",
+"nil"
+],
+[
+"D5",
+"org-iw-discovery.el",
+"(if-let* ((live (find-buffer-visiting file)))",
+"(if-let* ((live (get-file-buffer file)))"
+],
+[
+"D6",
+"org-iw-discovery.el",
+"(eq (org-iw-problem-type problem) 'duplicate-id))\n            (org-iw-discovery--id-problems scan id)))",
+"nil)\n            (org-iw-discovery--id-problems scan id)))"
+],
+[
+"D7",
+"org-iw-discovery.el",
+"when (string= value id) collect position",
+"when (string-equal-ignore-case value id) collect position"
+],
+[
+"D8",
+"org-iw-discovery.el",
+"(`(,position)\n       (org-with-wide-buffer",
+"(`(,position . ,_)\n       (org-with-wide-buffer"
+],
+[
+"D9",
+"org-iw-discovery.el",
+"(and (not (string-prefix-p \".\" (file-name-nondirectory directory)))",
+"(and t"
+],
+[
+"D10",
+"org-iw-discovery.el",
+"(and (file-regular-p truename)",
+"(and (file-exists-p truename)"
+],
+[
+"D11",
+"org-iw-discovery.el",
+"(re-search-forward org-iw-discovery--iw-line-regexp\n                                    (cdr drawer) t)",
+"(re-search-forward org-iw-discovery--iw-line-regexp\n                                    nil t)"
+],
+[
+"D12",
+"org-iw-discovery.el",
+"(org-back-to-heading-or-point-min t)\n        (copy-marker",
+"(org-back-to-heading-or-point-min)\n        (copy-marker"
+],
+[
+"D13",
+"org-iw-discovery.el",
+"(with-current-buffer (org-iw-discovery-base-buffer)\n    (org-with-wide-buffer",
+"(progn\n    (progn"
+],
+[
+"D14",
+"org-iw-discovery.el",
+"(unless (string-prefix-p \".#\" (file-name-nondirectory file))",
+"(progn"
+],
+[
+"D15",
+"org-iw-discovery.el",
+"(not (and exclude-regexp\n                     (string-match-p exclude-regexp truename)))",
+"(not (and exclude-regexp\n                     (string-match-p exclude-regexp file)))"
+],
+[
+"D16",
+"org-iw-discovery.el",
+"(save-restriction\n                        (widen)\n",
+"(save-restriction\n"
+],
+[
+"D17",
+"org-iw-discovery.el",
+"(file-error nil)))",
+"(error nil)))"
+],
+[
+"D18",
+"org-iw-discovery.el",
+"((org-iw-discovery--in-block-p))\n",
+"((org-iw-discovery--in-block-p) nil)\n"
+],
+[
+"D19",
+"org-iw-discovery.el",
+"(unless (memql (point) seen)",
+"(progn"
+],
+[
+"A1",
+"org-iw-discovery.el",
+"(or (/= (org-iw-discovery-id-count id) 1)",
+"(or nil"
+],
+[
+"A2",
+"org-iw-discovery.el",
+"(and (equal (org-iw-entry-id entry) id)\n                       (not (equal (org-iw-entry-file entry) file))))",
+"nil)"
+],
+[
+"A3",
+"org-iw-discovery.el",
+"(org-iw-discovery-excluded-id-p scan id)))\n\n(defun org-iw-discovery-resolve",
+"nil))\n\n(defun org-iw-discovery-resolve"
+],
+[
+"A4",
+"org-iw-write.el",
+"(when (org-iw-discovery-unrecognised-drawer-p)",
+"(when nil"
+],
+[
+"A5",
+"org-iw.el",
+"(unless (and (<= (point-min) marker) (< marker (point-max)))",
+"(unless (and (<= (point-min) marker) (<= marker (point-max)))"
+],
+[
+"A6",
+"org-iw.el",
+"    (org-fold-show-entry)\n",
+"\n"
+],
+[
+"A7",
+"org-iw.el",
+"(unless (eq retained (car (last order)))",
+"(progn"
+],
+[
+"A8",
+"org-iw.el",
+"(rest (remq retained order))",
+"(rest (cdr order))"
+],
+[
+"A9",
+"org-iw.el",
+":expected (org-iw-core-rank entry queue))",
+":expected (org-iw-core-rank (car (last rest)) queue))"
+],
+[
+"A10",
+"org-iw.el",
+"(add-to-list 'global-mode-string org-iw--mode-line-construct)",
+"(push org-iw--mode-line-construct global-mode-string)"
+],
+[
+"A11",
+"org-iw.el",
+"(org-iw-discovery-files org-iw-sources org-iw-exclude-regexp))",
+"(org-iw-discovery-files org-iw-sources nil))"
+],
+[
+"A12",
+"org-iw.el",
+"(org-back-to-heading t)\n   (point-marker)))",
+"(org-back-to-heading)\n   (point-marker)))"
+],
+[
+"A13",
+"org-iw.el",
+"(org-iw-core-refuse \"document targets are not yet supported\"))",
+"nil)"
+],
+[
+"A14",
+"org-iw.el",
+"(org-iw--visit scan next queue 1 (length order))",
+"(org-iw--visit scan next queue 1 (length rest))"
+],
+[
+"A15",
+"org-iw.el",
+"(when (listp global-mode-string)\n      (setq global-mode-string (delete",
+"(when t\n      (setq global-mode-string (delete"
+],
+[
+"A16",
+"org-iw.el",
+"(org-iw--read-queue (org-iw--scan)))))\n  (let* ((queue-id",
+"(org-iw--read-queue (org-iw--scan)))))\n  (let* ((_ (org-iw--scan))\n         (queue-id"
+],
+[
+"A17",
+"org-iw.el",
+"(and (equal (org-iw-entry-id entry) id)\n                                 (equal (org-iw-entry-file entry) file)))",
+"(equal (org-iw-entry-id entry) id))"
+],
+[
+"A18",
+"org-iw.el",
+"(if (zerop problems)",
+"(if t"
+],
+[
+"A19",
+"org-iw.el",
+"(setq org-iw--session nil)",
+"nil"
+],
+[
+"A20",
+"org-iw.el",
+"(org-iw-core-refuse\n           \"heading has IW_%s but it is excluded (%s)\" queue\n           (org-iw--problem-types-text\n            (org-iw-discovery-problem-types scan id)))",
+"nil"
+],
+[
+"B1",
+"org-iw-write.el",
+"(org-id-get-create))\n",
+"(org-id-get-create)\n         (undo-boundary))\n"
+],
+[
+"B2",
+"org-iw-discovery.el",
+"(end (save-excursion (outline-next-heading) (point)))",
+"(end (point-max))"
+],
+[
+"B3",
+"org-iw.el",
+"(unless (and (<= (point-min) marker) (< marker (point-max)))",
+"(unless (< marker (point-max))"
+],
+[
+"B4",
+"org-iw.el",
+"    (org-fold-reveal)\n",
+"\n"
+],
+[
+"B5",
+"org-iw.el",
+"(retained (or (seq-find (lambda (entry)\n                                   (equal (org-iw-entry-id entry) id))\n                                 order)",
+"(retained (or (car order)"
+],
+[
+"B6",
+"org-iw-discovery.el",
+"((org-iw-discovery--has-iw-line-p)",
+"(t"
+],
+[
+"B7",
+"org-iw-discovery.el",
+"(file-accessible-directory-p directory)))",
+"t))"
+],
+[
+"B8",
+"org-iw-discovery.el",
+"(org-get-heading t t t t)",
+"(org-get-heading)"
+],
+[
+"B9",
+"org-iw.el",
+"(pop-to-buffer-same-window (marker-buffer marker))",
+"(set-buffer (marker-buffer marker))"
+],
+[
+"B10",
+"org-iw.el",
+"(sort (seq-uniq\n            (append",
+"(sort (identity\n            (append"
+],
+[
+"B11",
+"org-iw-discovery.el",
+"(push (org-iw-problem-create :type 'misplaced-property :file file)\n                problems)",
+"nil"
+],
+[
+"B12",
+"org-iw-write.el",
+"(cl-check-type queue (satisfies org-iw-core-canonical-queue-id-p))\n",
+""
+],
+[
+"B13",
+"org-iw.el",
+"(if (null rest)",
+"(if nil"
+],
+[
+"B14",
+"org-iw.el",
+"(org-iw-core-refuse \"no session; run org-iw-visit-next first\")",
+"(setq org-iw--session (org-iw--session-create :queue \"ESSAYS\" :id \"a1\" :title \"A\"))"
+],
+[
+"B15",
+"org-iw-discovery.el",
+"(if (org-at-heading-p)\n      (org-get-heading t t t t)",
+"(if t\n      (org-get-heading t t t t)"
+],
+[
+"B16",
+"org-iw.el",
+"(when-let* ((name (org-iw--configured-name queue)))\n                   (concat \" \" name))",
+"nil"
+],
+[
+"H1",
+"test/org-iw-test-helpers.el",
+"(defun org-iw-test-state ()\n  \"Return",
+"(defun org-iw-test-state () nil)\n(defun org-iw-test--state-orig ()\n  \"Return"
+],
+[
+"H2",
+"test/org-iw-test-helpers.el",
+"(list (org-iw-test-text marker)\n          (buffer-modified-p base)\n          (org-iw-test-file-string (buffer-file-name base)))",
+"(list nil)"
+],
+[
+"H3",
+"test/org-iw-test-helpers.el",
+"(unless (equal after expected)",
+"(unless t"
+],
+[
+"H4",
+"test/org-iw-test-helpers.el",
+"(seq-filter #'org-iw-test--corpus-buffer-p (buffer-list)))\n         (lambda",
+"(list))\n         (lambda"
+]
+]

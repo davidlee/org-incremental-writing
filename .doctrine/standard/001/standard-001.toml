@@ -1,0 +1,16 @@
+schema = "doctrine.standard"
+version = 1
+
+id = 1
+slug = "test-quality"
+title = "Test quality"
+status = "draft"
+created = "2026-10-01"
+updated = "2026-10-01"
+tags = []
+
+[relationships]
+# `supersedes` stays typed — author with `doctrine supersede STD-NNN <previous>`.
+# `related` edges are uniform `[[relation]]` rows — author with `doctrine link STD-NNN related <target>`.
+supersedes    = []
+superseded_by = []   # reverse link is derived

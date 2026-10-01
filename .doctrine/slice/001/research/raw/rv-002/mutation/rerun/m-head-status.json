@@ -1,0 +1,311 @@
+{
+ "W1": [
+  "KEPT"
+ ],
+ "W2": [
+  "KEPT"
+ ],
+ "W3": [
+  "KEPT"
+ ],
+ "W4": [
+  "KEPT"
+ ],
+ "W5": [
+  "KEPT"
+ ],
+ "W6": [
+  "RETIRED",
+  "org-iw-write--base deleted; sole owner is org-iw-discovery-base-buffer (equivalent mutant NW6o in m-new.json)"
+ ],
+ "W7": [
+  "KEPT"
+ ],
+ "W8": [
+  "KEPT"
+ ],
+ "W9": [
+  "KEPT"
+ ],
+ "W10": [
+  "REANCHORED",
+  "apply: org-with-point-at (which widens) replaced the save-restriction/widen/goto; fault = no widen",
+  "org-iw-write.el",
+  "(org-with-point-at marker (funcall fn))",
+  "(save-excursion (goto-char marker) (funcall fn))"
+ ],
+ "W11": [
+  "KEPT"
+ ],
+ "W12": [
+  "KEPT"
+ ],
+ "W13": [
+  "KEPT"
+ ],
+ "W14": [
+  "REANCHORED",
+  "queue-id local gone; arg is now QUEUE",
+  "org-iw-write.el",
+  "(org-iw-write--preflight marker queue expected)",
+  "nil"
+ ],
+ "W15": [
+  "KEPT"
+ ],
+ "C1": [
+  "REANCHORED",
+  "append-rank call site, strict bound",
+  "org-iw-core.el",
+  "(and (org-iw-core-rank-p rank) rank)))\n\n(provide",
+  "(and (< rank org-iw-core-rank-limit) rank)))\n\n(provide"
+ ],
+ "C2": [
+  "REANCHORED",
+  "parse-rank call site, strict bound",
+  "org-iw-core.el",
+  "(and (org-iw-core-rank-p rank) rank))))))",
+  "(and (< (abs rank) org-iw-core-rank-limit) rank))))))"
+ ],
+ "C3": [
+  "KEPT"
+ ],
+ "C4": [
+  "KEPT"
+ ],
+ "C5": [
+  "KEPT"
+ ],
+ "C6": [
+  "REANCHORED",
+  "parse-rank call site, no abs",
+  "org-iw-core.el",
+  "(and (org-iw-core-rank-p rank) rank))))))",
+  "(and (<= rank org-iw-core-rank-limit) rank))))))"
+ ],
+ "D1": [
+  "KEPT"
+ ],
+ "D2": [
+  "KEPT"
+ ],
+ "D3": [
+  "KEPT"
+ ],
+ "D4": [
+  "KEPT"
+ ],
+ "D5": [
+  "KEPT"
+ ],
+ "D6": [
+  "REANCHORED",
+  "excluded-id-p never true",
+  "org-iw-discovery.el",
+  "(eq (org-iw-problem-type problem) 'duplicate-id))\n            (org-iw-discovery--id-problems scan id)))",
+  "nil)\n            (org-iw-discovery--id-problems scan id)))"
+ ],
+ "D7": [
+  "KEPT"
+ ],
+ "D8": [
+  "KEPT"
+ ],
+ "D9": [
+  "KEPT"
+ ],
+ "D10": [
+  "KEPT"
+ ],
+ "D11": [
+  "KEPT"
+ ],
+ "D12": [
+  "KEPT"
+ ],
+ "D13": [
+  "REANCHORED",
+  "id-positions: base-buffer expr is now the shared owner call",
+  "org-iw-discovery.el",
+  "(with-current-buffer (org-iw-discovery-base-buffer)\n    (org-with-wide-buffer",
+  "(progn\n    (progn"
+ ],
+ "D14": [
+  "KEPT"
+ ],
+ "D15": [
+  "KEPT"
+ ],
+ "D16": [
+  "KEPT"
+ ],
+ "D17": [
+  "KEPT"
+ ],
+ "D18": [
+  "KEPT"
+ ],
+ "D19": [
+  "KEPT"
+ ],
+ "A1": [
+  "REANCHORED",
+  "moved to discovery shared-id-p",
+  "org-iw-discovery.el",
+  "(or (/= (org-iw-discovery-id-count id) 1)",
+  "(or nil"
+ ],
+ "A2": [
+  "REANCHORED",
+  "moved to discovery shared-id-p",
+  "org-iw-discovery.el",
+  "(and (equal (org-iw-entry-id entry) id)\n                       (not (equal (org-iw-entry-file entry) file))))",
+  "nil)"
+ ],
+ "A3": [
+  "REANCHORED",
+  "moved to shared-id-p",
+  "org-iw-discovery.el",
+  "(org-iw-discovery-excluded-id-p scan id)))\n\n(defun org-iw-discovery-resolve",
+  "nil))\n\n(defun org-iw-discovery-resolve"
+ ],
+ "A4": [
+  "REANCHORED",
+  "guard moved from add's check-heading to write preflight (F-2)",
+  "org-iw-write.el",
+  "(when (org-iw-discovery-unrecognised-drawer-p)",
+  "(when nil"
+ ],
+ "A5": [
+  "KEPT"
+ ],
+ "A6": [
+  "KEPT"
+ ],
+ "A7": [
+  "KEPT"
+ ],
+ "A8": [
+  "KEPT"
+ ],
+ "A9": [
+  "KEPT"
+ ],
+ "A10": [
+  "KEPT"
+ ],
+ "A11": [
+  "KEPT"
+ ],
+ "A12": [
+  "KEPT"
+ ],
+ "A13": [
+  "REANCHORED",
+  "refuse renamed",
+  "org-iw.el",
+  "(org-iw-core-refuse \"document targets are not yet supported\"))",
+  "nil)"
+ ],
+ "A14": [
+  "KEPT"
+ ],
+ "A15": [
+  "KEPT"
+ ],
+ "A16": [
+  "KEPT"
+ ],
+ "A17": [
+  "REANCHORED",
+  "indentation",
+  "org-iw.el",
+  "(and (equal (org-iw-entry-id entry) id)\n                                 (equal (org-iw-entry-file entry) file)))",
+  "(equal (org-iw-entry-id entry) id))"
+ ],
+ "A18": [
+  "KEPT"
+ ],
+ "A19": [
+  "KEPT"
+ ],
+ "A20": [
+  "REANCHORED",
+  "refuse renamed, problem-types split",
+  "org-iw.el",
+  "(org-iw-core-refuse\n           \"heading has IW_%s but it is excluded (%s)\" queue\n           (org-iw--problem-types-text\n            (org-iw-discovery-problem-types scan id)))",
+  "nil"
+ ],
+ "B1": [
+  "KEPT"
+ ],
+ "B2": [
+  "REANCHORED",
+  "moved to discovery unrecognised-drawer-p",
+  "org-iw-discovery.el",
+  "(end (save-excursion (outline-next-heading) (point)))",
+  "(end (point-max))"
+ ],
+ "B3": [
+  "KEPT"
+ ],
+ "B4": [
+  "KEPT"
+ ],
+ "B5": [
+  "KEPT"
+ ],
+ "B6": [
+  "KEPT"
+ ],
+ "B7": [
+  "KEPT"
+ ],
+ "B8": [
+  "KEPT"
+ ],
+ "B9": [
+  "KEPT"
+ ],
+ "B10": [
+  "KEPT"
+ ],
+ "B11": [
+  "KEPT"
+ ],
+ "B12": [
+  "REANCHORED",
+  "put-rank no longer canonicalises or refuses: it type-checks a canonical QUEUE; fault = unchecked queue reaches the write",
+  "org-iw-write.el",
+  "(cl-check-type queue (satisfies org-iw-core-canonical-queue-id-p))\n",
+  ""
+ ],
+ "B13": [
+  "KEPT"
+ ],
+ "B14": [
+  "REANCHORED",
+  "refuse renamed",
+  "org-iw.el",
+  "(org-iw-core-refuse \"no session; run org-iw-visit-next first\")",
+  "(setq org-iw--session (org-iw--session-create :queue \"ESSAYS\" :id \"a1\" :title \"A\"))"
+ ],
+ "B15": [
+  "KEPT"
+ ],
+ "B16": [
+  "KEPT"
+ ],
+ "H1": [
+  "KEPT"
+ ],
+ "H2": [
+  "KEPT"
+ ],
+ "H3": [
+  "KEPT"
+ ],
+ "H4": [
+  "KEPT"
+ ]
+}

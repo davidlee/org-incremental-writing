@@ -1,0 +1,30 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 1
+slug = "sl-001s-vertical-slice-was-usable-on-real-notes"
+title = "SL-001's vertical slice was usable on real notes"
+record_kind = "evidence"
+status = "captured"
+created = "2026-10-01"
+updated = "2026-10-01"
+tags = ["delivery", "rfc-001"]
+
+[facet]                         # every field typed; seeded empty (captured later)
+datum = "After one vertical slice (SL-001: add, visit, Continue to End), the user ran org-iw on their real notes in their own Emacs config and judged it 'already useful enough to actually use' (2026-10-01). Every trial step passed; the integration gaps it exposed (lambda-line mode line, auto-save hook) were found only by real use."
+provenance = "experiment"
+confidence = "high"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "references"
+role = "concerns"
+target = "RFC-001"

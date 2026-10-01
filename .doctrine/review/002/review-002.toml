@@ -19,6 +19,13 @@ note = """
 Pre-close conformance audit of SL-001 with a code-review lens on main (ce0b766^..8ac1d0b plus PHASE-01). Examined: all four source modules and five test files against design.md (locked), plan.toml EX/VT, ADR-001..003, POL-001..003; three opus reviewers (modelling/architecture; legibility/factoring/DRY; tests + forward strategy, incl. 71-mutant run) and one opus verifier re-checking every candidate by reading and execution; slice conformance; doctrine check gate. 26 findings: 20 fixed and re-verified (gate 158/158 on Emacs 31.1 and 30.2, lint clean, mutation 71/79), 3 follow-up (IMP-002..004), 2 tolerated, 1 design-wrong (selectors) in the brief.
 """
 
+[[review.turn]]
+act = "conclude"
+role = "raiser"
+note = """
+Re-concluded after F-27 (POL-001 verification text names make/Makefile), raised at the audit harvest and routed to the brief's REV section. Basis otherwise as the previous conclusion: SL-001 pre-close conformance audit with a code-review lens; 27 findings, all terminal.
+"""
+
 [target]                   # the outbound `reviews` edge: RV-NNN ──reviews──▶ <ref>
 ref   = "SL-001"
 
@@ -657,6 +664,36 @@ The selector registry (and design §6, its human mirror) is stale, not the code.
 act = "verify"
 role = "raiser"
 note = "Brief entry exists (Reconciliation Brief, Selectors item)."
+
+[[finding]]
+id = "F-27"
+status = "verified"
+severity = "nit"
+title = "Expected POL-001's verification to name the gate SL-001 built; observed it names make lint / make test and a Makefile"
+detail = """
+.doctrine/policy/001/policy-001.md:29-31: "`make lint` and `make test` (with every supported Emacs) run before a phase is marked completed ... The Makefile targets are established in SL-001." SL-001 built a justfile instead (plan.md § Deltas): `just lint`, `just test-all` (both Emacs), `just gate` (= `doctrine check gate`). Found at audit harvest.
+"""
+disposition = "design-wrong"
+response = """
+Governance text drift, not a code defect. Reconcile via REV on POL-001 § Verification: name `just lint` and `just test-all` (or `just gate` / `doctrine check gate`) and the justfile. Brief entry: Reconciliation Brief § Governance/spec (REV), F-27.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = """
+Governance text drift, not a code defect. Reconcile via REV on POL-001 § Verification: name `just lint` and `just test-all` (or `just gate` / `doctrine check gate`) and the justfile. Brief entry: Reconciliation Brief § Governance/spec (REV), F-27.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Brief entry exists (Governance/spec REV, POL-001)."
 
 # Findings are append-only `[[finding]]` tables, added by `review raise`.
 # Empty here at creation — a fresh review is Active, awaiting the raiser.

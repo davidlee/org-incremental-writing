@@ -1,0 +1,32 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 1
+slug = "which-rv-002-governance-proposals-should-the-project-adopt"
+title = "Which RV-002 governance proposals should the project adopt?"
+record_kind = "question"
+status = "open"
+created = "2026-10-01"
+updated = "2026-10-01"
+tags = ["governance", "rv-002"]
+
+[facet]                         # every field typed; seeded empty (captured later)
+question = "Which RV-002 governance proposals should the project adopt: the draft standards STD-001 (test quality), STD-002 (VT evidence) and STD-003 (pre-close review roster); an ADR-003 amendment on write-safety and reader ownership; an Elisp module-conventions standard with a cross-file -- lint; a POL-002 clarification; a DEC-003 one-scan-per-command clarification?"
+why_matters = "SL-002..SL-007 inherit the test, VT and review conventions. Without a decision, RV-002's lessons stay advisory and later slices repeat F-17..F-20 and the POL-002 drift."
+answer      = ""
+answered_by = ""
+answered_on = ""
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "references"
+role = "concerns"
+target = "RV-002"

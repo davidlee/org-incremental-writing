@@ -1,0 +1,21 @@
+NF1a	KILLED	org-iw-cmd-test-add-refuses-read-only-buffer org-iw-cmd-test-continue-refuses-read-only-buffer org-iw-write-test-refuses-read-only-buffer
+NF1b	SURVIVED	
+NF3a	KILLED	org-iw-cmd-test-visit-next-refuses-non-org-buffer org-iw-discovery-test-resolve-refuses-non-org-buffer
+NF3b	KILLED	org-iw-discovery-test-resolve-accepts-derived-org-mode
+NF2b	KILLED	org-iw-cmd-test-add-appends org-iw-cmd-test-add-counts-source-problems org-iw-cmd-test-add-from-indirect-buffer org-iw-cmd-test-add-in-narrowed-buffer org-iw-cmd-test-add-interactively org-iw-cmd-test-add-leaves-dirty-buffer-unsaved (+19)
+NF2c	KILLED	org-iw-cmd-test-add-ignores-drawer-text-in-block
+NF2d	SURVIVED	
+NF6a	KILLED	org-iw-core-test-no-org-loaded org-iw-core-test-rank-p org-iw-write-test-rank-is-checked
+NF6b	KILLED	org-iw-cmd-test-add-refuses-at-rank-limit org-iw-cmd-test-add-shared-id-refusal-order org-iw-cmd-test-continue-refuses-at-rank-limit org-iw-core-test-append-rank-limit org-iw-core-test-no-org-loaded org-iw-core-test-parse-rank-accepts (+2)
+NF6c	KILLED	org-iw-core-test-no-org-loaded org-iw-core-test-parse-rank-rejects org-iw-core-test-rank-limit-literal org-iw-core-test-rank-p
+NF8a	KILLED	org-iw-core-test-canonical-queue-id-p org-iw-core-test-no-org-loaded org-iw-write-test-queue-is-checked
+NF8b	KILLED	org-iw-write-test-rank-is-checked
+NF15a	KILLED	org-iw-cmd-test-add-refuses-excluded-property org-iw-core-test-classify-property org-iw-core-test-no-org-loaded org-iw-discovery-test-classify-lines org-iw-discovery-test-problem-duplicate-property org-iw-write-test-refuses-repeated-key
+NF15b	KILLED	org-iw-cmd-test-add-refuses-excluded-property org-iw-core-test-classify-property org-iw-core-test-no-org-loaded org-iw-discovery-test-classify-lines org-iw-discovery-test-problem-duplicate-property org-iw-write-test-refuses-repeated-key
+NF15c	KILLED	org-iw-cmd-test-add-refuses-excluded-property org-iw-core-test-classify-property org-iw-core-test-no-org-loaded org-iw-discovery-test-classify-lines org-iw-discovery-test-problem-invalid-property
+NW6o	KILLED	org-iw-cmd-test-add-from-indirect-buffer org-iw-cmd-test-add-in-narrowed-buffer org-iw-cmd-test-source-file-p org-iw-write-test-ensure-id-through-narrowed-indirect org-iw-write-test-refuses-changed-on-disk-indirect org-iw-write-test-writes-through-indirect-buffer
+NID1	SURVIVED	
+NID2	SURVIVED	
+NPF1	KILLED	org-iw-cmd-test-add-in-narrowed-buffer org-iw-cmd-test-continue-after-buffer-killed org-iw-cmd-test-continue-ignores-point org-iw-write-test-before-save-hook-error-is-demoted org-iw-write-test-ensure-id-keeps-existing-id org-iw-write-test-expected-compares-parsed-rank (+9)
+NSE1	KILLED	org-iw-cmd-test-end-session-clears
+NSS1	KILLED	org-iw-cmd-test-end-session-clears org-iw-cmd-test-mode-line-item-with-non-list-global-mode-string org-iw-cmd-test-visit-sets-session

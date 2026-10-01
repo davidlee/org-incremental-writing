@@ -1,0 +1,80 @@
+W1	KILLED	org-iw-write-test-refuses-stale-expected
+W2	KILLED	org-iw-write-test-refuses-absent-mismatch
+W3	KILLED	org-iw-write-test-refuses-repeated-key
+W4	KILLED	org-iw-write-test-refuses-changed-on-disk-indirect
+W5	KILLED	org-iw-write-test-refuses-unwritable-file
+W6	KILLED	org-iw-cmd-test-add-from-indirect-buffer org-iw-cmd-test-add-in-narrowed-buffer org-iw-write-test-ensure-id-through-narrowed-indirect org-iw-write-test-refuses-changed-on-disk-indirect org-iw-write-test-writes-through-indirect-buffer
+W7	KILLED	org-iw-write-test-failed-edit-restores-clean-buffer org-iw-write-test-failed-edit-restores-dirty-buffer
+W8	SURVIVED	
+W9	KILLED	org-iw-cmd-test-add-leaves-dirty-buffer-unsaved org-iw-cmd-test-continue-leaves-dirty-buffer-unsaved org-iw-write-test-leaves-dirty-buffer-unsaved
+W10	KILLED	org-iw-write-test-ensure-id-through-narrowed-indirect
+W11	KILLED	org-iw-cmd-test-add-reports-failed-save org-iw-cmd-test-continue-reports-failed-save org-iw-write-test-save-failure-keeps-edit
+W12	KILLED	org-iw-cmd-test-add-creates-drawer-and-id org-iw-cmd-test-add-ignores-drawer-text-in-block org-iw-write-test-ensure-id-adds-one-id org-iw-write-test-ensure-id-through-narrowed-indirect org-iw-write-test-failed-edit-restores-clean-buffer org-iw-write-test-failed-edit-restores-dirty-buffer
+W13	KILLED	org-iw-cmd-test-add-appends org-iw-cmd-test-add-creates-drawer-and-id org-iw-cmd-test-add-from-indirect-buffer org-iw-cmd-test-add-ignores-drawer-text-in-block org-iw-cmd-test-add-in-narrowed-buffer org-iw-cmd-test-continue-after-buffer-killed (+14)
+W14	KILLED	org-iw-cmd-test-continue-propagates-write-refusal org-iw-write-test-refuses-absent-mismatch org-iw-write-test-refuses-changed-on-disk org-iw-write-test-refuses-changed-on-disk-indirect org-iw-write-test-refuses-repeated-key org-iw-write-test-refuses-stale-expected (+1)
+W15	KILLED	org-iw-cmd-test-continue-after-buffer-killed org-iw-cmd-test-continue-ignores-point org-iw-write-test-before-save-hook-error-is-demoted org-iw-write-test-ensure-id-adds-one-id org-iw-write-test-ensure-id-keeps-existing-id org-iw-write-test-lowercase-key (+2)
+C1	KILLED	org-iw-core-test-append-rank-limit org-iw-core-test-no-org-loaded
+C2	KILLED	org-iw-cmd-test-add-refuses-at-rank-limit org-iw-cmd-test-add-shared-id-refusal-order org-iw-cmd-test-continue-refuses-at-rank-limit org-iw-core-test-no-org-loaded org-iw-core-test-parse-rank-accepts
+C3	KILLED	org-iw-core-test-no-org-loaded org-iw-core-test-queue-order
+C4	SURVIVED	
+C5	KILLED	org-iw-cmd-test-add-refuses-at-rank-limit org-iw-cmd-test-continue-refuses-at-rank-limit
+C6	KILLED	org-iw-core-test-no-org-loaded org-iw-core-test-parse-rank-rejects
+D1	KILLED	org-iw-discovery-test-problem-duplicate-id-across-files org-iw-discovery-test-resolve-scan-excluded-duplicate
+D2	KILLED	org-iw-cmd-test-add-refuses-id-shared-in-file org-iw-cmd-test-continue-refuses-duplicated-id org-iw-discovery-test-problem-duplicate-id-in-file org-iw-discovery-test-resolve-scan-excluded-duplicate
+D3	KILLED	org-iw-discovery-test-id-count-lines org-iw-discovery-test-problem-duplicate-id-in-file
+D4	KILLED	org-iw-cmd-test-add-ignores-drawer-text-in-block org-iw-discovery-test-scan-skips-blocks
+D5	KILLED	org-iw-discovery-test-scan-symlink-visited-buffer
+D6	KILLED	org-iw-cmd-test-add-refuses-id-excluded-as-duplicate org-iw-cmd-test-continue-refuses-duplicated-id org-iw-discovery-test-resolve-scan-excluded-duplicate
+D7	KILLED	org-iw-discovery-test-id-count-lines org-iw-discovery-test-resolve-not-found
+D8	KILLED	org-iw-cmd-test-visit-refusal-changes-nothing org-iw-discovery-test-resolve-ambiguous-after-scan
+D9	KILLED	org-iw-discovery-test-files-directory-rules org-iw-discovery-test-files-hidden-root
+D10	SURVIVED	
+D11	KILLED	org-iw-cmd-test-add-lowercase-member-is-no-op org-iw-cmd-test-add-member-is-no-op org-iw-cmd-test-continue-after-buffer-killed org-iw-cmd-test-continue-already-last org-iw-cmd-test-continue-counts-source-problems org-iw-cmd-test-continue-full-cycle (+18)
+D12	SURVIVED	
+D13	KILLED	org-iw-cmd-test-visit-next-widens org-iw-cmd-test-visit-widens-only-to-reach-entry org-iw-discovery-test-id-count-ignores-narrowing org-iw-discovery-test-id-count-via-indirect-buffer org-iw-discovery-test-resolve-ambiguous-after-scan org-iw-discovery-test-resolve-narrowed-and-indirect (+1)
+D14	KILLED	org-iw-discovery-test-files-directory-rules
+D15	KILLED	org-iw-discovery-test-files-exclude-regexp
+D16	KILLED	org-iw-cmd-test-visit-next-widens org-iw-cmd-test-visit-widens-only-to-reach-entry org-iw-discovery-test-scan-live-buffer-beats-disk
+D17	SURVIVED	
+D18	SURVIVED	
+D19	KILLED	org-iw-cmd-test-add-appends org-iw-cmd-test-add-counts-source-problems org-iw-cmd-test-add-from-indirect-buffer org-iw-cmd-test-add-in-narrowed-buffer org-iw-cmd-test-add-interactively org-iw-cmd-test-add-leaves-dirty-buffer-unsaved (+6)
+A1	SURVIVED	
+A2	KILLED	org-iw-cmd-test-add-refuses-id-shared-across-files org-iw-cmd-test-add-shared-id-refusal-order
+A3	KILLED	org-iw-cmd-test-add-refuses-id-excluded-as-duplicate
+A4	KILLED	org-iw-cmd-test-add-refuses-malformed-drawer
+A5	KILLED	org-iw-cmd-test-visit-next-widens org-iw-cmd-test-visit-widens-only-to-reach-entry
+A6	KILLED	org-iw-cmd-test-visit-navigates-and-reveals
+A7	KILLED	org-iw-cmd-test-continue-already-last
+A8	KILLED	org-iw-cmd-test-continue-already-last org-iw-cmd-test-continue-ignores-new-front
+A9	KILLED	org-iw-cmd-test-continue-after-buffer-killed org-iw-cmd-test-continue-counts-source-problems org-iw-cmd-test-continue-full-cycle org-iw-cmd-test-continue-ignores-new-front org-iw-cmd-test-continue-ignores-point org-iw-cmd-test-continue-leaves-dirty-buffer-unsaved (+2)
+A10	KILLED	org-iw-cmd-test-visit-sets-session
+A11	KILLED	org-iw-cmd-test-files-honour-exclude-regexp org-iw-cmd-test-source-file-p
+A12	SURVIVED	
+A13	KILLED	org-iw-cmd-test-add-refusal-order org-iw-cmd-test-add-refuses-before-prompting org-iw-cmd-test-add-refuses-document-target
+A14	SURVIVED	
+A15	SURVIVED	
+A16	SURVIVED	
+A17	KILLED	org-iw-cmd-test-add-shared-id-refusal-order
+A18	KILLED	org-iw-cmd-test-add-counts-source-problems org-iw-cmd-test-continue-counts-source-problems org-iw-cmd-test-visit-message
+A19	KILLED	org-iw-cmd-test-end-session-clears
+A20	KILLED	org-iw-cmd-test-add-refuses-excluded-property org-iw-cmd-test-add-shared-id-refusal-order
+B1	KILLED	org-iw-write-test-undo-reverts-ensure-id
+B2	SURVIVED	
+B3	SURVIVED	
+B4	SURVIVED	
+B5	KILLED	org-iw-cmd-test-continue-already-last org-iw-cmd-test-continue-ignores-new-front org-iw-cmd-test-continue-refuses-duplicated-id org-iw-cmd-test-continue-refuses-removed-entry
+B6	KILLED	org-iw-discovery-test-scan-org-mode-only-on-iw-line
+B7	KILLED	org-iw-discovery-test-files-inaccessible-directory
+B8	KILLED	org-iw-discovery-test-scan-heading-entry
+B9	KILLED	org-iw-cmd-test-continue-after-buffer-killed org-iw-cmd-test-continue-already-last org-iw-cmd-test-continue-full-cycle org-iw-cmd-test-continue-ignores-new-front org-iw-cmd-test-continue-leaves-dirty-buffer-unsaved org-iw-cmd-test-continue-moves-to-end (+6)
+B10	KILLED	org-iw-cmd-test-read-queue-offers-known-queues
+B11	KILLED	org-iw-discovery-test-problem-misplaced-property
+B12	KILLED	org-iw-write-test-refuses-invalid-queue org-iw-write-test-saves-clean-buffer
+B13	KILLED	org-iw-cmd-test-continue-only-entry
+B14	KILLED	org-iw-cmd-test-continue-refuses-without-session
+B15	KILLED	org-iw-discovery-test-scan-document-entry
+B16	KILLED	org-iw-cmd-test-read-queue-offers-known-queues
+H1	SURVIVED	
+H2	SURVIVED	
+H3	KILLED	org-iw-discovery-test-fixture-i8-fails-on-stray-file
+H4	SURVIVED	

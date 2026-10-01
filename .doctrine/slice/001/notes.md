@@ -608,22 +608,25 @@ For PHASE-08 (human trial):
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: 2026-10-01 · audit (RV-002 concluded) · 8ac1d0b
+fresh-as-of: 2026-10-01 · reconcile (audit closed) · see HEAD
 
 ### Produced
 - PHASE-01..08 completed (405af23..64b8e53); VH-1 held on the user's real corpus
-- RV-002 audit: 26 findings, 20 fixed in 5846207..31fdb54, 8ac1d0b; Synthesis + Reconciliation Brief in review-002.md
+- RV-002 audit: 27 findings; 20 fixed (5846207..31fdb54, 8ac1d0b); Synthesis + Reconciliation Brief in review-002.md
 - README.md (user request, PHASE-08)
-- minted: IMP-001 — public session string and display setting; IMP-002 — one scan per command (SL-004); IMP-003 — consolidate test state-capture helpers; IMP-004 — diagnose invalid org-iw-queues keys (SL-005)
-- Review artefacts outside the repo: /home/scratch/sl-001-review/ (test-strategy.md, governance-proposals.md, mutation/)
+- minted: IMP-001 — public session string / display setting; IMP-002 — one scan per command (SL-004); IMP-003 — consolidate test state-capture helpers; IMP-004 — diagnose invalid org-iw-queues keys (SL-005); CHR-001 — `just mutate` recipe
+- Draft standards: STD-001 test quality, STD-002 VT evidence, STD-003 pre-close review roster
+- Review artefacts: research/raw/rv-002/ (test-strategy.md, governance-proposals.md, mutation harness and results, remediation sheets)
 
 ### Learned
 - mem.fact.emacs.save-hook-errors-demoted — before-save-hook can't fail a save
 - mem.fact.emacs.batch-test-gotchas — </dev/null, empty display, order-dependent buffer lists
+- mem.fact.emacs.org-write-idioms — org-entry-put ignores read-only; atomic-change-group buffer; non-Org warnings
 - mem.pattern.doctrine.vt-keywords-match-prose — verify-vt keyword matching traps
-- Org API sharp edges in design.md § 3 (org-find-entry-with-id, upcasing, lock files, indirect buffers)
+- mem.pattern.doctrine.capsule-driver-charter — what a good orchestrator charter carries
+- EVD-001 — the vertical slice was usable on real notes (RFC-001)
+- Org API sharp edges in design.md § 3
 
 ### Open
-- /reconcile: RV-002 Reconciliation Brief (design deltas above, selector registry F-26)
-- Governance proposals (RV-002 Synthesis): test-quality and VT-evidence standards, ADR-003 write/reader ownership, Elisp module conventions, POL-002 and DEC-003 clarifications — user to accept or decline
-- Vertical-delivery evidence for RFC-001 (user's finding) — optional /knowledge EVD
+- /reconcile: RV-002 Reconciliation Brief (design deltas in this file, selectors F-26, POL-001 text F-27)
+- QUE-001 — which RV-002 governance proposals to adopt (STD-001..003 drafts and more); settle before SL-002 planning
