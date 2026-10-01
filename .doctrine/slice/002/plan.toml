@@ -62,15 +62,15 @@ entrance_criteria = [
 ]
 exit_criteria = [
   { id = "EX-1", text = "Continue follows § 5.4 steps 1, 3–7 with placement end: no session → refusal; empty order → \"Queue NAME is empty\", nothing changed, session kept; absent/duplicated → org-iw--refuse-absent; sole entry → report as today; then place." },
-  { id = "EX-2", text = "Continue's messages take the § 5.4 forms with WHERE = \"the end\" pending labels (\"Moved T to the end, D+1/N STATUS. Now 1/N: NEXT\"; \"T already at the end, D+1/N. Now 1/N: NEXT\"); existing expectations updated in the same commit (RV-003 F-9). The final label wording lands in PHASE-04." },
+  { id = "EX-2", text = "Continue's success messages are unchanged this phase (\"Moved T to end STATUS. Now 1/N: NEXT\", \"T already at end. Now 1/N: NEXT\"), so their expectations change once, in PHASE-04 (RV-003 F-9). \"Already at end\" now comes from place's unchanged outcome, not a last-entry check." },
   { id = "EX-3", text = "no-gap from Add or Continue refuses through org-iw--refuse-no-room (\"no room at the end in NAME; redistribution is not yet available — choose another placement\"); buffers, files and session unchanged (I9). The rank-limit tests now expect this text." },
   { id = "EX-4", text = "Plain Add calls place with a nil target and end; its message is unchanged (\"Added to NAME at N+1/N+1 STATUS\")." },
-  { id = "EX-5", text = "grep finds no org-iw--append-rank, org-iw--move-to-end or org-iw-core-rank outside core and put-rank's :expected; no command computes a rank or depth (I10)." },
+  { id = "EX-5", text = "grep finds no org-iw--append-rank or org-iw--move-to-end; org-iw.el does no rank or depth arithmetic, and no last-entry special case remains in Continue (I10)." },
   { id = "EX-6", text = "just gate and just test-each green; mutation pass over the new guards (empty, no-gap, session) recorded." },
 ]
 verification = [
   { id = "VT-1", expects = "Continue on an empty queue with a session reports empty and changes nothing; no-gap Continue and Add refuse with nothing changed (I9)", test_file = "test/org-iw-test.el", keywords = ["is empty", "no room at the end", "org-iw-cmd-test--should-refuse-cleanly"], waived = false },
-  { id = "VT-2", expects = "existing Continue and Add tests pass with the new messages; already-last writes nothing", test_file = "test/org-iw-test.el", keywords = ["to the end", "already at the end"], waived = false },
+  { id = "VT-2", expects = "existing Continue and Add tests pass with the new messages; already-last writes nothing", test_file = "test/org-iw-test.el", keywords = ["Moved A to end", "already at end"], waived = false },
   { id = "VA-1", text = "Agent greps for deleted helpers and any rank arithmetic outside org-iw-core.el (EX-5)." },
 ]
 specs        = []
@@ -88,38 +88,59 @@ exit_criteria = [
   { id = "EX-2", text = "org-iw--configured-name reads through org-iw--queue-config; no other function reads org-iw-queues' plists." },
   { id = "EX-3", text = "org-iw--vocabulary resolves per § 5.2 (plist-member for :placements; default = :default, else the global default unless the queue has its own :placements, else the first label) and refuses each § 9 bad-config case — invalid placement, duplicate label, empty label, empty or present-but-nil list, missing default — naming the blamed source (queue NAME :placements / :default, org-iw-placements, org-iw-default-placement); at least one queue-blamed and one global-blamed case (RV-003 F-6)." },
   { id = "EX-4", text = "org-iw--placement returns (LABEL . PLACEMENT), the default's for nil, and refuses an unknown label naming it." },
-  { id = "EX-5", text = "org-iw--read-placement resolves the vocabulary before prompting (bad config never prompts), calls completing-read \"Placement: \" with REQUIRE-MATCH t, the default label as DEF, and a table whose metadata sets display-sort-function to identity; the recorder captures the labels in configured order and the default." },
+  { id = "EX-5", text = "org-iw--read-placement resolves the vocabulary before prompting (bad config never prompts), calls completing-read \"Placement: \" with REQUIRE-MATCH t, the default label as DEF, and a hand-written function table whose metadata sets display-sort-function to identity (not completion-table-with-metadata, which Emacs 30.2 lacks; Package-Requires is 30.1); the recorder captures the labels in configured order and the default." },
   { id = "EX-6", text = "The recorder extension has a self-test: it fails a test that prompts more often than answered, and records each prompt's default (STD-001 item 2). Helper-level tests of private vocabulary functions state their reason (STD-001 item 6): they are the one owner; command-level coverage follows in PHASE-04." },
   { id = "EX-7", text = "just gate and just test-each green; mutation pass over each validation guard recorded." },
 ]
 verification = [
   { id = "VT-1", expects = "defaults pinned; queue-config is the one plist reader; vocabulary resolution and every bad-config refusal with its blamed source", test_file = "test/org-iw-test.el", keywords = ["org-iw-placements", "org-iw-default-placement", "org-iw--vocabulary", ":placements:", "org-iw-placements:", "org-iw-default-placement:"], waived = false },
-  { id = "VT-2", expects = "read-placement offers labels in configured order with the default, metadata identity sort, and refuses bad config before prompting; recorder self-test", test_file = "test/org-iw-test.el", keywords = ["org-iw--read-placement", "display-sort-function", "Placement: "], waived = false },
+  { id = "VT-2", expects = "read-placement offers labels in configured order with the default, metadata identity sort, and refuses bad config before prompting; recorder self-test", test_file = "test/org-iw-test.el", keywords = ["org-iw--read-placement", "display-sort-function", "Placement: ", "completion-metadata-get"], waived = false },
 ]
 specs        = []
 requirements = []
 
 [[phase]]
 id        = "PHASE-04"
-name      = "Placement on Continue and Add"
-objective = "Give org-iw-continue and org-iw-add their optional LABEL and the prefix-argument chooser (DEC-011 as amended), resolving the placement before the scan (§ 5.4, RV-003 F-2), with the final label messages. Rewrite both docstrings, fixing Continue's half of ISS-001. Document placements, vocabulary and the chooser in README.md."
+name      = "Placement on Continue"
+objective = "Give org-iw-continue its optional LABEL and the prefix-argument chooser (DEC-011), resolving the placement before the scan (§ 5.4 step 2), with the final label messages. Rewrite its docstring, fixing Continue's half of ISS-001."
 entrance_criteria = [
   { id = "EN-1", text = "PHASE-03 completed; just gate green." },
 ]
 exit_criteria = [
-  { id = "EX-1", text = "Continue: LABEL nil → the queue's default; C-u reads one with org-iw--read-placement after org-iw--session-or-refuse; without a prefix no prompt (recorder asserts not called). Messages use the label: \"Moved T to LABEL, D+1/N STATUS. Now 1/N: NEXT\", \"T already at LABEL, D+1/N. Now 1/N: NEXT\", no-gap \"no room at LABEL in NAME; …\"." },
-  { id = "EX-2", text = "Add: LABEL nil → end with today's message; with LABEL, \"Added to NAME at LABEL, D+1/N+1 STATUS\". The placement is resolved before the scan, so an unknown label or bad config refuses even for an existing member (RV-003 F-2). C-u Add reads the queue, canonicalises it, then the placement, defaulting to the queue's default label (DEC-011 amended, RV-003 F-5)." },
-  { id = "EX-3", text = "Refuse before prompting (RV-003 F-7): C-u Continue without a session, C-u Continue with bad config, C-u Add with bad config after the queue prompt; the recorder fails if the placement prompt is reached." },
-  { id = "EX-4", text = "Unconfigured queue of 8: Soon → 3rd, Later → 4th, End → 8th, exactly one changed line each (I2′, RV-003 F-3). Configured queue: its labels in configured order and its default; :default absent → first label; a queue with only :default uses the standard placements." },
-  { id = "EX-5", text = "Unchanged Continue to Soon at depth 2 writes nothing and leaves the buffer unmodified (I2′); (after 0) reopens the same entry; Later in a 2-entry queue reopens the same entry (§ 5.5, RV-003 F-8); (org-iw-continue \"Soon\") from Lisp works and an unknown label refuses with nothing changed." },
-  { id = "EX-6", text = "Continue and Add docstrings list the refusals and placement behaviour; Continue's preflight refusals are named (ISS-001, Continue half). README documents placement forms, :placements/:default, the two defcustoms and C-u." },
+  { id = "EX-1", text = "LABEL nil → the queue's default; C-u reads one with org-iw--read-placement after org-iw--session-or-refuse; without a prefix no prompt (recorder asserts not called). (org-iw-continue \"Soon\") from Lisp works; an unknown label refuses before any scan with nothing changed." },
+  { id = "EX-2", text = "Messages use the label: \"Moved T to LABEL, D+1/N STATUS. Now 1/N: NEXT\", \"T already at LABEL, D+1/N. Now 1/N: NEXT\", no-gap \"no room at LABEL in NAME; …\". The SL-001 expectations change here, once (RV-003 F-9)." },
+  { id = "EX-3", text = "Refuse before prompting (RV-003 F-7): C-u Continue without a session, and with bad config; the recorder fails if the placement prompt is reached. Bad config blames its source at command level (one queue-blamed, one global-blamed case)." },
+  { id = "EX-4", text = "Unconfigured queue of 8: Soon → 3rd, Later → 4th, End → 8th, exactly one changed line each, next entry visited, message checked (I2′, RV-003 F-3). Configured queue: chooser offers its labels in configured order with its default; :default absent → first label; a queue with only :default uses the standard placements." },
+  { id = "EX-5", text = "Unchanged Continue to Soon at depth 2 writes nothing and leaves the buffer unmodified (I2′); \"already at End\" for the last entry; (after 0) reopens the same entry and reports it; Later in a 2-entry queue reopens the same entry (§ 5.5, RV-003 F-8)." },
+  { id = "EX-6", text = "Continue's docstring states LABEL, the chooser, the empty/sole/unchanged reports and every refusal, preflight ones included (ISS-001, Continue half)." },
   { id = "EX-7", text = "just gate and just test-each green; mutation pass over the new command guards recorded." },
 ]
 verification = [
-  { id = "VT-1", expects = "Continue with each standard placement on a queue of 8; configured queue chooser order and default; C-u vs plain prompting; Lisp label; unknown label", test_file = "test/org-iw-test.el", keywords = ["Soon", "Later", "Moved A to", "already at Soon", "current-prefix-arg"], waived = false },
-  { id = "VT-2", expects = "Add at a placement, Add prompt default, no-gap Add, existing member with unknown label refuses (F-2)", test_file = "test/org-iw-test.el", keywords = ["Added to ESSAYS at Soon", "org-iw-add"], waived = false },
-  { id = "VT-3", expects = "refuse-before-prompt for C-u Continue (no session, bad config) and C-u Add (bad config) (F-7); small-queue Later (F-8)", test_file = "test/org-iw-test.el", keywords = ["call-interactively #'org-iw-continue", "call-interactively #'org-iw-add"], waived = false },
-  { id = "VA-1", text = "Agent reads both docstrings and the README section against design § 5.2/§ 5.4 and DEC-007..011; checkdoc clean." },
+  { id = "VT-1", expects = "Continue with each standard placement on a queue of 8; configured-queue chooser order and default; C-u vs plain prompting; Lisp label; unknown label", test_file = "test/org-iw-test.el", keywords = ["\"Soon\"", "\"Later\"", "Moved A to Soon", "already at End", "current-prefix-arg"], waived = false },
+  { id = "VT-2", expects = "refuse-before-prompt for C-u Continue (no session, bad config) (F-7); unchanged at depth; depth 0; small-queue Later (F-8)", test_file = "test/org-iw-test.el", keywords = ["call-interactively #'org-iw-continue", "already at Soon", "(after 0)"], waived = false },
+  { id = "VA-1", text = "Agent reads Continue's docstring against design § 5.4 and DEC-011; checkdoc clean." },
+]
+specs        = []
+requirements = []
+
+[[phase]]
+id        = "PHASE-06"
+name      = "Add at a placement, and docs"
+objective = "Give org-iw-add its optional LABEL and the prefix-argument chooser (DEC-011 as amended), resolving the placement before the scan (§ 5.4 Add, RV-003 F-2). Rewrite its docstring. Document placements, vocabulary and the chooser in README.md."
+entrance_criteria = [
+  { id = "EN-1", text = "PHASE-04 completed; just gate green." },
+]
+exit_criteria = [
+  { id = "EX-1", text = "LABEL nil → end with today's message; with LABEL, \"Added to NAME at LABEL, D+1/N+1 STATUS\"; a no-gap Add at a label refuses \"no room at LABEL in NAME; …\" with nothing changed." },
+  { id = "EX-2", text = "The placement is resolved after org-iw--add-target and org-iw--queue-id and before the scan, so an unknown label or bad config refuses even for an existing member; an existing member is still a no-op for any valid label (RV-003 F-2)." },
+  { id = "EX-3", text = "C-u Add reads the queue, canonicalises it, then reads the placement with the queue's default label as default (DEC-011 amended, RV-003 F-5); C-u Add with bad config refuses after the queue prompt, before the placement prompt (RV-003 F-7); plain Add never reads a placement." },
+  { id = "EX-4", text = "C-u Add at Soon places the heading 3rd, one line plus ID/drawer written (I2′)." },
+  { id = "EX-5", text = "Add's docstring states LABEL, the chooser and the new refusals. README documents the placement forms, :placements/:default, org-iw-placements, org-iw-default-placement and C-u on Continue and Add." },
+  { id = "EX-6", text = "just gate and just test-each green; mutation pass over the new guards recorded." },
+]
+verification = [
+  { id = "VT-1", expects = "Add at a placement, its prompt default, no-gap Add, existing member with unknown label refuses (F-2), bad config refuses before the placement prompt (F-7)", test_file = "test/org-iw-test.el", keywords = ["Added to ESSAYS at Soon", "call-interactively #'org-iw-add", "no room at Soon"], waived = false },
+  { id = "VA-1", text = "Agent reads Add's docstring and the README section against design § 5.2/§ 5.4 and DEC-007..011; checkdoc clean." },
 ]
 specs        = []
 requirements = []
@@ -129,7 +150,7 @@ id        = "PHASE-05"
 name      = "Human trial"
 objective = "Run the design § 9 human trial (POL-003) on a Git-committed copy of real notes, and fold any defects back before audit."
 entrance_criteria = [
-  { id = "EN-1", text = "PHASE-04 completed; just gate and just test-each green." },
+  { id = "EN-1", text = "PHASE-06 completed; just gate and just test-each green." },
 ]
 exit_criteria = [
   { id = "EX-1", text = "The user has run trial steps 1–5 of design § 9 and reported the outcome; defects are fixed in this phase (TDD) or recorded as backlog items with the user's agreement." },
