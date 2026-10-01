@@ -427,11 +427,14 @@ it as a duplicate."
 This is the only resolver of IDs.  The marker is in FILE's buffer, at
 the heading, or at `point-min' for a document-level ID.  SCAN is the
 scan that found the entry; refuse with `org-iw-refusal' if it excluded
-ID as a duplicate (in any file), or if ID is not on exactly one ID
+ID as a duplicate (in any file), if FILE's buffer is not in Org mode
+\(a mode derived from it counts), or if ID is not on exactly one ID
 property line in FILE, which catches copies the scan cannot know of."
   (when (org-iw-discovery-excluded-id-p scan id)
     (org-iw-discovery--refuse "duplicated, excluded from the queue" id file))
   (with-current-buffer (org-iw-discovery-buffer file)
+    (unless (derived-mode-p 'org-mode)
+      (org-iw-discovery--refuse "buffer not in Org mode" id file))
     (pcase (org-iw-discovery--id-positions id)
       ('() (org-iw-discovery--refuse "not found" id file))
       (`(,position)

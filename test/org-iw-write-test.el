@@ -301,6 +301,17 @@ The indirect buffer is made by `make-indirect-buffer' (via
                               (org-iw-test-marker "a.org" "Target")
                               "ESSAYS" :expected 2048))))))
 
+(ert-deftest org-iw-write-test-refuses-read-only-buffer ()
+  "A read-only base buffer refuses (RV-002 F-1); nothing is written.
+`org-entry-put' would otherwise write through `org-no-read-only'."
+  (org-iw-test-with-corpus `(("a.org" . ,org-iw-write-test--target))
+    (let ((marker (org-iw-test-marker "a.org" "Target")))
+      (with-current-buffer (org-iw-test-base marker)
+        (setq buffer-read-only t))
+      (should (string-search "buffer is read-only"
+                             (org-iw-write-test--should-refuse
+                              marker "ESSAYS" :expected 2048))))))
+
 (ert-deftest org-iw-write-test-writes-through-indirect-buffer ()
   "From a narrowed indirect buffer the edit lands in the base and saves.
 The indirect buffer's narrowing, excluding the target, is kept.

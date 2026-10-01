@@ -257,6 +257,15 @@ QUEUE.  Return the refusal message."
                            (org-iw-cmd-test--refuses
                             "* H\n" queue "invalid queue ID" "H")))))
 
+(ert-deftest org-iw-cmd-test-add-refuses-read-only-buffer ()
+  "Add refuses in a read-only buffer, even `view-mode' (RV-002 F-1)."
+  (dolist (mode '(read-only-mode view-mode))
+    (org-iw-test-with-corpus org-iw-cmd-test--corpus
+      (let ((marker (org-iw-test-marker "a.org" "Target")))
+        (with-current-buffer (marker-buffer marker)
+          (funcall mode 1))
+        (org-iw-cmd-test--should-refuse marker "ESSAYS" "buffer is read-only")))))
+
 (defconst org-iw-cmd-test--malformed
   (org-iw-test-org "* H" "Body." ":PROPERTIES:" ":ID: h1" ":END:")
   "A heading H whose drawer follows body text, so Org ignores it.")
@@ -713,6 +722,15 @@ The refusal must be an `org-iw-refusal'.  Return its message."
       (should (equal (length org-iw-cmd-test--prompts) 1)))
     (should (equal (org-iw--session-queue org-iw--session) "DRAFTS"))))
 
+(ert-deftest org-iw-cmd-test-visit-next-refuses-non-org-buffer ()
+  "A queue whose head is in a non-Org buffer is refused; no session (F-3)."
+  (org-iw-test-with-corpus `(("a.txt" . ,org-iw-cmd-test--member))
+    (let ((org-iw-sources (list (org-iw-test-path "a.txt"))))
+      (org-iw-cmd-test--open-all)
+      (org-iw-cmd-test--should-refuse-cleanly
+       "buffer not in Org mode" (lambda () (org-iw-visit-next "ESSAYS")))
+      (should-not org-iw--session))))
+
 (ert-deftest org-iw-cmd-test-visit-next-refuses-invalid-queue ()
   "A typed queue ID that is not valid is refused; nothing changes."
   (org-iw-test-with-corpus org-iw-cmd-test--queue
@@ -962,6 +980,17 @@ B and C are re-ranked before A in b.org's unsaved buffer."
     (org-iw-visit-next "ESSAYS")
     (org-iw-cmd-test--should-refuse-cleanly
      "rank limit; redistribution needed" #'org-iw-continue)))
+
+(ert-deftest org-iw-cmd-test-continue-refuses-read-only-buffer ()
+  "Continue refuses when the session entry's buffer is read-only (RV-002 F-1).
+Nothing is written or visited, and the session is unchanged."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (org-iw-cmd-test--open-all)
+    (org-iw-visit-next "ESSAYS")
+    (with-current-buffer (org-iw-test-visit "a.org")
+      (read-only-mode 1))
+    (org-iw-cmd-test--should-refuse-cleanly "buffer is read-only"
+                                            #'org-iw-continue)))
 
 (ert-deftest org-iw-cmd-test-continue-propagates-write-refusal ()
   "A refusal from the write, here a file changed on disk, is passed on.

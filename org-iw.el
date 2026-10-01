@@ -47,7 +47,8 @@
 (defcustom org-iw-sources nil
   "Files and directories whose Org entries may belong to queues.
 
-A file is used as is.  A directory is searched recursively for
+A file is used as is, but is refused when its buffer is not in
+Org mode.  A directory is searched recursively for
 files named *.org, with these rules:
 
 - Below a listed directory, hidden directories (names starting

@@ -488,6 +488,34 @@ For PHASE-08 (human trial):
 - Gate: `just lint` clean; `just test-all` 147/147 on 31.1 and 30.2;
   `just test-each` 147 pass alone.
 
+### R3 — two new refusals (user rulings 2026-10-01)
+
+- F-1: `org-iw-write--preflight` refuses a read-only base buffer, after the
+  `file-writable-p` check: "FILE: buffer is read-only". `org-entry-put` ran
+  under `org-no-read-only`, so put-rank, Add and Continue wrote through
+  `buffer-read-only`, `read-only-mode` and `view-mode`. Tests:
+  `org-iw-write-test-refuses-read-only-buffer`,
+  `org-iw-cmd-test-add-refuses-read-only-buffer` (both modes),
+  `org-iw-cmd-test-continue-refuses-read-only-buffer`. Red: put-rank
+  returned `saved` ("did not signal an error"); the command tests failed the
+  same way. After the Continue refusal the session and visit state are
+  unchanged (asserted by `--should-refuse-cleanly`), as for the other
+  Continue refusals.
+- F-3: `org-iw-discovery-resolve` refuses, inside the file's buffer and before
+  the ID lookup, when `(derived-mode-p 'org-mode)` is nil: "ID ID in FILE:
+  buffer not in Org mode". Tests:
+  `org-iw-discovery-test-resolve-refuses-non-org-buffer`,
+  `-resolve-accepts-derived-org-mode` (already green; guards the rule's
+  breadth), `org-iw-cmd-test-visit-next-refuses-non-org-buffer`. Red: a
+  `*Warnings*` buffer appeared (`org-element-at-point` in `text-mode`) and
+  visit-next returned "IW ESSAYS 1/1: Member". `org-iw-sources` docstring
+  gains the rule.
+- Observed, NOT fixed (outside the ruling): Add at a `text-mode` buffer of a
+  listed source file still runs Org calls there. It raises 13
+  `org-element-at-point` warnings and then a raw
+  `(error "Calling `org-fold-core-region' with missing SPEC")`, not a
+  refusal. Escalate.
+
 ## Design deltas for /reconcile
 
 - § 5.2 `org-iw-core-append-rank` takes `(ORDERED QUEUE)`, not `(ORDERED)`
@@ -560,6 +588,9 @@ For PHASE-08 (human trial):
 - § 5.2 core classify table (RV-002 F-15, user ruling 2026-10-01): a new row `IW_<valid id>+` -> `(accumulate . ID)` before the `invalid` row. `IW_AFTER_…+` stays `reserved`, and `IW_<anything else>+` stays `invalid`. § 5.4 step 4's accumulate rule is now core's classification. `org-iw-discovery--line-class` is gone.
 - § 4 / § 5.2 write preflight / § 5.4 Add step 4 (RV-002 F-2, user ruling 2026-10-01): the second-drawer guard is in write preflight, after the compare-and-set. put-rank refuses "FILE: entry has a property drawer Org doesn't recognise" for every caller, and step 4 leaves Add's list. Consequences: Add's message names the file and comes after the rank-limit refusal (step 7). Steps 5 and 6 cannot precede it.
 - § 5.1 / § 5.2 discovery / § 5.4 Add (RV-002 F-11 and logged delta G10, user ruling 2026-10-01): discovery's public API gains `org-iw-discovery-entry-id`, `-queue-lines QUEUE`, `-excluded-id-p SCAN ID`, `-problem-types SCAN ID` (symbols), `-shared-id-p SCAN ID FILE` and `-unrecognised-drawer-p`. They share one problem-by-ID filter, `org-iw-discovery--id-problems`. Add steps 5 and 6 read through them, and § 5.4 step 4's "Write preflight and Add step 4 use it" now reads "use it through `org-iw-discovery-queue-lines`". G10 is closed: no file calls another file's `--` private. This supersedes the earlier deltas suggesting promotion (the PHASE-05 "§ 5.2 says `org-iw-write.el` requires …" bullet and the G10 bullet).
+
+- § 5.2 write preflight (RV-002 F-1, user ruling 2026-10-01): gains "base buffer read-only" -> "FILE: buffer is read-only", after the writability check. It applies to every caller, so Add and Continue refuse in `read-only-mode` and `view-mode` too.
+- § 5.2 / § 5.4 resolve (RV-002 F-3, user ruling 2026-10-01): `org-iw-discovery-resolve` refuses an entry whose visiting buffer is not `derived-mode-p` `org-mode`: "ID ID in FILE: buffer not in Org mode". The "a file is used as is" wording in design § 5.2 and in the `org-iw-sources` docstring needs the rule (the docstring is updated).
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->

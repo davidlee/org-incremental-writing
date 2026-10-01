@@ -698,6 +698,42 @@ excluded the ID; only `org-iw-discovery-id-count' can see the copy."
       (org-iw-discovery-test--refuse "not found" scan "m1" "a.org")
       (should (org-iw-discovery-resolve scan "A1" (org-iw-test-path "a.org"))))))
 
+(defun org-iw-discovery-test--resolve-txt (mode)
+  "Resolve m1 in a visited a.txt, a listed source, set to MODE if non-nil.
+Return the `*Warnings*' buffer's presence and the resolve outcome as
+\(WARNED . RESULT): the marker, or the refusal's message."
+  (org-iw-test-with-corpus `(("a.txt" . ,org-iw-discovery-test--member))
+    (let ((org-iw-sources (list (org-iw-test-path "a.txt"))))
+      (when (get-buffer "*Warnings*")
+        (kill-buffer "*Warnings*"))
+      (when mode
+        (with-current-buffer (org-iw-test-visit "a.txt")
+          (funcall mode)))
+      (let* ((scan (org-iw-discovery-test--scan))
+             (result (condition-case err
+                         (org-iw-discovery-resolve
+                          scan "m1" (org-iw-test-path "a.txt"))
+                       (org-iw-refusal (error-message-string err)))))
+        (cons (and (get-buffer "*Warnings*") t) result)))))
+
+(ert-deftest org-iw-discovery-test-resolve-refuses-non-org-buffer ()
+  "A visiting buffer not in Org mode is refused, naming the file (F-3).
+No Org function runs there, so no warning is raised."
+  (let ((outcome (org-iw-discovery-test--resolve-txt nil)))
+    (should-not (car outcome))
+    (should (string-search "buffer not in Org mode" (cdr outcome)))
+    (should (string-search "a.txt" (cdr outcome)))))
+
+(define-derived-mode org-iw-discovery-test--derived-mode org-mode "Derived"
+  "An Org-derived mode, for `org-iw-discovery-test-resolve-derived-mode'.")
+
+(ert-deftest org-iw-discovery-test-resolve-accepts-derived-org-mode ()
+  "A mode derived from Org mode resolves as Org mode does (F-3)."
+  (let ((outcome (org-iw-discovery-test--resolve-txt
+                  #'org-iw-discovery-test--derived-mode)))
+    (should-not (car outcome))
+    (should (markerp (cdr outcome)))))
+
 (ert-deftest org-iw-discovery-test-resolve-scan-excluded-duplicate ()
   "Resolve refuses an ID the scan excluded as a duplicate, in either file."
   (dolist (copy `(("no memberships" . ,(org-iw-test-heading
