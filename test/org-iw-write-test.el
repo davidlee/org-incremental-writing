@@ -214,6 +214,17 @@ EXPECTED refuses there too, at the compare: Org sees no rank."
             (should (string-search "property drawer Org doesn't recognise"
                                    reason))))))))
 
+(ert-deftest org-iw-write-test-refuses-lowercase-unrecognised-drawer ()
+  "A lowercase :properties: line after body text is caught, like uppercase.
+Org's property drawer must directly follow the heading, so it sees none."
+  (let ((text (org-iw-test-org "* H" "body" ":properties:" ":ID: x1" ":END:")))
+    (org-iw-test-with-corpus `(("a.org" . ,text))
+      (should (string-search
+               "property drawer Org doesn't recognise"
+               (org-iw-write-test--should-refuse
+                (org-iw-test-marker "a.org" "H") "ESSAYS"
+                :expected :absent))))))
+
 (ert-deftest org-iw-write-test-queue-is-checked ()
   "QUEUE must be a canonical queue ID; anything else is an error.
 The error comes before anything changes."
@@ -311,6 +322,22 @@ The indirect buffer is made by `make-indirect-buffer' (via
       (should (string-search "buffer is read-only"
                              (org-iw-write-test--should-refuse
                               marker "ESSAYS" :expected 2048))))))
+
+(ert-deftest org-iw-write-test-refuses-read-only-base-through-indirect ()
+  "A read-only base refuses from a writable indirect buffer (RV-002 F-1).
+The check is on the base buffer, not the one holding the marker."
+  (org-iw-test-with-corpus `(("a.org" . ,org-iw-write-test--target))
+    (let ((marker (org-iw-test-marker "a.org" "Target")))
+      (with-current-buffer (org-iw-test-base marker)
+        (setq buffer-read-only t))
+      (org-iw-test-call-with-indirect
+       marker
+       (lambda (indirect-marker)
+         (setq buffer-read-only nil)
+         (should (string-search "buffer is read-only"
+                                (org-iw-write-test--should-refuse
+                                 indirect-marker "ESSAYS"
+                                 :expected 2048))))))))
 
 (ert-deftest org-iw-write-test-writes-through-indirect-buffer ()
   "From a narrowed indirect buffer the edit lands in the base and saves.

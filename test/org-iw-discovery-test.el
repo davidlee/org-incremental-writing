@@ -805,5 +805,31 @@ The marker is in the base buffer, whatever buffer is current."
         (narrow-to-region (point-min) (line-end-position))
         (should (org-iw-discovery-resolve scan "m1" file))))))
 
+(ert-deftest org-iw-discovery-test-duplicate-excludes-only-its-own-id ()
+  "A duplicate-id problem on one ID does not touch another ID (RV-002 F-11)."
+  (org-iw-test-with-corpus
+      `(("a.org" . ,(concat (org-iw-test-heading "A" "x1" ":IW_ESSAYS: 1")
+                            (org-iw-test-heading "B" "x1" ":IW_NOTES: 2")
+                            (org-iw-test-heading "C" "y1" ":IW_NOTES: 3"))))
+    (let ((scan (org-iw-discovery-test--scan))
+          (file (org-iw-test-path "a.org")))
+      (should (org-iw-discovery-excluded-id-p scan "x1"))
+      (should-not (org-iw-discovery-excluded-id-p scan "y1"))
+      (should-not (org-iw-discovery-problem-types scan "y1"))
+      (should (markerp (org-iw-discovery-resolve scan "y1" file))))))
+
+(ert-deftest org-iw-discovery-test-problem-types-nil-id-is-missing-id ()
+  "An entry without an ID reports (missing-id), not other ID-less problems.
+A misplaced-property problem also has no ID, but is not this entry's."
+  (org-iw-test-with-corpus
+      `(("body.org" . ,(org-iw-test-org
+                        "* H" "Body text." ":PROPERTIES:" ":ID: b1"
+                        ":IW_ESSAYS: 2" ":END:")))
+    (let ((scan (org-iw-discovery-test--scan)))
+      (should (equal (org-iw-discovery-test--problems scan)
+                     '((misplaced-property "body.org" nil))))
+      (should (equal (org-iw-discovery-problem-types scan nil)
+                     '(missing-id))))))
+
 (provide 'org-iw-discovery-test)
 ;;; org-iw-discovery-test.el ends here

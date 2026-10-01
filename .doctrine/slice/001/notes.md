@@ -516,6 +516,16 @@ For PHASE-08 (human trial):
   `(error "Calling `org-fold-core-region' with missing SPEC")`, not a
   refusal. Escalate.
 
+### R4 — mutation re-run gaps (test-only)
+
+- Four tests kill the surviving mutants, each green at HEAD and red under its
+  mutant: NF1b `org-iw-write-test-refuses-read-only-base-through-indirect`;
+  NF2d `org-iw-write-test-refuses-lowercase-unrecognised-drawer` (Org only
+  sees a drawer directly after the heading, so a lowercase one after body text
+  is unrecognised: not equivalent); NID1
+  `org-iw-discovery-test-duplicate-excludes-only-its-own-id`; NID2
+  `org-iw-discovery-test-problem-types-nil-id-is-missing-id`. No production change.
+
 ## Design deltas for /reconcile
 
 - § 5.2 `org-iw-core-append-rank` takes `(ORDERED QUEUE)`, not `(ORDERED)`
