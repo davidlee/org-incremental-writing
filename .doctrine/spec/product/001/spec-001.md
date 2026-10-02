@@ -217,6 +217,9 @@ is a standing gate.
 - OQ-3 — Default placement depths for the standard Soon / Later / End
   vocabulary (brief suggests after-2, halfway, tail). Confirm before the
   session slice.
+  **Settled** by DEC-009 (2026-10-01), implemented by SL-002: Soon
+  `(after 2)`, Later `(fraction 1 2)`, End `end`, in that chooser order;
+  default End. Revisit the default once SL-006 lands.
 - OQ-4 — How the session context is displayed (mode-line lighter, header
   line, or echo only) and whether it persists across Emacs restarts. The
   brief requires visibility, not persistence.

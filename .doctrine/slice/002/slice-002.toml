@@ -38,6 +38,11 @@ intent = "design-target"
 selector = "README.md"
 intent = "design-target"
 
+[[selector]]
+selector = "org-iw-write.el"
+intent = "design-target"
+note = "docstring cites rank-at (RV-004 F-17)"
+
 [[relation]]
 label = "governed_by"
 target = "ADR-001"

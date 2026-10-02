@@ -39,7 +39,7 @@ changes (research.md, Thread 2):
   longer in queue"). REQ-015 asks for "empty".
 
 Discovery (`org-iw-discovery.el`) and the write path (`org-iw-write.el`)
-need no change: `org-iw-write-put-rank` already writes any valid rank with
+need no behavioural change: `org-iw-write-put-rank` already writes any valid rank with
 a compare-and-set on the scanned value.
 
 <!-- doctrine:section sec-03-forces -->
@@ -106,7 +106,8 @@ Verified facts this design relies on (research.md):
 ### 5.1 System Model
 
 The layering is SL-001's. SL-002 changes only the core and the command
-layer; discovery and write are untouched.
+layer; discovery and write have no behavioural change (one docstring in
+write, § 10).
 
 ```mermaid
 flowchart TB
@@ -240,7 +241,8 @@ placements from config)
 (org-iw--read-placement QUEUE)
 ;; completing-read "Placement: " over the labels, REQUIRE-MATCH t, in
 ;; configured order (a completion table whose metadata sets
-;; display-sort-function to identity), default the default label.
+;; display-sort-function and cycle-sort-function to identity), default
+;; the default label.
 ;; → the label.  Add's prompt uses it too, so its default is the queue's
 ;; default label, while Add without a prefix argument always appends
 ;; (DEC-011 as amended, RV-003 F-5).  It resolves the vocabulary before
@@ -472,8 +474,11 @@ Local choices:
 - **Chooser order under completion UIs.** Some frameworks re-sort
   candidates. icomplete, fido and vertico also move the default to the top
   (RV-003 F-1, checked in `icomplete--sorted-completions`, Emacs 31.1).
-  - The table's metadata sets `display-sort-function` to `identity`, so
-    the other labels keep configured order.
+  - The table's metadata sets `display-sort-function` and
+    `cycle-sort-function` to `identity`, so the other labels keep
+    configured order. icomplete and fido sort through
+    `cycle-sort-function` in `completion-all-sorted-completions`, so the
+    display key alone is not enough (RV-004 F-18).
   - Showing the default first is accepted (user ruling, DEC-011).
   - The trial checks it with the user's own completion UI.
 - **Prompts in batch tests block** (mem.fact.emacs.batch-test-gotchas).
@@ -614,5 +619,6 @@ every new guard or refusal is killed or its survivor justified.
 | `org-iw.el` | `org-iw--queue-config` generalises the reader behind `org-iw--configured-name`; add `org-iw--placement-type`, `org-iw-placements`, `org-iw-default-placement`, the `:placements`/`:default` options of `org-iw-queues`, and the vocabulary helpers; Continue and Add take LABEL; `org-iw--put-rank`, `org-iw--refuse-no-room` and `org-iw--session-or-refuse` replace `org-iw--move-to-end` and `org-iw--append-rank` |
 | `test/org-iw-core-test.el` | placement, allocation and property tests; append-rank tests removed |
 | `test/org-iw-test.el` | Continue, chooser, vocabulary and Add-at-placement tests; existing expectations change with the messages: "Moved A to end …", "… already at end", and "rank limit; redistribution needed" become the § 5.4 forms and `org-iw--refuse-no-room` (RV-003 F-9); the existing recorder `org-iw-cmd-test--with-prompt` extended to answer several prompts in turn and record each default and display order (POL-002: no second recorder) |
+| `org-iw-write.el` | docstring cites `org-iw-core-rank-at` instead of the deleted `append-rank` (POL-002); no behavioural change |
 | `README.md` | document placements, vocabulary configuration and the prefix chooser |
 

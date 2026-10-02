@@ -113,7 +113,7 @@ No keys are bound. Suggested bindings:
 
 | Command | Does |
 |---|---|
-| `org-iw-add` | Add the heading at point to the end of a queue; with `C-u`, at a chosen placement. |
+| `org-iw-add` | Add the heading at point to the end of a queue, whatever its default; with `C-u`, choose the placement, defaulting to the queue's default. |
 | `org-iw-visit-next` | Show the first entry of a queue and start a session on it. |
 | `org-iw-continue` | Put the session's entry back at the queue's default placement and visit the first entry; with `C-u`, choose the placement. |
 | `org-iw-end-session` | End the session and remove it from the mode line. |
@@ -122,22 +122,23 @@ A typical round:
 
 1. On a heading you want to come back to, run `org-iw-add` and pick or type
    a queue. The heading gets an `:ID:` (if it had none) and an
-   `:IW_ESSAYS: 1024`-style property, and the file is saved.
+   `:IW_ESSAYS: 1024`-style property, and the file is saved. A heading
+   already in the queue is left alone.
 2. When you feel like working, run `org-iw-visit-next`. It shows the first
    entry, and the mode line shows `IW[Essays: Title]`. Visiting changes
    nothing; visiting again shows the same entry.
 3. Work on the entry and save as usual.
 4. Run `org-iw-continue`. The entry goes back at the default placement,
-   which changes exactly one `IW_` line, and the first entry is shown.
+   which changes at most one `IW_` line, and the first entry is shown.
    Run `C-u M-x org-iw-continue` to pick Soon, Later or End instead.
 5. Repeat step 4, or run `org-iw-end-session` when done.
 
 With a session running, `org-iw-visit-next` reuses its queue; give it a
 prefix argument (`C-u`) to choose another.
 
-An entry already at its placement is not written. In a small queue that
-can mean Continue reopens the same entry: with two entries, Later is the
-front.
+An entry already at its placement, or the only entry in its queue, is
+not written. In a small queue that can mean Continue reopens the same
+entry: with two entries, Later is the front.
 
 The chooser lists the labels in configured order. Completion UIs that
 float the default to the top (icomplete, fido, vertico) show it first;

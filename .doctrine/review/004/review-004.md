@@ -124,3 +124,33 @@ modelling reviewer swept POL-002. Reviewer scratch is under
 - **F-19, PRD-001 OQ-3.** REV modify: mark it settled by DEC-009 — Soon
   `(after 2)`, Later `(fraction 1 2)`, End `end`, in that chooser order,
   default End — and implemented by SL-002.
+
+## Reconciliation Outcome
+
+User agreed to all brief items in session (2026-10-01, "agreed").
+
+### Direct edits applied
+- Selector registry: `org-iw-write.el` added to SL-002 as `design-target`;
+  `slice conformance` now lists it conformant, with no code paths left
+  undeclared or undelivered (F-17).
+- design.md § 2, § 5.1: "need no change" / "untouched" qualified as "no
+  behavioural change"; § 10 gains the `org-iw-write.el` docstring row (F-17).
+- design.md § 5.2, § 8: the chooser's metadata names both
+  `display-sort-function` and `cycle-sort-function`, with the icomplete/fido
+  reason (F-18).
+- README.md (user request at reconcile, beyond the brief): plain Add appends
+  whatever the queue's default, and `C-u` Add defaults to it; a heading
+  already in a queue is left alone; the typical round says Continue changes
+  "at most one" `IW_` line (the claim F-11 fixed in the other section); the
+  only entry in a queue is not written.
+
+### REVs completed
+- REV-003 (`reconcile-sl-002`): done — PRD-001 § 8 OQ-3 annotated as
+  settled by DEC-009, implemented by SL-002 (F-19). Rationale in
+  revision-003.md.
+
+### Withdrawn / tolerated
+- F-13, F-14, F-16: tolerated; rationale in the finding dispositions.
+- F-15: follow-up, folded into IMP-004.
+
+Reconcile pass complete — handoff to /close.

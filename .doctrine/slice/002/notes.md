@@ -160,7 +160,7 @@ Emacs; test-each green. Scratch: /home/scratch/sl-002/audit/.
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: 2026-10-01 · audit · 2d51c8f
+fresh-as-of: 2026-10-03 · close · 362c73c
 
 ### Produced
 - design.md locked (run dr-01a0f578, rev 36); research/research.md; slice scope updated
@@ -168,6 +168,7 @@ fresh-as-of: 2026-10-01 · audit · 2d51c8f
 - selectors: org-iw-core.el, org-iw.el, test/org-iw-core-test.el, test/org-iw-test.el, README.md
 - plan.toml / plan.md — PHASE-01..06; phase sheets materialised
 - RV-004 — audit, 19 findings; fixes 0341dd7; brief → /reconcile (F-17 selector, F-18 design § 5.2/§ 8, F-19 PRD-001 OQ-3)
+- reconcile: selector org-iw-write.el (F-17); design § 2/§ 5.1/§ 5.2/§ 8/§ 10 (F-17, F-18); README wording; REV-003 done (F-19); RV-004 Reconciliation Outcome
 
 ### Learned
 - EVD-002 — repeated fixed placement exhausts its gap in ~11 Continues
@@ -179,7 +180,7 @@ fresh-as-of: 2026-10-01 · audit · 2d51c8f
 ### Open
 - DEC-007 — placement forms (after / fraction / percent / end)
 - DEC-008 — :placements / :default config; global defcustoms
-- DEC-009 — standard Soon/Later/End, default End; settles PRD-001 OQ-3 (PRD text updated at reconcile)
+- DEC-009 — standard Soon/Later/End, default End; settles PRD-001 OQ-3 (PRD-001 annotated by REV-003)
 - DEC-010 — spacing stays 1024
 - DEC-011 — prefix + completing-read surface (amended per RV-003 F-1, F-5)
 - ISS-001 — Continue half fixed at audit (RV-004 F-5); put-rank half stays open
