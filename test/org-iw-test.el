@@ -119,10 +119,53 @@ never prompts.  Each call is recorded, in order, in
 ;;;; Private helpers
 
 (defun org-iw-cmd-test--no-room (where)
-  "Return the refusal when ESSAYS has no rank left at WHERE."
-  (format (concat "no room at %s in ESSAYS; redistribution is not yet"
-                  " available — choose another placement")
-          where))
+  "Return the refusal when ESSAYS has no rank left WHERE.
+WHERE carries its preposition, as in \"at the end\"."
+  (concat "no room " where " in ESSAYS; redistribution is not yet available"))
+
+(defun org-iw-cmd-test--refusal (fn)
+  "Call FN, assert it refuses, and return the refusal message."
+  (cadr (should-error (funcall fn) :type 'org-iw-refusal)))
+
+(ert-deftest org-iw-cmd-test-refuse-no-room ()
+  "No room is refused naming where and the queue, with no advice."
+  (should (equal (org-iw-cmd-test--no-room "at the end")
+                 (concat "no room at the end in ESSAYS; redistribution is"
+                         " not yet available")))
+  (dolist (where '("at the end" "at Second"))
+    (should (equal (org-iw-cmd-test--refusal
+                    (lambda () (org-iw--refuse-no-room where "ESSAYS")))
+                   (org-iw-cmd-test--no-room where)))))
+
+(ert-deftest org-iw-cmd-test-refuse-absent ()
+  "An absent entry is refused as duplicated or as gone, naming no act.
+The queue is shown by its configured name."
+  (org-iw-test-with-corpus
+      `(("a.org" . ,(concat (org-iw-test-heading "A" "a1" ":IW_ESSAYS: 1")
+                            (org-iw-test-heading "Copy" "a1"))))
+    (let ((org-iw-queues '(("essays" :name "Essays")))
+          (scan (org-iw--scan)))
+      (should (equal (org-iw-cmd-test--refusal
+                      (lambda ()
+                        (org-iw--refuse-absent scan "ESSAYS" "a1" "A")))
+                     "ID a1 is duplicated; A is excluded from queue Essays"))
+      (should (equal (org-iw-cmd-test--refusal
+                      (lambda ()
+                        (org-iw--refuse-absent scan "ESSAYS" "b1" "B")))
+                     "B is no longer in queue Essays")))))
+
+(ert-deftest org-iw-cmd-test-find-entry ()
+  "An entry is found by ID, and by file too when one is given; else nil."
+  (let* ((a (org-iw-entry-create :id "x1" :file "/a.org"))
+         (b (org-iw-entry-create :id "x1" :file "/b.org"))
+         (c (org-iw-entry-create :id "c1" :file "/a.org"))
+         (entries (list c a b)))
+    (should (eq (org-iw--find-entry entries "x1") a))
+    (should (eq (org-iw--find-entry entries "c1") c))
+    (should (eq (org-iw--find-entry entries "x1" "/b.org") b))
+    (should-not (org-iw--find-entry entries "c1" "/b.org"))
+    (should-not (org-iw--find-entry entries "zz"))
+    (should-not (org-iw--find-entry nil "x1"))))
 
 (ert-deftest org-iw-cmd-test-files-honour-exclude-regexp ()
   "A file matching `org-iw-exclude-regexp' is not a source file."
@@ -523,7 +566,7 @@ Nothing changes and no Org parsing runs, so no warnings appear."
   (org-iw-cmd-test--refuses
    (concat (org-iw-test-heading "Last" "l1" ":IW_ESSAYS: 9007199254740991")
            (org-iw-test-heading "H" "h1"))
-   "ESSAYS" (org-iw-cmd-test--no-room "the end") "H"))
+   "ESSAYS" (org-iw-cmd-test--no-room "at the end") "H"))
 
 (ert-deftest org-iw-cmd-test-add-refusal-order ()
   "When two refusals apply, the earlier in the design's order wins."
@@ -552,6 +595,37 @@ Nothing changes and no Org parsing runs, so no warnings appear."
                                (cadr (should-error
                                       (call-interactively #'org-iw-add)
                                       :type 'org-iw-refusal))))))))
+
+;;;; Target at point
+
+(defun org-iw-cmd-test--narrow-to-line (text)
+  "Narrow the current buffer to the line holding TEXT, point on it."
+  (goto-char (point-min))
+  (search-forward text)
+  (narrow-to-region (line-beginning-position) (line-end-position)))
+
+(ert-deftest org-iw-cmd-test-target-at-point-document ()
+  "Before the first heading the target is the document: the wide start.
+Narrowing to the second line of the preamble does not move it."
+  (org-iw-test-with-corpus
+      `(("a.org" . ,(org-iw-test-org "#+title: T" "Intro." "* H")))
+    (with-current-buffer (org-iw-test-visit "a.org")
+      (org-iw-cmd-test--narrow-to-line "Intro.")
+      (let ((target (org-iw--target-at-point)))
+        (should (eq (marker-buffer target) (current-buffer)))
+        (should (= target 1))
+        (should (org-with-point-at target (org-before-first-heading-p)))))))
+
+(ert-deftest org-iw-cmd-test-add-first-line-heading ()
+  "A heading on the first line is a heading, not the document: Add adds it.
+Point is in its body, narrowed to that line."
+  (let ((text (org-iw-test-org "* H" "Body.")))
+    (org-iw-test-with-corpus `(("a.org" . ,text))
+      (with-current-buffer (org-iw-test-visit "a.org")
+        (org-iw-cmd-test--narrow-to-line "Body.")
+        (should (equal (org-iw-add "ESSAYS") "Added to ESSAYS at 1/1 (saved)")))
+      (org-iw-test-should-add-drawer text (org-iw-test-marker "a.org" "H")
+                                     "* H"))))
 
 ;;;; Add: shared IDs (EX-3, RV-001 F-2)
 
@@ -688,7 +762,9 @@ Invalid configured IDs are dropped; a new queue may be typed."
       (let ((org-iw-queues '(("essays" :name "Essays") ("Ideas" :name "Ideas")
                              ("bad_id" :name "Bad"))))
         (org-iw-cmd-test--with-prompt "new-queue"
-          (should (equal (org-iw--read-queue (org-iw--scan)) "new-queue"))
+          (should (equal (org-iw--read-queue
+                          (org-iw--known-queues (org-iw--scan)))
+                         "new-queue"))
           (pcase-let* ((`(,call) org-iw-cmd-test--prompts)
                        (annotate (plist-get call :annotate)))
             (should (equal (plist-get call :collection)
@@ -696,6 +772,19 @@ Invalid configured IDs are dropped; a new queue may be typed."
             (should-not (plist-get call :require-match))
             (should (string-search "Essays" (funcall annotate "ESSAYS")))
             (should-not (funcall annotate "DRAFTS"))))))))
+
+(ert-deftest org-iw-cmd-test-read-queue-require-match ()
+  "The queue prompt offers the queues given, requiring a match on request."
+  (let ((org-iw-queues '(("essays" :name "Essays"))))
+    (org-iw-cmd-test--with-prompt "ESSAYS"
+      (should (equal (org-iw--read-queue '("ESSAYS" "DRAFTS") t) "ESSAYS"))
+      (pcase-let ((`(,call) org-iw-cmd-test--prompts))
+        (should (equal (plist-get call :prompt) "Queue: "))
+        (should (equal (plist-get call :collection) '("ESSAYS" "DRAFTS")))
+        (should (eq (plist-get call :require-match) t))
+        (should (string-search "Essays"
+                               (funcall (plist-get call :annotate)
+                                        "ESSAYS")))))))
 
 (ert-deftest org-iw-cmd-test-add-interactively ()
   "Called interactively, Add prompts for the queue and adds the heading."
@@ -1000,7 +1089,7 @@ The placement prompt defaults to the queue's default, not to the end."
                                (org-iw-cmd-test--add "a.org" "H" "ESSAYS"
                                                      "Second")
                                :type 'org-iw-refusal))))
-                     (org-iw-cmd-test--no-room "Second"))))))
+                     (org-iw-cmd-test--no-room "at Second"))))))
 
 ;;;; Visit next (EX-2, VT-1, I1)
 
@@ -1340,7 +1429,7 @@ Nothing is written: a.org's buffer and every file are unchanged."
       (insert (org-iw-test-heading "Copy" "a1")))
     (should (equal (org-iw-cmd-test--should-refuse-cleanly
                     "duplicated" #'org-iw-continue)
-                   "ID a1 is duplicated; A not moved"))))
+                   "ID a1 is duplicated; A is excluded from queue ESSAYS"))))
 
 (ert-deftest org-iw-cmd-test-continue-only-entry ()
   "The only entry in a queue is left in place and stays the session's."
@@ -1386,7 +1475,7 @@ B and C are re-ranked before A in b.org's unsaved buffer."
     (org-iw-visit-next "ESSAYS")
     (should (equal (org-iw-cmd-test--should-refuse-cleanly
                     "no room at End" #'org-iw-continue)
-                   (org-iw-cmd-test--no-room "End")))))
+                   (org-iw-cmd-test--no-room "at End")))))
 
 (ert-deftest org-iw-cmd-test-continue-refuses-without-gap ()
   "Between neighbours ranked 5 and 6 there is no room: nothing changes (I9)."
@@ -1399,7 +1488,7 @@ B and C are re-ranked before A in b.org's unsaved buffer."
       (org-iw-visit-next "ESSAYS")
       (should (equal (org-iw-cmd-test--should-refuse-cleanly
                       "no room" #'org-iw-continue)
-                     (org-iw-cmd-test--no-room "Second"))))))
+                     (org-iw-cmd-test--no-room "at Second"))))))
 
 (ert-deftest org-iw-cmd-test-continue-refuses-read-only-buffer ()
   "Continue refuses when the session entry's buffer is read-only (RV-002 F-1).
@@ -1422,6 +1511,69 @@ Nothing is written or visited, and the session is unchanged."
                                                 "* Added outside\n"))
     (org-iw-cmd-test--should-refuse-cleanly "changed on disk"
                                             #'org-iw-continue)))
+
+;;;; Moving a member
+
+(defun org-iw-cmd-test--move (scan id placement where)
+  "Move entry ID of ESSAYS in SCAN to PLACEMENT, WHERE its text.
+Return the result of `org-iw--move'."
+  (org-iw--move scan (org-iw--order scan "ESSAYS")
+                (org-iw-cmd-test--entry scan id) "ESSAYS" placement where))
+
+(ert-deftest org-iw-cmd-test-move-writes-rank ()
+  "A move writes one line, the new rank over the scanned one.
+It returns the depth and the save status."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (let ((scan (org-iw--scan)))
+      (should (equal (org-iw-cmd-test--should-move
+                      (lambda ()
+                        (org-iw-cmd-test--move scan "a1" 'end "at End"))
+                      "a.org" 1024 4096)
+                     '(moved 2 saved))))))
+
+(ert-deftest org-iw-cmd-test-move-unchanged-writes-nothing ()
+  "A member already at its placement is not written, not even attempted.
+Its buffer is read-only, which would refuse any write."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (org-iw-cmd-test--open-all)
+    (with-current-buffer (org-iw-test-visit "b.org")
+      (read-only-mode 1))
+    (let ((scan (org-iw--scan)))
+      (should (equal (org-iw-cmd-test--should-write-nothing
+                      (lambda ()
+                        (org-iw-cmd-test--move scan "c1" 'end "at End")))
+                     '(unchanged 2))))))
+
+(ert-deftest org-iw-cmd-test-move-refuses-stale-rank ()
+  "A rank changed since the scan refuses the move; nothing is written."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (org-iw-cmd-test--open-all)
+    (let ((scan (org-iw--scan)))
+      (org-iw-cmd-test--set-rank "a.org" 1024 1500)
+      (should (string-search
+               "IW_ESSAYS changed since scan"
+               (org-iw-cmd-test--should-write-nothing
+                (lambda ()
+                  (org-iw-cmd-test--refusal
+                   (lambda ()
+                     (org-iw-cmd-test--move scan "a1" 'end "at End"))))))))))
+
+(ert-deftest org-iw-cmd-test-move-refuses-without-gap ()
+  "Between neighbours ranked 5 and 6 there is no room; nothing is written."
+  (org-iw-test-with-corpus
+      `(("a.org" . ,(concat (org-iw-test-heading "A" "a1" ":IW_ESSAYS: 1")
+                            (org-iw-test-heading "B" "b1" ":IW_ESSAYS: 5")
+                            (org-iw-test-heading "C" "c1" ":IW_ESSAYS: 6"))))
+    (org-iw-cmd-test--open-all)
+    (let ((scan (org-iw--scan)))
+      (should (equal (org-iw-cmd-test--should-write-nothing
+                      (lambda ()
+                        (org-iw-cmd-test--refusal
+                         (lambda ()
+                           (org-iw-cmd-test--move scan "a1" '(after 1)
+                                                  "at Second")))))
+                     (concat "no room at Second in ESSAYS; redistribution"
+                             " is not yet available"))))))
 
 ;;;; Continue: placements
 

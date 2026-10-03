@@ -155,6 +155,30 @@ text, not positions: a deletion before the region shifts them.
 Mutation pass: 9 mutants, all killed (table in the phase sheet). `just gate`
 green (226 tests, 31.1 and 30.2), `just test-each` 226 alone green.
 
+## PHASE-03 (2026-10-03, execute)
+
+Helpers in org-iw.el, each with a caller: `--target-at-point` (Add;
+document marker at wide `point-min`), Add-owned `--heading-or-refuse`
+(the document refusal, called from Add's interactive spec and body),
+`--find-entry` (`--check-heading` via `cl-position`, Continue),
+`--known-queues`, `--read-queue QUEUES &optional REQUIRE-MATCH`,
+`--read-session-queue` (visit-next), `--refuse-absent SCAN QUEUE ID TITLE`,
+reworded `--refuse-no-room` (WHERE carries "at"), `--move` (WHERE
+required; Continue's placement path). `--put-rank`'s only caller is now
+`--move`. Existing tests changed only at the three planned spots.
+
+Document detection is by context (`org-before-first-heading-p` at the
+marker, widened), not position: a file whose first line is a heading has
+its heading at `point-min` (pinned by `add-first-line-heading`).
+
+`--read-session-queue` lives in the Session section: byte-compile refuses
+a reference to `org-iw--session` before its `defvar`.
+
+Mutation pass: 26 mutants; one survived at first (`--move`'s unchanged arm
+writing the same rank leaves state equal) and was killed by making the
+entry's buffer read-only in the unchanged test. `just gate` green (236
+tests, 31.1 and 30.2), `just test-each` 236 alone green.
+
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
 fresh-as-of: 2026-10-03 · design drafting (run rev 22) · 33c2c87
