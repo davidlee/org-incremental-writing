@@ -129,7 +129,8 @@ exit_criteria = [
 ]
 verification = [
   { id = "VT-1", expects = "source Remove: one line, session eq, hint rule, document, Lisp refusals", test_file = "test/org-iw-test.el", keywords = ["org-iw-remove", "org-iw--delete-rank", "org-iw--session-hint"], waived = false },
-  { id = "VT-2", expects = "Continue Remove: chooser order/default, new head, sole entry, Lisp call on broken vocabulary, absence refusals; reserved label", test_file = "test/org-iw-test.el", keywords = ["org-iw-continue 'remove", "org-iw--read-placement", "org-iw--check-placements"], waived = false },
+  { id = "VT-2", expects = "Continue Remove: chooser order/default, new head, sole entry, Lisp call on broken vocabulary, absence refusals; reserved label", test_file = "test/org-iw-test.el", keywords = ["org-iw-continue 'remove", "org-iw--read-placement", "org-iw--check-placements"], waived = true, waived_reason = "superseded by VT-3: the reserved-label test reaches --check-placements through org-iw--vocabulary (STD-002 item 3)" },
+  { id = "VT-3", expects = "Continue Remove: chooser order/default, new head, sole entry, Lisp call on broken vocabulary, absence refusals; reserved label", test_file = "test/org-iw-test.el", keywords = ["org-iw-continue 'remove", "org-iw--read-placement", "org-iw-cmd-test-vocabulary-reserves-remove"], waived = false },
 ]
 specs        = []
 requirements = []

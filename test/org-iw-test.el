@@ -324,6 +324,29 @@ the refusal."
                                          :type 'org-iw-refusal))
                      message)))))
 
+(ert-deftest org-iw-cmd-test-vocabulary-reserves-remove ()
+  "A label Remove, in any case, refuses, naming the option and the label.
+The label is echoed as configured.  A label merely starting with
+Remove is allowed."
+  (pcase-dolist (`(,options ,placements ,message)
+                 '(((:name "Articles" :placements (("Soon" (after 2))
+                                                   ("remove" end)))
+                    nil
+                    "queue Articles :placements: label \"remove\" is reserved")
+                   (nil (("Soon" end) ("Remove" end))
+                        "org-iw-placements: label \"Remove\" is reserved")
+                   (nil (("REMOVE" end))
+                        "org-iw-placements: label \"REMOVE\" is reserved")))
+    (let ((org-iw-queues (and options (list (cons "articles" options))))
+          (org-iw-placements placements)
+          (org-iw-default-placement "Soon"))
+      (should (equal (cadr (should-error (org-iw--vocabulary "ARTICLES")
+                                         :type 'org-iw-refusal))
+                     message))))
+  (let ((org-iw-placements '(("Removed" end)))
+        (org-iw-default-placement nil))
+    (should (equal (org-iw--vocabulary "OTHER") '("Removed" ("Removed" end))))))
+
 (ert-deftest org-iw-cmd-test-placement ()
   "A label names its placement; nil names the default's; others refuse."
   (let ((org-iw-queues org-iw-cmd-test--queues))
@@ -361,12 +384,25 @@ It requires a match, and keeps the order in both cycling and
       (should (equal (plist-get (car org-iw-cmd-test--prompts) :order)
                      '("Soon" "End"))))))
 
+(ert-deftest org-iw-cmd-test-read-placement-with-remove ()
+  "With Remove the chooser offers it last, never as the default.
+Choosing it returns the symbol remove; a label is returned as is."
+  (let ((org-iw-queues org-iw-cmd-test--queues))
+    (pcase-dolist (`(,answer ,result) '(("Remove" remove) ("Soon" "Soon")))
+      (org-iw-cmd-test--with-prompt answer
+        (should (equal (org-iw--read-placement "ARTICLES" t) result))
+        (pcase-let ((`(,call) org-iw-cmd-test--prompts))
+          (should (equal (plist-get call :order) '("Soon" "End" "Remove")))
+          (should (equal (plist-get call :default) "End"))
+          (should (eq (plist-get call :require-match) t)))))))
+
 (ert-deftest org-iw-cmd-test-read-placement-refuses-before-prompting ()
-  "Bad config refuses before the chooser prompts."
+  "Bad config refuses before the chooser prompts, with Remove or without."
   (let ((org-iw-queues '(("ARTICLES" :placements nil))))
     (org-iw-cmd-test--with-prompt nil
-      (should-error (org-iw--read-placement "ARTICLES")
-                    :type 'org-iw-refusal))))
+      (dolist (with-remove '(nil t))
+        (should-error (org-iw--read-placement "ARTICLES" with-remove)
+                      :type 'org-iw-refusal)))))
 
 ;;;; Add: success (VT-1, I2, I4, I5)
 
@@ -1330,9 +1366,10 @@ The string is kept as a one-element list; repeated cycles add one item."
                   (org-iw-test-file-string file)))
           (org-iw--files)))
 
-(defun org-iw-cmd-test--should-move (fn file from to)
-  "Call FN; assert on disk it changed only FILE's IW_ESSAYS FROM to TO.
-FROM and TO are ranks.  Return FN's value."
+(defun org-iw-cmd-test--should-change-lines (fn file removed added)
+  "Call FN; assert on disk it changed only FILE, lines REMOVED to ADDED.
+REMOVED and ADDED are lists of lines, as `org-iw-test-changed-lines'
+gives them.  Return FN's value."
   (let ((before (org-iw-cmd-test--disks)))
     (prog1 (funcall fn)
       (let ((after (org-iw-cmd-test--disks)))
@@ -1341,8 +1378,39 @@ FROM and TO are ranks.  Return FN's value."
         (should (equal (org-iw-test-changed-lines
                         (alist-get file before nil nil #'equal)
                         (alist-get file after nil nil #'equal))
-                       `((,(format ":IW_ESSAYS: %d" from))
-                         ,(format ":IW_ESSAYS: %d" to))))))))
+                       (cons removed added)))))))
+
+(defun org-iw-cmd-test--should-move (fn file from to)
+  "Call FN; assert on disk it changed only FILE's IW_ESSAYS FROM to TO.
+FROM and TO are ranks.  Return FN's value."
+  (org-iw-cmd-test--should-change-lines
+   fn file (list (format ":IW_ESSAYS: %d" from))
+   (list (format ":IW_ESSAYS: %d" to))))
+
+(defun org-iw-cmd-test--should-delete (fn file line)
+  "Call FN; assert on disk it deleted only LINE, of FILE.
+Return FN's value."
+  (org-iw-cmd-test--should-change-lines fn file (list line) nil))
+
+(ert-deftest org-iw-cmd-test-should-delete-self-test ()
+  "The delete oracle fails on no change, another line, or another file."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (let ((delete (lambda (name line)
+                    (lambda ()
+                      (with-current-buffer (org-iw-test-visit name)
+                        (goto-char (point-min))
+                        (search-forward (concat line "\n"))
+                        (replace-match "")
+                        (save-buffer))))))
+      (dolist (fn (list #'ignore
+                        (funcall delete "b.org" ":IW_ESSAYS: 2048")
+                        (funcall delete "a.org" ":ID: a1")))
+        (should-error (org-iw-cmd-test--should-delete
+                       fn "a.org" ":IW_ESSAYS: 1024")
+                      :type 'ert-test-failed))
+      (org-iw-cmd-test--should-delete
+       (funcall delete "a.org" ":IW_ESSAYS: 1024")
+       "a.org" ":IW_ESSAYS: 1024"))))
 
 (defun org-iw-cmd-test--set-rank (name from to)
   "Change IW_ESSAYS FROM to TO in corpus file NAME's buffer, unsaved."
@@ -1409,12 +1477,14 @@ after B, the last of the rest, C is visited, and b.org is not saved."
 ;;;; Continue: refusals and short cuts (EX-3, EX-5, VT-2)
 
 (ert-deftest org-iw-cmd-test-continue-refuses-without-session ()
-  "Without a session, Continue refuses before scanning."
+  "Without a session, Continue refuses before scanning, Remove included."
   (org-iw-test-with-corpus org-iw-cmd-test--queue
     (org-iw-cmd-test--open-all)
     (cl-letf (((symbol-function 'org-iw--scan)
                (lambda () (ert-fail "Scanned"))))
-      (org-iw-cmd-test--should-refuse-cleanly "no session" #'org-iw-continue))))
+      (dolist (label '(nil remove))
+        (org-iw-cmd-test--should-refuse-cleanly
+         "no session" (lambda () (org-iw-continue label)))))))
 
 (defun org-iw-cmd-test--delete-in-a (regexp)
   "Delete the text REGEXP matches in a.org's buffer, leaving it unsaved."
@@ -1426,15 +1496,17 @@ after B, the last of the rest, C is visited, and b.org is not saved."
 
 (ert-deftest org-iw-cmd-test-continue-refuses-removed-entry ()
   "An entry that left the queue, or was deleted, is not in queue order.
-Continue refuses, writing and visiting nothing."
+Continue refuses, writing and visiting nothing, Remove included."
   (dolist (regexp '("^:IW_ESSAYS: 1024\n" "^\\* A\n\\(?:.*\n\\)*"))
     (org-iw-test-with-corpus org-iw-cmd-test--queue
       (org-iw-cmd-test--open-all)
       (org-iw-visit-next "ESSAYS")
       (org-iw-cmd-test--delete-in-a regexp)
-      (should (equal (org-iw-cmd-test--should-refuse-cleanly
-                      "no longer in queue" #'org-iw-continue)
-                     "A is no longer in queue ESSAYS")))))
+      (dolist (label '(nil remove))
+        (should (equal (org-iw-cmd-test--should-refuse-cleanly
+                        "no longer in queue"
+                        (lambda () (org-iw-continue label)))
+                       "A is no longer in queue ESSAYS"))))))
 
 (ert-deftest org-iw-cmd-test-continue-refuses-duplicated-id ()
   "A same-file copy of the entry's ID makes Continue refuse (RV-001 F-1).
@@ -1446,9 +1518,10 @@ Nothing is written: a.org's buffer and every file are unchanged."
     (with-current-buffer (org-iw-test-visit "a.org")
       (goto-char (point-max))
       (insert (org-iw-test-heading "Copy" "a1")))
-    (should (equal (org-iw-cmd-test--should-refuse-cleanly
-                    "duplicated" #'org-iw-continue)
-                   "ID a1 is duplicated; A is excluded from queue ESSAYS"))))
+    (dolist (label '(nil remove))
+      (should (equal (org-iw-cmd-test--should-refuse-cleanly
+                      "duplicated" (lambda () (org-iw-continue label)))
+                     "ID a1 is duplicated; A is excluded from queue ESSAYS")))))
 
 (ert-deftest org-iw-cmd-test-continue-only-entry ()
   "The only entry in a queue is left in place and stays the session's."
@@ -1468,8 +1541,10 @@ Nothing is written: a.org's buffer and every file are unchanged."
        (goto-char (point-min))
        (re-search-forward "^:IW_DRAFTS: 1\n")
        (replace-match "")))
-    (should (equal (org-iw-cmd-test--should-change-nothing #'org-iw-continue)
-                   "Queue DRAFTS is empty"))))
+    (dolist (label '(nil remove))
+      (should (equal (org-iw-cmd-test--should-change-nothing
+                      (lambda () (org-iw-continue label)))
+                     "Queue DRAFTS is empty")))))
 
 (ert-deftest org-iw-cmd-test-continue-already-last ()
   "An entry already last is not written; the head of the rest is visited.
@@ -1517,8 +1592,9 @@ Nothing is written or visited, and the session is unchanged."
     (org-iw-visit-next "ESSAYS")
     (with-current-buffer (org-iw-test-visit "a.org")
       (read-only-mode 1))
-    (org-iw-cmd-test--should-refuse-cleanly "buffer is read-only"
-                                            #'org-iw-continue)))
+    (dolist (label '(nil remove))
+      (org-iw-cmd-test--should-refuse-cleanly
+       "buffer is read-only" (lambda () (org-iw-continue label))))))
 
 (ert-deftest org-iw-cmd-test-continue-propagates-write-refusal ()
   "A refusal from the write, here a file changed on disk, is passed on.
@@ -1628,8 +1704,8 @@ The head of the rest is visited, and the message names the label."
 
 (ert-deftest org-iw-cmd-test-continue-chooser ()
   "With a prefix argument Continue reads one of the queue's own labels.
-They are offered in configured order with the queue's default, which
-plain Continue then uses."
+They are offered in configured order, then Remove, with the queue's
+default, which plain Continue then uses."
   (org-iw-test-with-corpus org-iw-cmd-test--eight
     (let ((org-iw-queues '(("essays" :placements (("Later" (fraction 1 2))
                                                   ("Again" (after 0))
@@ -1641,7 +1717,8 @@ plain Continue then uses."
                        "Moved E1 to Later, 4/8 (saved). Now 1/8: E2"))
         (pcase-let ((`(,call) org-iw-cmd-test--prompts))
           (should (equal (plist-get call :prompt) "Placement: "))
-          (should (equal (plist-get call :order) '("Later" "Again" "Soon")))
+          (should (equal (plist-get call :order)
+                         '("Later" "Again" "Soon" "Remove")))
           (should (equal (plist-get call :default) "Soon"))))
       (should (string-prefix-p "Moved E2 to Soon, 3/8" (org-iw-continue))))))
 
@@ -1933,14 +2010,31 @@ Return its result."
     (goto-char marker)
     (call-interactively #'org-iw-move)))
 
-(defun org-iw-cmd-test--move-refuses (text queue substring &optional title)
-  "Assert Move refuses with SUBSTRING in a corpus holding a.org as TEXT.
-Move is at heading TITLE of a.org, or its start if TITLE is nil, to
-QUEUE.  Return the refusal message."
-  (org-iw-test-with-corpus `(("a.org" . ,text))
-    (let ((marker (org-iw-cmd-test--at "a.org" title)))
-      (org-iw-cmd-test--should-refuse-cleanly
-       substring (lambda () (org-iw-cmd-test--move-at marker queue))))))
+(defconst org-iw-cmd-test--source-refusals
+  (let ((no-queue "entry at point is not in any queue"))
+    `((,(org-iw-test-heading "A" "a1" ":IW_ESSAYS: 1")
+       "ess_ays" "A" "invalid queue ID \"ess_ays\"")
+      (,(org-iw-test-heading "A" "a1" ":IW_ESSAYS: 1")
+       "DRAFTS" "A" "A is not in queue DRAFTS")
+      (,(org-iw-test-heading "H" "h1") "ESSAYS" "H" ,no-queue)
+      (,(org-iw-test-heading "H" nil ":IW_ESSAYS: 1") "ESSAYS" "H" ,no-queue)
+      (,(org-iw-test-heading "H" "h1" ":IW_ESSAYS+: 1")
+       "ESSAYS" "H" "entry at point is excluded (invalid-property)")
+      (,org-iw-cmd-test--intro "ESSAYS" nil ,no-queue)))
+  "Refusals of a command on the entry at point, given a queue.
+Each is (TEXT QUEUE TITLE MESSAGE): a.org holds TEXT, and the command
+at heading TITLE, or the start if nil, for QUEUE refuses with MESSAGE.")
+
+(defun org-iw-cmd-test--should-refuse-at (at-fn)
+  "Assert AT-FN refuses each of `org-iw-cmd-test--source-refusals'.
+AT-FN is called with a marker and a queue, and must change nothing."
+  (pcase-dolist (`(,text ,queue ,title ,message)
+                 org-iw-cmd-test--source-refusals)
+    (org-iw-test-with-corpus `(("a.org" . ,text))
+      (let ((marker (org-iw-cmd-test--at "a.org" title)))
+        (should (equal (org-iw-cmd-test--should-refuse-cleanly
+                        "" (lambda () (funcall at-fn marker queue)))
+                       message))))))
 
 (ert-deftest org-iw-cmd-test-move-command-moves-one-line ()
   "Move writes one rank, canonicalising QUEUE, and names the queue and place.
@@ -2045,20 +2139,7 @@ Its buffer is read-only, which would refuse any write."
 
 (ert-deftest org-iw-cmd-test-move-command-refuses ()
   "Move refuses, changing nothing, where the entry cannot be moved."
-  (let ((no-queue "entry at point is not in any queue"))
-    (pcase-dolist (`(,text ,queue ,title ,message)
-                   `((,(org-iw-test-heading "A" "a1" ":IW_ESSAYS: 1")
-                      "ess_ays" "A" "invalid queue ID \"ess_ays\"")
-                     (,(org-iw-test-heading "A" "a1" ":IW_ESSAYS: 1")
-                      "DRAFTS" "A" "A is not in queue DRAFTS")
-                     (,(org-iw-test-heading "H" "h1") "ESSAYS" "H" ,no-queue)
-                     (,(org-iw-test-heading "H" nil ":IW_ESSAYS: 1")
-                      "ESSAYS" "H" ,no-queue)
-                     (,(org-iw-test-heading "H" "h1" ":IW_ESSAYS+: 1")
-                      "ESSAYS" "H" "entry at point is excluded (invalid-property)")
-                     (,org-iw-cmd-test--intro "ESSAYS" nil ,no-queue)))
-      (should (equal (org-iw-cmd-test--move-refuses text queue message title)
-                     message)))))
+  (org-iw-cmd-test--should-refuse-at #'org-iw-cmd-test--move-at))
 
 (ert-deftest org-iw-cmd-test-move-command-refuses-outside-sources ()
   "Move refuses a file outside the sources and a buffer not in Org mode."
@@ -2150,6 +2231,258 @@ The queue prompt offers the entry's queues only."
        "entry at point is not in any queue"
        (lambda ()
          (org-iw-cmd-test--move-chosen
+          (with-current-buffer (org-iw-test-visit "a.org")
+            (copy-marker (point-min)))))))))
+
+;;;; Remove: helpers
+
+(defconst org-iw-cmd-test--hint
+  (concat "The session still names it: org-iw-visit-next to go on,"
+          " org-iw-end-session to stop")
+  "The hint shown when the removed entry is still the session's.")
+
+(ert-deftest org-iw-cmd-test-session-hint ()
+  "The hint names the commands to go on and to stop, with no final period."
+  (should (equal (org-iw--session-hint) org-iw-cmd-test--hint)))
+
+(ert-deftest org-iw-cmd-test-removed-text ()
+  "The removed text gains the hint only while the session names the entry.
+That is the entry's ID in the queue removed from; a further sentence
+comes before the hint."
+  (let ((org-iw-queues '(("essays" :name "Essays")))
+        (entry (org-iw-entry-create :id "x1" :title "A"))
+        (removed "Removed A from Essays (saved)"))
+    (pcase-dolist (`(,session ,then ,text)
+                   `((nil nil ,removed)
+                     ((:queue "ESSAYS" :id "b1") nil ,removed)
+                     ((:queue "DRAFTS" :id "x1") nil ,removed)
+                     ((:queue "ESSAYS" :id "x1") nil
+                      ,(concat removed ". " org-iw-cmd-test--hint))
+                     (nil "Now 1/2: B" ,(concat removed ". Now 1/2: B"))
+                     ((:queue "ESSAYS" :id "x1") "Queue Essays is empty"
+                      ,(concat removed ". Queue Essays is empty. "
+                               org-iw-cmd-test--hint))))
+      (let ((org-iw--session (and session
+                                  (apply #'org-iw--session-create session))))
+        (should (equal (org-iw--removed-text entry "ESSAYS" 'saved then)
+                       text))))))
+
+(ert-deftest org-iw-cmd-test-delete-rank-deletes-one-line ()
+  "Deleting a rank removes its one line and returns the save status."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (let ((scan (org-iw--scan)))
+      (should (eq (org-iw-cmd-test--should-delete
+                   (lambda ()
+                     (org-iw--delete-rank
+                      scan (org-iw-cmd-test--entry scan "b1") "ESSAYS"))
+                   "b.org" ":IW_ESSAYS: 2048")
+                  'saved))
+      (should (equal (org-iw-cmd-test--order "ESSAYS") '("a1" "c1"))))))
+
+(ert-deftest org-iw-cmd-test-delete-rank-refuses-stale-rank ()
+  "A rank changed since the scan refuses the delete; nothing is written."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (org-iw-cmd-test--open-all)
+    (let ((scan (org-iw--scan)))
+      (org-iw-cmd-test--set-rank "a.org" 1024 1500)
+      (should (equal (org-iw-cmd-test--should-refuse-cleanly
+                      "changed since scan"
+                      (lambda ()
+                        (org-iw--delete-rank
+                         scan (org-iw-cmd-test--entry scan "a1") "ESSAYS")))
+                     (concat (org-iw-test-path "a.org")
+                             ": IW_ESSAYS changed since scan"))))))
+
+;;;; Continue: Remove
+
+(ert-deftest org-iw-cmd-test-continue-remove-visits-new-head ()
+  "Remove deletes the entry's line and visits the head of the rest.
+The entry is not reinserted, and the hint is not given: the session
+names the new head."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (org-iw-visit-next "ESSAYS")
+    (should (equal (org-iw-cmd-test--should-delete
+                    (lambda () (org-iw-continue 'remove))
+                    "a.org" ":IW_ESSAYS: 1024")
+                   "Removed A from ESSAYS (saved). Now 1/2: B"))
+    (should (equal (org-iw-cmd-test--order "ESSAYS") '("b1" "c1")))
+    (should (equal (org-iw-cmd-test--shown) '("b.org" "B")))
+    (should (equal (org-iw-cmd-test--session-id) "b1"))))
+
+(ert-deftest org-iw-cmd-test-continue-remove-head-in-same-file ()
+  "The new head, below the deleted line in the same file, is visited."
+  (org-iw-test-with-corpus `(("b.org" . ,org-iw-cmd-test--b-file))
+    (org-iw-visit-next "ESSAYS")
+    (should (equal (org-iw-cmd-test--should-delete
+                    (lambda () (org-iw-continue 'remove))
+                    "b.org" ":IW_ESSAYS: 2048")
+                   "Removed B from ESSAYS (saved). Now 1/1: C"))
+    (should (equal (org-iw-cmd-test--shown) '("b.org" "C")))
+    (should (equal (org-iw-cmd-test--session-id) "c1"))))
+
+(ert-deftest org-iw-cmd-test-continue-remove-chosen ()
+  "The chooser offers Remove after the labels, not as the default."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (org-iw-visit-next "ESSAYS")
+    (org-iw-cmd-test--with-prompt "Remove"
+      (should (equal (org-iw-cmd-test--continue-chosen)
+                     "Removed A from ESSAYS (saved). Now 1/2: B"))
+      (pcase-let ((`(,call) org-iw-cmd-test--prompts))
+        (should (equal (plist-get call :prompt) "Placement: "))
+        (should (equal (plist-get call :order)
+                       '("Soon" "Later" "End" "Remove")))
+        (should (equal (plist-get call :default) "End"))))))
+
+(ert-deftest org-iw-cmd-test-continue-remove-sole-entry ()
+  "Removing the only entry reports the empty queue and the hint.
+The session is kept, and nothing else is shown."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (org-iw-visit-next "DRAFTS")
+    (let ((session org-iw--session)
+          (shown (org-iw-cmd-test--shown)))
+      (should (equal (org-iw-cmd-test--should-delete
+                      (lambda () (org-iw-continue 'remove))
+                      "d.org" ":IW_DRAFTS: 1")
+                     (concat "Removed D from DRAFTS (saved). Queue DRAFTS is"
+                             " empty. " org-iw-cmd-test--hint)))
+      (should (eq org-iw--session session))
+      (should (equal (org-iw-cmd-test--shown) shown)))))
+
+(ert-deftest org-iw-cmd-test-continue-remove-ignores-vocabulary ()
+  "From Lisp, Remove works whatever the placements' configuration."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (org-iw-visit-next "ESSAYS")
+    (let ((org-iw-placements nil)
+          (org-iw-queues '(("essays" :placements (("Remove" end))))))
+      (should (equal (org-iw-continue 'remove)
+                     "Removed A from ESSAYS (saved). Now 1/2: B")))))
+
+;;;; Remove from the source
+
+(defun org-iw-cmd-test--remove-at (marker queue)
+  "Call `org-iw-remove' for QUEUE with point at MARKER, in its buffer.
+A confirmation prompt fails the test.  Return the result."
+  (cl-letf (((symbol-function 'y-or-n-p)
+             (lambda (&rest _) (ert-fail "y-or-n-p")))
+            ((symbol-function 'yes-or-no-p)
+             (lambda (&rest _) (ert-fail "yes-or-no-p"))))
+    (with-current-buffer (marker-buffer marker)
+      (goto-char marker)
+      (org-iw-remove queue))))
+
+(defun org-iw-cmd-test--remove-chosen (marker)
+  "Call `org-iw-remove' interactively with point at MARKER, in its buffer."
+  (with-current-buffer (marker-buffer marker)
+    (goto-char marker)
+    (call-interactively #'org-iw-remove)))
+
+(ert-deftest org-iw-cmd-test-remove-command-deletes-one-line ()
+  "Remove deletes one line, unconfirmed, canonicalising QUEUE (I11)."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (let ((org-iw-queues '(("essays" :name "Essays"))))
+      (should (equal (org-iw-cmd-test--should-delete
+                      (lambda ()
+                        (org-iw-cmd-test--remove-at
+                         (org-iw-test-marker "b.org" "B") "essays"))
+                      "b.org" ":IW_ESSAYS: 2048")
+                     "Removed B from Essays (saved)"))
+      (should (equal (org-iw-cmd-test--order "ESSAYS") '("a1" "c1"))))))
+
+(ert-deftest org-iw-cmd-test-remove-command-leaves-other-memberships ()
+  "Only the chosen queue's line goes; the entry stays in its other queue."
+  (org-iw-test-with-corpus org-iw-cmd-test--multi
+    (org-iw-cmd-test--should-delete
+     (lambda ()
+       (org-iw-cmd-test--remove-at (org-iw-test-marker "m.org" "M") "ESSAYS"))
+     "m.org" ":IW_ESSAYS: 5000")
+    (should (equal (org-iw-cmd-test--order "DRAFTS") '("d1" "m1")))))
+
+(ert-deftest org-iw-cmd-test-remove-command-hint-and-session ()
+  "Remove keeps the session and the window, hinting only for its entry.
+The hint is for the session's entry in the session's queue (I13)."
+  (pcase-dolist (`(,session ,title ,message)
+                 `((nil "A" "Removed A from ESSAYS (saved)")
+                   (("ESSAYS" "b1" "B") "A" "Removed A from ESSAYS (saved)")
+                   (("DRAFTS" "m1" "M") "M" "Removed M from ESSAYS (saved)")
+                   (("ESSAYS" "m1" "M") "M"
+                    ,(concat "Removed M from ESSAYS (saved). "
+                             org-iw-cmd-test--hint))))
+    (org-iw-test-with-corpus org-iw-cmd-test--multi
+      (let* ((marker (org-iw-test-marker (if (equal title "A") "a.org" "m.org")
+                                         title))
+             (org-iw--session
+              (and session
+                   (pcase-let ((`(,queue ,id ,title) session))
+                     (org-iw--session-create :queue queue :id id
+                                             :title title))))
+             (before org-iw--session)
+             (window (selected-window))
+             (buffer (current-buffer))
+             (shown (org-iw-cmd-test--shown)))
+        (should (equal (org-iw-cmd-test--remove-at marker "ESSAYS") message))
+        (should (eq org-iw--session before))
+        (should (eq (selected-window) window))
+        (should (eq (current-buffer) buffer))
+        (should (equal (org-iw-cmd-test--shown) shown))
+        (should-not (member (if (equal title "A") "a1" "m1")
+                            (org-iw-cmd-test--order "ESSAYS")))))))
+
+(ert-deftest org-iw-cmd-test-remove-command-member-document ()
+  "A member document is removed from within its preamble; its drawer stays."
+  (org-iw-test-with-corpus `(("a.org" . ,org-iw-cmd-test--document)
+                             ("b.org" . ,org-iw-cmd-test--b-file))
+    (let ((marker (with-current-buffer (org-iw-test-visit "a.org")
+                    (org-iw-cmd-test--narrow-to-line "Intro.")
+                    (point-marker))))
+      (should (equal (org-iw-cmd-test--should-delete
+                      (lambda () (org-iw-cmd-test--remove-at marker "ESSAYS"))
+                      "a.org" ":IW_ESSAYS: 1024")
+                     "Removed Doc from ESSAYS (saved)")))))
+
+(ert-deftest org-iw-cmd-test-remove-command-lowercase-key ()
+  "A member by a lowercase key loses that line."
+  (org-iw-test-with-corpus (org-iw-cmd-test--queue-of-three ":iw_essays: 2048")
+    (should (equal (org-iw-cmd-test--should-delete
+                    (lambda ()
+                      (org-iw-cmd-test--remove-at
+                       (org-iw-test-marker "a.org" "Target") "ESSAYS"))
+                    "a.org" ":iw_essays: 2048")
+                   "Removed Target from ESSAYS (saved)"))))
+
+(ert-deftest org-iw-cmd-test-remove-command-refuses ()
+  "Remove refuses, changing nothing, where the entry cannot be removed."
+  (org-iw-cmd-test--should-refuse-at #'org-iw-cmd-test--remove-at))
+
+(ert-deftest org-iw-cmd-test-remove-chosen-one-queue ()
+  "Interactively, an entry in one queue is removed unprompted."
+  (org-iw-test-with-corpus org-iw-cmd-test--multi
+    (org-iw-cmd-test--with-prompt nil
+      (should (equal (org-iw-cmd-test--remove-chosen
+                      (org-iw-test-marker "a.org" "A"))
+                     "Removed A from ESSAYS (saved)")))))
+
+(ert-deftest org-iw-cmd-test-remove-chosen-two-queues ()
+  "With two queues and no session, Remove asks which, offering only them."
+  (org-iw-test-with-corpus org-iw-cmd-test--multi
+    (org-iw-cmd-test--with-prompt "DRAFTS"
+      (should (equal (org-iw-cmd-test--should-delete
+                      (lambda ()
+                        (org-iw-cmd-test--remove-chosen
+                         (org-iw-test-marker "m.org" "M")))
+                      "m.org" ":IW_DRAFTS: 1000")
+                     "Removed M from DRAFTS (saved)"))
+      (should (equal (org-iw-cmd-test--prompted :order)
+                     '(("DRAFTS" "ESSAYS")))))))
+
+(ert-deftest org-iw-cmd-test-remove-chosen-refuses-before-prompting ()
+  "Interactively, an entry in no queue refuses unprompted."
+  (org-iw-test-with-corpus org-iw-cmd-test--multi
+    (org-iw-cmd-test--open-all)
+    (org-iw-cmd-test--with-prompt nil
+      (org-iw-cmd-test--should-refuse-cleanly
+       "entry at point is not in any queue"
+       (lambda ()
+         (org-iw-cmd-test--remove-chosen
           (with-current-buffer (org-iw-test-visit "a.org")
             (copy-marker (point-min)))))))))
 

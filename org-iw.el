@@ -206,6 +206,12 @@ Entries whose key is not a valid queue ID are left out."
                      (or (null file) (equal (org-iw-entry-file entry) file))))
               entries))
 
+(defun org-iw--entry-marker (scan entry)
+  "Return a marker at ENTRY of SCAN, resolved afresh, or refuse.
+See `org-iw-discovery-resolve'."
+  (org-iw-discovery-resolve scan (org-iw-entry-id entry)
+                            (org-iw-entry-file entry)))
+
 (defun org-iw--refuse-no-room (where name)
   "Refuse because queue NAME has no rank left WHERE.
 WHERE is text carrying its preposition, such as \"at the end\"."
@@ -237,7 +243,8 @@ be typed."
 
 (defun org-iw--check-placements (placements source)
   "Return PLACEMENTS, a list of (LABEL PLACEMENT), or refuse.
-SOURCE names the option they came from, for the refusal."
+SOURCE names the option they came from, for the refusal.  The label
+Remove, in any case, is reserved for the chooser of `org-iw-continue'."
   (cond ((null placements) (org-iw-core-refuse "%s: no placements" source))
         ((not (proper-list-p placements))
          (org-iw-core-refuse "%s: not a list" source)))
@@ -246,6 +253,8 @@ SOURCE names the option they came from, for the refusal."
       (pcase entry
         (`(,(and (pred stringp) (pred (not string-empty-p)) label)
            ,(pred org-iw-core-placement-p))
+         (when (string-equal-ignore-case label "Remove")
+           (org-iw-core-refuse "%s: label \"%s\" is reserved" source label))
          (when (member label labels)
            (org-iw-core-refuse "%s: duplicate label \"%s\"" source label))
          (push label labels))
@@ -288,25 +297,31 @@ QUEUE is a canonical queue ID.  A nil LABEL means the default."
       (org-iw-core-refuse "queue %s has no placement \"%s\""
                           (org-iw--queue-name queue) label))))
 
-(defun org-iw--read-placement (queue)
+(defun org-iw--read-placement (queue &optional with-remove)
   "Prompt for a label of QUEUE's vocabulary and return it.
 QUEUE is a canonical queue ID.  The labels are offered in configured
-order, the default as the default.  Bad configuration refuses before
-the prompt."
-  (pcase-let ((`(,default . ,placements) (org-iw--vocabulary queue)))
-    (completing-read
-     "Placement: "
-     (lambda (string predicate action)
-       (if (eq action 'metadata)
-           '(metadata (display-sort-function . identity)
-                      (cycle-sort-function . identity))
-         (complete-with-action action placements string predicate)))
-     nil t nil nil default)))
+order, the default as the default.  WITH-REMOVE non-nil offers Remove
+after them, returned as the symbol `remove'.  Bad configuration
+refuses before the prompt."
+  (pcase-let* ((`(,default . ,placements) (org-iw--vocabulary queue))
+               (candidates (append placements
+                                   (and with-remove '(("Remove"))))))
+    (pcase (completing-read
+            "Placement: "
+            (lambda (string predicate action)
+              (if (eq action 'metadata)
+                  '(metadata (display-sort-function . identity)
+                             (cycle-sort-function . identity))
+                (complete-with-action action candidates string predicate)))
+            nil t nil nil default)
+      ("Remove" 'remove)
+      (label label))))
 
 ;;;; Messages
 
 (defun org-iw--save-status (status)
-  "Return the text reporting STATUS, a result of `org-iw-write-put-rank'."
+  "Return the text reporting STATUS, a result of a write.
+That is `org-iw-write-put-rank' or `org-iw-write-delete-rank'."
   (pcase status
     ('saved "(saved)")
     ('unsaved "(buffer has unsaved changes — queue change not saved)")
@@ -371,6 +386,11 @@ Return the session that ended, or nil if there was none."
       (setq global-mode-string (delete org-iw--mode-line-construct
                                        global-mode-string)))
     (force-mode-line-update t)))
+
+(defun org-iw--session-hint ()
+  "Return the hint shown when the session names an entry no longer queued."
+  (concat "The session still names it: org-iw-visit-next to go on,"
+          " org-iw-end-session to stop"))
 
 (defun org-iw--read-session-queue ()
   "Return the session's queue, or a queue ID read from the user.
@@ -482,8 +502,7 @@ point at the entry and the entry revealed.  If the entry cannot be
 resolved, refuse before anything changes.  Nothing is written.
 
 Return the message shown."
-  (let ((marker (org-iw-discovery-resolve scan (org-iw-entry-id entry)
-                                          (org-iw-entry-file entry))))
+  (let ((marker (org-iw--entry-marker scan entry)))
     (pop-to-buffer-same-window (marker-buffer marker))
     ;; The heading starts at MARKER, so at point-max it is hidden too.
     (unless (and (<= (point-min) marker) (< marker (point-max)))
@@ -495,10 +514,14 @@ Return the message shown."
     (org-iw--report scan "IW %s %d/%d: %s" (org-iw--queue-name queue)
                     pos total (org-iw-entry-title entry))))
 
+(defun org-iw--empty-text (queue)
+  "Return the text saying QUEUE, a canonical queue ID, is empty."
+  (format "Queue %s is empty" (org-iw--queue-name queue)))
+
 (defun org-iw--report-empty (scan queue)
   "Report that QUEUE, a canonical queue ID, is empty, noting SCAN's problems.
 Return the message shown."
-  (org-iw--report scan "Queue %s is empty" (org-iw--queue-name queue)))
+  (org-iw--report scan "%s" (org-iw--empty-text queue)))
 
 ;;;###autoload
 (defun org-iw-visit-next (queue)
@@ -543,10 +566,15 @@ duplicate."
   "Write RANK to ENTRY of SCAN in QUEUE, a canonical queue ID.
 The write expects ENTRY's scanned rank.  Return the result of
 `org-iw-write-put-rank'."
-  (org-iw-write-put-rank
-   (org-iw-discovery-resolve scan (org-iw-entry-id entry)
-                             (org-iw-entry-file entry))
-   queue rank :expected (org-iw-core-rank entry queue)))
+  (org-iw-write-put-rank (org-iw--entry-marker scan entry) queue rank
+                         :expected (org-iw-core-rank entry queue)))
+
+(defun org-iw--delete-rank (scan entry queue)
+  "Delete the rank of ENTRY of SCAN in QUEUE, a canonical queue ID.
+The delete expects ENTRY's scanned rank.  Return the result of
+`org-iw-write-delete-rank'."
+  (org-iw-write-delete-rank (org-iw--entry-marker scan entry) queue
+                            :expected (org-iw-core-rank entry queue)))
 
 (defun org-iw--move (scan order entry queue placement where)
   "Move ENTRY, an element of ORDER, to PLACEMENT in QUEUE.
@@ -562,6 +590,51 @@ WHERE being its text, with its preposition."
     (`(moved ,depth ,rank)
      (list 'moved depth (org-iw--put-rank scan entry queue rank)))))
 
+(defun org-iw--continue-place (scan order entry queue choice)
+  "Move ENTRY, of ORDER, to the placement CHOICE in QUEUE; visit the head.
+ORDER is QUEUE's members in SCAN, QUEUE a canonical queue ID, and
+CHOICE (LABEL . PLACEMENT), as from `org-iw--placement'.  The only
+entry is left alone.  Return the message shown."
+  (pcase-let ((`(,label . ,placement) choice)
+              (title (org-iw-entry-title entry))
+              (total (length order)))
+    (if (null (cdr order))
+        (org-iw--report scan "%s is the only entry in queue %s"
+                        title (org-iw--queue-name queue))
+      (pcase-let
+          ((`(,text . ,new-order)
+            (pcase (org-iw--move scan order entry queue placement
+                                 (format "at %s" label))
+              (`(unchanged ,depth)
+               (cons (format "%s already at %s, %d/%d"
+                             title label (1+ depth) total)
+                     order))
+              (`(moved ,depth ,status)
+               (cons (format "Moved %s to %s, %d/%d %s"
+                             title label (1+ depth) total
+                             (org-iw--save-status status))
+                     (org-iw-core-reorder order entry depth))))))
+        (org-iw--visit scan (car new-order) queue 1 total)
+        (org-iw--report scan "%s. Now 1/%d: %s" text total
+                        (org-iw-entry-title (car new-order)))))))
+
+(defun org-iw--continue-remove (scan order entry queue)
+  "Remove ENTRY, of ORDER, from QUEUE; visit the head of the rest.
+ORDER is QUEUE's members in SCAN, and QUEUE a canonical queue ID.
+With none left, the session stays.  Return the message shown."
+  (let ((status (org-iw--delete-rank scan entry queue))
+        (rest (remq entry order)))
+    ;; Visiting moves the session to the head, so the text gives the
+    ;; hint only when no entry is left.
+    (when rest
+      (org-iw--visit scan (car rest) queue 1 (length rest)))
+    (org-iw--report scan "%s" (org-iw--removed-text
+                               entry queue status
+                               (if rest
+                                   (format "Now 1/%d: %s" (length rest)
+                                           (org-iw-entry-title (car rest)))
+                                 (org-iw--empty-text queue))))))
+
 ;;;###autoload
 (defun org-iw-continue (&optional label)
   "Reinsert the session's entry at the placement LABEL; visit the next.
@@ -569,17 +642,23 @@ The entry is the one `org-iw-visit-next' last showed, whatever is at
 point or now first in the queue.  LABEL names one of the queue's
 placements (see `org-iw-placements' and `org-iw-queues'); nil means
 the queue's default.  Interactively, a prefix argument reads LABEL
-with completion over the queue's labels.
+with completion over the queue's labels, then Remove.
 
 The entry is given a rank between its new neighbours through its
 buffer, which is saved unless it already had unsaved changes.  Then
 the first member of the queue is visited and becomes the session's
 entry.  At the front, that is the entry itself.
 
+LABEL may also be the symbol `remove': the entry's IW line for the
+queue is deleted instead, unconfirmed, and the first of the rest is
+visited.  If none remain, the session is left on the entry and the
+message says how to go on or stop.  The placements' configuration
+is not consulted.
+
 An entry already at its placement is not written, the only entry in
-its queue is left alone, and an empty queue is reported; none of
-these change anything.  Continue refuses, writing and visiting
-nothing, if:
+its queue is left alone unless removed, and an empty queue is
+reported; none of these change anything.  Continue refuses, writing
+and visiting nothing, if:
 
 - there is no session;
 - the queue's placements are misconfigured (checked before the
@@ -596,55 +675,47 @@ Return the message shown."
   (interactive
    (let ((session (org-iw--session-or-refuse)))
      (list (and current-prefix-arg
-                (org-iw--read-placement (org-iw--session-queue session))))))
-  (pcase-let* ((session (org-iw--session-or-refuse))
-               (queue (org-iw--session-queue session))
-               (`(,label . ,placement) (org-iw--placement queue label))
-               (id (org-iw--session-id session))
-               (scan (org-iw--scan))
-               (order (org-iw--order scan queue))
-               (total (length order))
-               (name (org-iw--queue-name queue)))
+                (org-iw--read-placement (org-iw--session-queue session) t)))))
+  (let* ((session (org-iw--session-or-refuse))
+         (queue (org-iw--session-queue session))
+         (choice (unless (eq label 'remove)
+                   (org-iw--placement queue label)))
+         (id (org-iw--session-id session))
+         (scan (org-iw--scan))
+         (order (org-iw--order scan queue)))
     (if (null order)
         (org-iw--report-empty scan queue)
-      (let* ((retained (or (org-iw--find-entry order id)
-                           (org-iw--refuse-absent
-                            scan queue id (org-iw--session-title session))))
-             (title (org-iw-entry-title retained)))
-        (if (null (cdr order))
-            (org-iw--report scan "%s is the only entry in queue %s"
-                            title name)
-          (pcase-let
-              ((`(,text . ,new-order)
-                (pcase (org-iw--move scan order retained queue placement
-                                     (format "at %s" label))
-                  (`(unchanged ,depth)
-                   (cons (format "%s already at %s, %d/%d"
-                                 title label (1+ depth) total)
-                         order))
-                  (`(moved ,depth ,status)
-                   (cons (format "Moved %s to %s, %d/%d %s"
-                                 title label (1+ depth) total
-                                 (org-iw--save-status status))
-                         (org-iw-core-reorder order retained depth))))))
-            (org-iw--visit scan (car new-order) queue 1 total)
-            (org-iw--report scan "%s. Now 1/%d: %s" text total
-                            (org-iw-entry-title (car new-order)))))))))
+      (let ((retained (or (org-iw--find-entry order id)
+                          (org-iw--refuse-absent
+                           scan queue id (org-iw--session-title session)))))
+        (if choice
+            (org-iw--continue-place scan order retained queue choice)
+          (org-iw--continue-remove scan order retained queue))))))
 
 ;;;; Move
 
-(defun org-iw--scanned-entry-at (marker scan)
+(defun org-iw--scanned-entry-at (marker scan &optional queue)
   "Return the element of SCAN's entries for the entry at MARKER, or refuse.
 Refuse if SCAN has problems with the entry's ID, naming their types,
-and otherwise, also for an entry with no ID, as being in no queue."
-  (pcase-let ((`(,id . ,file)
-               (org-with-point-at marker
-                 (cons (org-iw-discovery-entry-id) (org-iw--buffer-truename)))))
-    (or (and id (org-iw--find-entry (org-iw-scan-entries scan) id file))
-        (if-let* ((types (and id (org-iw-discovery-problem-types scan id))))
-            (org-iw-core-refuse "entry at point is excluded (%s)"
-                                (org-iw--problem-types-text types))
-          (org-iw-core-refuse "entry at point is not in any queue")))))
+and otherwise, also for an entry with no ID, as being in no queue.
+Given QUEUE, a canonical queue ID, refuse also unless the entry is in
+it."
+  (pcase-let* ((`(,id . ,file)
+                (org-with-point-at marker
+                  (cons (org-iw-discovery-entry-id) (org-iw--buffer-truename))))
+               (entry (and id (org-iw--find-entry (org-iw-scan-entries scan)
+                                                  id file)))
+               (types (and id (not entry)
+                           (org-iw-discovery-problem-types scan id))))
+    (cond (types (org-iw-core-refuse "entry at point is excluded (%s)"
+                                     (org-iw--problem-types-text types)))
+          ((not entry)
+           (org-iw-core-refuse "entry at point is not in any queue"))
+          ((and queue (not (org-iw-core-rank entry queue)))
+           (org-iw-core-refuse "%s is not in queue %s"
+                               (org-iw-entry-title entry)
+                               (org-iw--queue-name queue)))
+          (t entry))))
 
 (defun org-iw--membership-queue (entry)
   "Return the queue, a canonical ID, to act on for ENTRY.
@@ -656,6 +727,12 @@ them, else the one read from the user, who must choose among them."
     (cond ((null (cdr queues)) (car queues))
           ((member session-queue queues) session-queue)
           (t (org-iw--read-queue queues t)))))
+
+(defun org-iw--queue-at-point ()
+  "Return the queue to act on for the entry at point, a canonical ID.
+See `org-iw--membership-queue'."
+  (org-iw--membership-queue
+   (org-iw--scanned-entry-at (org-iw--target-at-point) (org-iw--scan))))
 
 ;;;###autoload
 (defun org-iw-move (queue &optional label)
@@ -683,20 +760,16 @@ read-only, or the entry has a property drawer Org doesn't recognise).
 
 Return the message shown."
   (interactive
-   (let ((queue (org-iw--membership-queue
-                 (org-iw--scanned-entry-at (org-iw--target-at-point)
-                                           (org-iw--scan)))))
+   (let ((queue (org-iw--queue-at-point)))
      (list queue (org-iw--read-placement queue))))
   (pcase-let* ((queue-id (org-iw--queue-id queue))
                (marker (org-iw--target-at-point))
                (`(,label . ,placement) (org-iw--placement queue-id label))
                (scan (org-iw--scan))
-               (entry (org-iw--scanned-entry-at marker scan))
+               (entry (org-iw--scanned-entry-at marker scan queue-id))
                (order (org-iw--order scan queue-id))
                (title (org-iw-entry-title entry))
                (name (org-iw--queue-name queue-id)))
-    (unless (org-iw-core-rank entry queue-id)
-      (org-iw-core-refuse "%s is not in queue %s" title name))
     (pcase (org-iw--move scan order entry queue-id placement
                          (format "at %s" label))
       (`(unchanged ,depth)
@@ -706,6 +779,55 @@ Return the message shown."
        (org-iw--report scan "Moved %s to %s in %s, %d/%d %s"
                        title label name (1+ depth) (length order)
                        (org-iw--save-status status))))))
+
+;;;; Remove
+
+(defun org-iw--removed-text (entry queue status &optional then)
+  "Return the text reporting ENTRY removed from QUEUE, a canonical queue ID.
+STATUS is the result of `org-iw-write-delete-rank'.  The sentence THEN,
+if given, follows; then the session hint, if the session still names
+ENTRY in QUEUE."
+  (string-join
+   (delq nil
+         (list (format "Removed %s from %s %s" (org-iw-entry-title entry)
+                       (org-iw--queue-name queue) (org-iw--save-status status))
+               then
+               (and org-iw--session
+                    (equal (org-iw--session-id org-iw--session)
+                           (org-iw-entry-id entry))
+                    (equal (org-iw--session-queue org-iw--session) queue)
+                    (org-iw--session-hint))))
+   ". "))
+
+;;;###autoload
+(defun org-iw-remove (queue)
+  "Remove the entry at point from QUEUE.
+QUEUE is a queue ID in any case, one the entry is in.  Interactively,
+it is the entry's only queue or, of several, the session's if it is
+one of them, else it is read.
+
+The entry is the heading at or above point, even outside a narrowing,
+or the document before the first heading; indirect buffers work.  Its
+IW line for QUEUE alone is deleted through its buffer, which is saved
+unless it already had unsaved changes.  There is no confirmation: the
+buffer has undo.  The session is left as it is, even when it names
+the entry; the message then says how to go on or stop.
+
+Remove refuses, writing nothing, if the buffer is not a source file
+or not in Org mode, QUEUE is not a valid ID, the entry is in no
+queue, was excluded by the scan or is not in QUEUE, or the write
+refuses (the file changed on disk or is not writable, its buffer is
+read-only, or the entry has a property drawer Org doesn't recognise).
+
+Return the message shown."
+  (interactive (list (org-iw--queue-at-point)))
+  (let* ((queue-id (org-iw--queue-id queue))
+         (marker (org-iw--target-at-point))
+         (scan (org-iw--scan))
+         (entry (org-iw--scanned-entry-at marker scan queue-id)))
+    (org-iw--report scan "%s" (org-iw--removed-text
+                               entry queue-id
+                               (org-iw--delete-rank scan entry queue-id)))))
 
 ;;;; End session
 

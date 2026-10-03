@@ -228,3 +228,30 @@ some point i don't care much when."
   first and was killed by making each loop iteration actually move.
 - `just gate` green, 263 tests on 31.1 and 30.2; `just test-each` 263 alone
   green; verify-vt PHASE-04 VT-1 PASS.
+
+## PHASE-05 — Remove (2026-10-03)
+
+- `org-iw--delete-rank`, `org-iw--session-hint`, autoloaded `org-iw-remove`,
+  Continue `remove` (chooser lists "Remove" last, not default), reserved label
+  in `--check-placements`. 21 new tests; existing Continue refusal tests now
+  loop over `(nil remove)`.
+- Sheet Q1/Q2 settled from design § 5.4 Messages: Continue Remove with members
+  left carries no hint (the session moves to the new head); N counts after the act.
+- Deviations (helpers not in § 5.2, each removing duplication):
+  `--removed-text` (one owner of the Removed message and hint rule; reused by
+  PHASE-07 view D), `--entry-marker` (3 resolve copies), `--queue-at-point`
+  (Move/Remove interactive spec), `--empty-text`, optional QUEUE on
+  `--scanned-entry-at` (absorbs Move's not-in-queue refusal),
+  `--continue-place` / `--continue-remove` split of Continue (SL-002 logic moved
+  verbatim). Tests: `--should-move` generalised to `--should-change-lines`;
+  shared source-refusal table for Move and Remove.
+- Sheet A6 (stale pre-delete scan) is moot: `org-iw-discovery-resolve` searches
+  the live buffer by ID; pinned by `continue-remove-head-in-same-file`.
+- VT-2 waived, re-keyed as VT-3 (STD-002 item 3): the reserved-label test
+  reaches `--check-placements` via `org-iw--vocabulary`.
+- Red runs recorded per task T1..T5 (void-function / no-signal failures).
+- Mutation pass: 32 mutants, 30 killed. Survivors justified: #15 (reserved check
+  after duplicate check is equivalent — first "Remove" refuses before a second
+  label); #26 (TOTAL passed to `--visit` in `--continue-remove` only changes an
+  echo the final report overwrites; same shape as SL-002 Continue).
+- `just gate` green, 284 tests on 31.1 and 30.2; `just test-each` 284 alone green.
