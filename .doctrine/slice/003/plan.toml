@@ -1,0 +1,197 @@
+# Implementation plan for SL-003 — the authored, durable phase plan.
+#
+# This is the single source of each phase's objective, criteria, verification,
+# and links. Runtime status lives separately under .doctrine/state/ (phase
+# tracking) — never record progress here. Hand-edit freely: the tool reads this
+# file but does not rewrite it.
+schema  = "doctrine.plan.overview"
+version = 1
+slice   = "SL-003"
+
+# Canonical spec/requirement links — cite ids, never restate what they say. The
+# plan reader does not model these yet, so nothing downstream consumes them.
+[specs]
+primary       = []
+collaborators = []
+
+[requirements]
+targets      = []
+dependencies = []
+
+# One [[phase]] per ordered phase, in execution order — the authored array order
+# IS the order; never sort by id. Ids are PHASE-NN (zero-padded), immutable and
+# never reused once authored — edits append, they never renumber.
+#
+# Every phase after PHASE-01 has the entrance "previous phase completed; just
+# gate green" (EN-1). just gate = lint + test-all (Emacs 31.1 and 30.2). Every
+# phase ends with just gate and just test-each green and an STD-001 item 3
+# mutation pass over the guards it added (ad hoc, until CHR-001), survivors
+# killed or justified in the phase sheet. "design §" means SL-003 design.md.
+# VT keywords name test or code symbols, never message text (STD-002).
+
+[[phase]]
+id        = "PHASE-01"
+name      = "Core relative moves and outline context"
+objective = "Add the outline field to org-iw-entry, org-iw-core-beside and org-iw-core-step (design § 5.2, DEC-013, DEC-017), and have discovery's --read-entry set :outline from org-get-outline-path. Pure additions: no command uses them yet."
+entrance_criteria = [
+  { id = "EN-1", text = "SL-003 design locked (run dr-01a0fedb, rev 40); DEC-012..019 accepted; RV-005 concluded with F-1/F-2 routed probe." },
+]
+exit_criteria = [
+  { id = "EX-1", text = "org-iw-entry gains outline, defaulting to nil; existing constructors and tests are unchanged." },
+  { id = "EX-2", text = "beside returns (after J) / (after (1+ J)) with J ANCHOR's index in ORDER without TARGET; anchor eq target returns TARGET's own index so place answers unchanged (RV-005 F-15). The design § 9 table over A B C D passes." },
+  { id = "EX-3", text = "step returns (after K), K = index + DELTA clamped to [0, length − 1]; up at the front and down at the end give unchanged from place." },
+  { id = "EX-4", text = "Seeded property test (~500 cases, SL-002's generator, anchors distinct from target): reorder by beside's placement leaves TARGET adjacent to ANCHOR on SIDE with others in order; step moves TARGET by DELTA, clamped. The checker's self-test rejects an off-by-one beside that counts J in ORDER rather than ORDER without TARGET (STD-001 item 2)." },
+  { id = "EX-5", text = "Discovery: a nested heading's outline lists its ancestors outermost first, cookies stripped and links reduced; top-level headings and document entries have nil outline. I6 holds (core loads without org)." },
+]
+verification = [
+  { id = "VT-1", expects = "beside and step tables, anchor-is-target case, struct default", test_file = "test/org-iw-core-test.el", keywords = ["org-iw-core-beside", "org-iw-core-step", "org-iw-entry-outline"], waived = false },
+  { id = "VT-2", expects = "beside/step property test and its checker self-test", test_file = "test/org-iw-core-test.el", keywords = ["org-iw-core-test-beside-property", "org-iw-core-test-step-property", "org-iw-core-test-relative-checker-self-test"], waived = false },
+  { id = "VT-3", expects = "outline read at scan: nested, top-level, document", test_file = "test/org-iw-discovery-test.el", keywords = ["org-iw-entry-outline", "org-iw-discovery-scan"], waived = false },
+]
+specs        = []
+requirements = []
+
+[[phase]]
+id        = "PHASE-02"
+name      = "delete-rank write verb"
+objective = "Add org-iw-write-delete-rank sharing --preflight and --apply (design § 5.2, DEC-014), reword the write layer's title line and commentary for two operations, and add \"buffer is read-only\" to put-rank's docstring (ISS-001)."
+entrance_criteria = [
+  { id = "EN-1", text = "PHASE-01 completed; just gate green." },
+]
+exit_criteria = [
+  { id = "EX-1", text = "delete-rank removes exactly one IW_<Q> line: the file differs from before by that line alone, the drawer and :ID: stay, other IW_ and IW_AFTER_<Q> lines, properties, TODO state and body are byte-identical (I11, REQ-018 AC1). Lowercase :iw_q: is deleted (research fact 3). A document entry's rank is deleted, keeping :ID: and the drawer." },
+  { id = "EX-2", text = "Each preflight refusal changes nothing: changed on disk, not writable, read-only buffer, rank changed since scan, duplicated key, IW_<Q>+, unrecognised drawer. Type checks reject a non-canonical queue and a non-integer EXPECTED." },
+  { id = "EX-3", text = "Invariant check (RV-005 F-3): org-entry-delete stubbed to return nil → error, buffer text and modified flag restored; a drawer holding only IW_<Q> → error, nothing changed." },
+  { id = "EX-4", text = "Save policy as put-rank: clean buffer → saved; modified → unsaved. Commentary and title describe two operations sharing preflight and apply; no \"the one write path\" remains; put-rank's docstring lists the read-only refusal." },
+]
+verification = [
+  { id = "VT-1", expects = "one-line delete, lowercase key, document entry, drawer cases, rollback on stubbed delete, preflight refusals, type checks, save policy", test_file = "test/org-iw-write-test.el", keywords = ["org-iw-write-delete-rank", "org-entry-delete", "org-iw-test-changed-lines"], waived = false },
+  { id = "VA-1", text = "Agent reads org-iw-write.el: commentary and put-rank docstring updated; ISS-001's docstring defect closed." },
+]
+specs        = []
+requirements = []
+
+[[phase]]
+id        = "PHASE-03"
+name      = "Command-layer helpers, behaviour-preserving"
+objective = "Introduce the shared org-iw.el helpers of design § 5.2 before any new command uses them, and route existing code through them: --add-target → --target-at-point (Add keeps the document refusal), --find-entry (used by --check-heading and Continue), --scanned-entry-at, --known-queues, generalised --read-queue, --read-session-queue (used by visit-next), generalised --refuse-absent, reworded --refuse-no-room, --session-hint, and --move replacing Continue's inline place handling. Only the absence and no-room texts change."
+entrance_criteria = [
+  { id = "EN-1", text = "PHASE-02 completed; just gate green." },
+]
+exit_criteria = [
+  { id = "EX-1", text = "org-iw--add-target is gone; --target-at-point returns a marker at the heading or at point-min before the first heading; Add refuses a document marker with \"document targets are not yet supported\" before the queue prompt, as today." },
+  { id = "EX-2", text = "--find-entry is the one lookup by ID (RV-005 F-10): --check-heading, --scanned-entry-at and Continue use it; grep finds no other cl-find/seq-find over entries by ID in org-iw.el." },
+  { id = "EX-3", text = "--scanned-entry-at refuses \"entry at point is excluded (TYPES)\" and \"entry at point is not in any queue\"; both killed by tests." },
+  { id = "EX-4", text = "visit-next behaves as before through --read-session-queue; --read-queue takes QUEUES and REQUIRE-MATCH; one queue prompt in org-iw.el (POL-002)." },
+  { id = "EX-5", text = "--refuse-absent takes SCAN QUEUE ID TITLE; its two texts name no act (RV-005 F-6) and are pinned. --refuse-no-room reads \"no room WHERE in NAME; redistribution is not yet available\" with WHERE carrying its preposition; \"at the end\" (plain Add) and \"at LABEL\" are pinned; the old advice is gone from code and tests." },
+  { id = "EX-6", text = "Continue's placement path goes through --move with WHERE \"at LABEL\"; its SL-002 messages and navigation are otherwise unchanged; --move with nil WHERE refuses \"at position D/N\" (helper-level test, reason stated per STD-001 item 6). --session-hint returns the DEC-015 text without punctuation (RV-005 F-5)." },
+]
+verification = [
+  { id = "VT-1", expects = "target-at-point and Add's document refusal; scanned-entry-at refusals; find-entry", test_file = "test/org-iw-test.el", keywords = ["org-iw--target-at-point", "org-iw--scanned-entry-at", "org-iw--find-entry"], waived = false },
+  { id = "VT-2", expects = "absence and no-room texts; --move outcomes and nil-WHERE text; session hint", test_file = "test/org-iw-test.el", keywords = ["org-iw--refuse-absent", "org-iw--move", "org-iw--session-hint", "org-iw-cmd-test--no-room"], waived = false },
+  { id = "VA-1", text = "Agent greps org-iw.el: no org-iw--add-target; org-iw-core-place is called only by --move and Add (I14); no depth or neighbour arithmetic deciding a rank or placement outside the core (I10′, RV-005 F-12/F-20)." },
+]
+specs        = []
+requirements = []
+
+[[phase]]
+id        = "PHASE-04"
+name      = "Move from the source"
+objective = "Add org-iw--membership-queue (DEC-012) and the autoloaded org-iw-move QUEUE &optional LABEL per design § 5.4."
+entrance_criteria = [
+  { id = "EN-1", text = "PHASE-03 completed; just gate green." },
+]
+exit_criteria = [
+  { id = "EX-1", text = "Queue choice: one membership → no queue prompt; two memberships, no session → prompts over exactly those two, REQUIRE-MATCH t (REQ-017 AC1); two with the session's queue among them → no queue prompt. The placement prompt always appears with the queue's default." },
+  { id = "EX-2", text = "Moved writes one line and only that membership changes (REQ-017 AC2); unchanged writes nothing; no gap → \"no room at LABEL in NAME; …\" with nothing changed. Messages per design § 5.4 table." },
+  { id = "EX-3", text = "Session unchanged (eq), selected window and buffer unchanged (I13). A member document moves (DEC-018)." },
+  { id = "EX-4", text = "From Lisp: QUEUE is canonicalised (RV-005 F-17); a queue the entry isn't in → \"T is not in queue NAME\", nothing changed; not a member and excluded each refuse; bad config or unknown label refuses before the scan." },
+]
+verification = [
+  { id = "VT-1", expects = "queue choice, moved/unchanged/no-gap, session and window unchanged, document, Lisp refusals", test_file = "test/org-iw-test.el", keywords = ["org-iw-move", "org-iw--membership-queue", "org-iw-cmd-test--with-prompt"], waived = false },
+]
+specs        = []
+requirements = []
+
+[[phase]]
+id        = "PHASE-05"
+name      = "Remove from the source and from Continue"
+objective = "Add org-iw--delete-rank, the autoloaded org-iw-remove QUEUE, Continue's remove LABEL with Remove as the chooser's final candidate (--read-placement WITH-REMOVE, DEC-016), and the reserved-label check in --check-placements (design § 5.2, § 5.4)."
+entrance_criteria = [
+  { id = "EN-1", text = "PHASE-04 completed; just gate green." },
+]
+exit_criteria = [
+  { id = "EX-1", text = "Source Remove deletes one line without confirmation; the session is unchanged (eq); the hint appears only for the session's entry in the session's queue, with the exact § 5.4 literals and no doubled period (DEC-015, RV-005 F-5); a single membership reaches no prompt; a member document is removed; a Lisp QUEUE is canonicalised and a queue the entry isn't in refuses (RV-005 F-17)." },
+  { id = "EX-2", text = "Continue's chooser lists the labels then \"Remove\", last and not the default (recorder :order and :default). Remove deletes, then visits the new head without reinserting (REQ-018 AC2); the sole entry → \"Queue NAME is empty\" with the hint, session kept; absent or duplicated session entry → absence refusals, nothing changed." },
+  { id = "EX-3", text = "(org-iw-continue 'remove) from Lisp works with a broken vocabulary; the interactive chooser refuses bad config before prompting (RV-005 F-4)." },
+  { id = "EX-4", text = "A label \"remove\", \"Remove\" or \"REMOVE\" refuses naming the source and echoing the label as configured (RV-005 F-16)." },
+]
+verification = [
+  { id = "VT-1", expects = "source Remove: one line, session eq, hint rule, document, Lisp refusals", test_file = "test/org-iw-test.el", keywords = ["org-iw-remove", "org-iw--delete-rank", "org-iw--session-hint"], waived = false },
+  { id = "VT-2", expects = "Continue Remove: chooser order/default, new head, sole entry, Lisp call on broken vocabulary, absence refusals; reserved label", test_file = "test/org-iw-test.el", keywords = ["org-iw-continue 'remove", "org-iw--read-placement", "org-iw--check-placements"], waived = false },
+]
+specs        = []
+requirements = []
+
+[[phase]]
+id        = "PHASE-06"
+name      = "Queue view: display, open, refresh"
+objective = "Add org-iw-view-mode, org-iw-list-queue, --view-buffer, --view-redraw, --outline-text, RET (org-iw-view-open) and g, and give --visit its OTHER-WINDOW argument (design § 5.2–5.4, DEC-017, DEC-019). No reordering or removal from the view yet."
+entrance_criteria = [
+  { id = "EN-1", text = "PHASE-05 completed; just gate green." },
+]
+exit_criteria = [
+  { id = "EX-1", text = "Rows: ordinals 1..N whatever the ranks (REQ-008); link-reduced title; context in shadow face via --outline-text; file base name; the session's row has * and bold. Same-title entries under different parents show different contexts (REQ-013 AC2, in part: RV-005 F-11 carries the rest to reconcile)." },
+  { id = "EX-2", text = "--outline-text: fits as is; drops outermost ancestors behind \"…/\"; keeps the right end of an over-long nearest ancestor; empty outline → \"\"." },
+  { id = "EX-3", text = "Queue prompt offers configured and discovered queues (REQ-013 AC1); the session queue is used without a prompt. An empty queue opens an empty view and reports it. Two queues with the same :name get separate view buffers (RV-005 F-18); list-queue on an existing view does not re-enter the mode (RV-005 F-19)." },
+  { id = "EX-4", text = "RV-005 F-1 (probe): with the view in an unselected window, RET and org-iw-list-queue on the already-shown view leave the view window's point on the target row. The test must fail with --view-redraw's set-window-point step removed (record the observed failure in the phase sheet)." },
+  { id = "EX-5", text = "RET shows the entry in another window and sets the session as visit-next does (REQ-013 AC4); the view's * moves. g redraws from a fresh scan through a buffer-local revert-buffer-function; refresh after a source undo shows the restored order (REQ-013 AC3). RET off a row refuses \"no entry at point\"." },
+]
+verification = [
+  { id = "VT-1", expects = "rows, outline text, prompt, empty queue, buffer per queue ID, refresh after undo", test_file = "test/org-iw-test.el", keywords = ["org-iw-list-queue", "org-iw--outline-text", "org-iw--view-buffer", "tabulated-list-entries"], waived = false },
+  { id = "VT-2", expects = "RV-005 F-1 probe: view window point survives RET and list-queue while unselected; RET sets the session", test_file = "test/org-iw-test.el", keywords = ["org-iw-view-open", "org-iw--view-redraw", "window-point"], waived = false },
+]
+specs        = []
+requirements = []
+
+[[phase]]
+id        = "PHASE-07"
+name      = "Queue view: reorder and remove; README"
+objective = "Add the view's up/down, mark/unmark, place before/after and D commands (design § 5.4, DEC-019), extend the prompt recorder to answer y-or-n-p, and document the view, Move, Remove and the session-on-remove behaviour in README (DEC-015)."
+entrance_criteria = [
+  { id = "EN-1", text = "PHASE-06 completed; just gate green." },
+]
+exit_criteria = [
+  { id = "EX-1", text = "Recorder: org-iw-cmd-test--with-prompt also answers y-or-n-p from the answer list (:yes / :no) and records its prompt; a string answer to y-or-n-p or a keyword answer to completing-read fails; its self-test covers each case. Still one recorder (POL-002)." },
+  { id = "EX-2", text = "M-<down>/M-<up> move through step and --move, point follows; at the end or front \"already\", nothing written; no gap refuses \"at position D/N\". Moving one entry out of a tied pair succeeds; landing between equal ranks refuses (RV-005 F-14)." },
+  { id = "EX-3", text = "m then b/a on another row places the marked entry beside the entry at point, point on the marked entry, mark cleared; already adjacent → nothing written, mark cleared; b without a mark refuses; a refused b/a (no gap, marked or anchor entry gone) keeps the mark; m on a second row replaces the mark (RV-005 F-8). The mark is cleared when its entry leaves." },
+  { id = "EX-4", text = "RV-005 F-2 (probe): a marked row survives g — the tag is still shown and the next b/a uses it — and survives org-iw-list-queue on the same queue. The test must fail if g is bound to tabulated-list-revert with the mark re-tagged in tabulated-list-revert-hook (record the observed failure in the phase sheet)." },
+  { id = "EX-5", text = "D: row ID, rescan, find (refuse absent before any prompt), then y-or-n-p \"Remove T from NAME? \" with the scanned title (RV-005 F-7). y → deleted, point on the next row else the previous; n → nothing changed. Stale row after a source undo acts on the fresh state (I12)." },
+  { id = "EX-6", text = "View moves and D leave the session unchanged (eq) (I13); removing the session's entry shows the hint and drops the * after redraw. Every action off a row refuses \"no entry at point\"." },
+  { id = "EX-7", text = "README documents the view and its keys, Move, Remove (view, source, Continue's chooser), the reserved \"Remove\" label, and why removing the session's entry leaves the session and how to go on or stop (DEC-015)." },
+]
+verification = [
+  { id = "VT-1", expects = "recorder y-or-n-p extension and self-test", test_file = "test/org-iw-test.el", keywords = ["org-iw-cmd-test-with-prompt-self-test", "y-or-n-p", ":yes", ":no"], waived = false },
+  { id = "VT-2", expects = "up/down, mark, b/a incl. refusals and mark rules, D, stale row, session eq", test_file = "test/org-iw-test.el", keywords = ["org-iw-view-move-down", "org-iw-view-move-up", "org-iw-view-mark", "org-iw-view-place-before", "org-iw-view-place-after", "org-iw-view-remove"], waived = false },
+  { id = "VT-3", expects = "RV-005 F-2 probe: mark survives g and list-queue", test_file = "test/org-iw-test.el", keywords = ["org-iw--view-mark", "revert-buffer"], waived = false },
+  { id = "VA-1", text = "Agent reads README against design § 10's README row and DEC-015." },
+]
+specs        = []
+requirements = []
+
+[[phase]]
+id        = "PHASE-08"
+name      = "Human trial"
+objective = "Run the design § 9 human trial (POL-003) on a Git-committed copy of real notes, and fold any defects back before audit."
+entrance_criteria = [
+  { id = "EN-1", text = "PHASE-07 completed; just gate and just test-each green." },
+]
+exit_criteria = [
+  { id = "EX-1", text = "The user has run trial steps 1–8 of design § 9 and reported the outcome; defects are fixed in this phase (TDD) or recorded as backlog items with the user's agreement." },
+  { id = "EX-2", text = "just gate and just test-each green after any fixes." },
+]
+verification = [
+  { id = "VH-1", text = "User runs design § 9 trial steps 1–8 (view order and context; reorder by keys and by mark then b/a with their own navigation, one git-diff line per move; RET; D then source undo and g; source Move and Remove on a two-membership heading; C-u Continue → Remove; remove the session's entry and follow the hint; place after one fixed entry until no room, nothing changed — RV-005 F-13) and confirms." },
+]
+specs        = []
+requirements = []
