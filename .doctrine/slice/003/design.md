@@ -376,9 +376,11 @@ equal to "Remove", ignoring case, echoing the label as configured:
 
 (org-iw--view-redraw SCAN &optional GOTO-ID)
 ;; The one redraw.  Sets tabulated-list-entries from SCAN, prints, puts
-;; point on GOTO-ID's row (else the row it was on, by ID), re-tags the
-;; mark or clears it if its entry is gone, and sets the point of every
-;; window showing the buffer to the buffer's point.  The last step is
+;; point on GOTO-ID's row (else the row it was on, by ID; if that entry
+;; is gone, the same line, or the last row when fewer remain; RV-007
+;; F-9), re-tags the mark or clears it if its entry is gone, and sets
+;; the point of every window showing the buffer to the buffer's point.
+;; The last step is
 ;; needed because tabulated-list-print erases the buffer, which resets
 ;; the point of a window that is not selected, as after RET.
 ```
@@ -510,8 +512,10 @@ for Move, then `org-iw--delete-rank` and the remove message.
 
 **Queue view.** `org-iw-list-queue QUEUE` canonicalises QUEUE, gets
 `org-iw--view-buffer` (which sets up only a new buffer), redraws from a
-fresh scan, keeping an existing view's mark, and shows it with `pop-to-buffer`. An empty queue shows an
-empty view and reports "Queue NAME is empty".
+fresh scan, keeping an existing view's mark, and shows it with `pop-to-buffer`. It reports the
+queue through `org-iw--report`, so the message carries the scan-problem
+suffix like every other (RV-007 F-6): "Queue NAME: N entries" ("1
+entry"), or "Queue NAME is empty", which shows an empty view.
 
 Every action that writes follows one pattern. The diagram shows
 M-<down>.
@@ -556,7 +560,7 @@ sequenceDiagram
   the redraw. A source edit made during the prompt is still caught by
   preflight.
 - **Refresh (g):** `revert-buffer-function` → `org-iw--view-redraw` with
-  a fresh scan.
+  a fresh scan, then the same report as `org-iw-list-queue` (RV-007 F-6).
 - The view never refreshes itself when the source changes.
 
 **Messages.** T is the scanned title and NAME the queue's display name.
@@ -566,6 +570,7 @@ Sentences join with ". ", and a message has no final period.
 
 | act | message |
 |---|---|
+| view show, refresh (g) | "Queue NAME: N entries" ("1 entry") · empty: "Queue NAME is empty" |
 | view move | "Moved T to D/N STATUS" · "T already at D/N" |
 | source Move | "Moved T to LABEL in NAME, D/N STATUS" · "T already at LABEL in NAME, D/N" |
 | Remove, view or source | "Removed T from NAME STATUS" · if T is the session's entry in its queue: "Removed T from NAME STATUS. HINT" |

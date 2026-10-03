@@ -290,3 +290,20 @@ some point i don't care much when."
   Equivalent: list-queue popping before redraw (same user-visible result).
 - `just gate` green, 301 tests on 31.1 and 30.2; `just test-each` 301 alone
   green on both.
+
+## RV-007 rulings and design amendment (2026-10-03)
+
+User reply: "1. agreed 2. accept. go ahead."
+
+- F-6: `org-iw-list-queue` and `g` report "Queue NAME: N entries" ("1
+  entry") or "Queue NAME is empty" through `org-iw--report`, so the
+  scan-problem suffix shows. This supersedes PHASE-06 OQ-1, which ruled
+  that a non-empty queue gives no message.
+- F-9: when the entry on the current row is gone, the redraw keeps the
+  same line, or the last row when fewer remain.
+- The design was amended in § 5.2 and § 5.4. The run was regressed to
+  reviewing, the edit adopted, both sections re-attested, RV-008
+  concluded with zero findings, and design acceptance recorded on the
+  reply above. The run is re-locked at revision 47.
+- The other 11 findings are fix-now. ISS-002 and ISS-003 were captured
+  as out of scope.

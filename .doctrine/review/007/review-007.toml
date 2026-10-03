@@ -126,17 +126,25 @@ response = "Pin list-queue's return value on a non-empty queue, to match the F-6
 
 [[finding]]
 id = "F-6"
-status = "open"
+status = "answered"
 severity = "minor"
 title = "The view should report scan problems like every other command; list-queue and g on a non-empty queue say nothing"
 detail = """
 Expected (SL-001 Messages convention): every command message carries '[N source problems ignored]' when the scan has problems.
 Observed: corpus with A and two headings sharing ID b1 (2 problems): (org-iw-list-queue "q") returns nil, rows ("a1"); (revert-buffer) nil; (org-iw-visit-next "q") 'IW Q 1/1: A [2 source problems ignored]'. Entries vanish from the view unexplained. Design § 5.4 names only the empty-queue message (OQ-1 ruled literally): a design gap, not a defect.
 Fix: list-queue and g report through org-iw--report (e.g. 'Queue NAME: N entries'), or a header-line count. Touches design § 5.4 and list-queue's documented nil return."""
+disposition = "fix-now"
+response = "User agreed (2026-10-03). Design § 5.4 amended (run re-locked, RV-008): list-queue and g report through org-iw--report, 'Queue NAME: N entries' ('1 entry') or 'Queue NAME is empty', carrying the scan-problem suffix. F-5's pin follows this."
 
 [[finding.turn]]
 act = "raise"
 role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "User agreed (2026-10-03). Design § 5.4 amended (run re-locked, RV-008): list-queue and g report through org-iw--report, 'Queue NAME: N entries' ('1 entry') or 'Queue NAME is empty', carrying the scan-problem suffix. F-5's pin follows this."
 
 [[finding]]
 id = "F-7"
@@ -182,16 +190,24 @@ response = "Mark org-iw--view-queue permanent-local, so re-entering the mode kee
 
 [[finding]]
 id = "F-9"
-status = "open"
+status = "answered"
 severity = "nit"
 title = "g should keep point near its row when that entry has left the queue; it jumps to row 1"
 detail = """
 Observed: point on row b1, b1 removed from source, g: point at row 1 (org-iw.el:911, --view-redraw). In a long queue the user loses their place; PHASE-07's D avoids it via GOTO-ID, plain g does not. Design silent.
 Fix: when the previous row's ID is gone, keep the same line, clamped to the last row. Touches § 5.2 redraw prose slightly."""
+disposition = "fix-now"
+response = "User accepted (2026-10-03). Design § 5.2 amended: when the row's entry is gone, redraw keeps the same line, or the last row when fewer remain."
 
 [[finding.turn]]
 act = "raise"
 role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "User accepted (2026-10-03). Design § 5.2 amended: when the row's entry is gone, redraw keeps the same line, or the last row when fewer remain."
 
 [[finding]]
 id = "F-10"
