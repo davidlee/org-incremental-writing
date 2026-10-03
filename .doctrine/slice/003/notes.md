@@ -307,3 +307,6 @@ User reply: "1. agreed 2. accept. go ahead."
   reply above. The run is re-locked at revision 47.
 - The other 11 findings are fix-now. ISS-002 and ISS-003 were captured
   as out of scope.
+- All 13 RV-007 findings fixed in 136fe79 (309 tests); RV-007 done.
+  F-3 deviation: the fixture fails a test at the moment it would reuse
+  an outside view of the same queue, rather than refusing to start.

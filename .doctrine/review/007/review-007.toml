@@ -10,13 +10,19 @@ raiser    = "reviewer"
 responder = "seat"
 rounds_base = 0
 contests_base = 0
+concluded = true
+
+[[review.turn]]
+act = "conclude"
+role = "raiser"
+note = "Diff 6b06c30..83885ef (org-iw.el, tests, helpers): architecture review by execution, test review with a 29-mutant pass, sonnet verification of all candidates; fixes reviewed in 136fe79."
 
 [target]                   # the outbound `reviews` edge: RV-NNN ──reviews──▶ <ref>
 ref   = "SL-003"
 
 [[finding]]
 id = "F-1"
-status = "answered"
+status = "verified"
 severity = "minor"
 title = "Continue's Remove should be tested with the session's entry away from the head; no test fails if the wrong entry is visited"
 detail = """
@@ -36,9 +42,14 @@ role = "responder"
 disposition = "fix-now"
 response = "Add the probe org-iw-cmd-test-continue-remove-entry-not-at-head; it kills the (cdr order) mutant."
 
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in 136fe79 per the agreed response; just gate 309/309 on Emacs 31.1 and 30.2, test-each green; named mutants killed (worker report)."
+
 [[finding]]
 id = "F-2"
-status = "answered"
+status = "verified"
 severity = "minor"
 title = "Move's result text should have one owner before PHASE-07 adds a third copy; --continue-place and org-iw-move each format it"
 detail = """
@@ -58,9 +69,14 @@ role = "responder"
 disposition = "fix-now"
 response = "Add org-iw--moved-text, used by --continue-place and org-iw-move, with the output text unchanged. PHASE-07's view moves reuse it."
 
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in 136fe79 per the agreed response; just gate 309/309 on Emacs 31.1 and 30.2, test-each green; named mutants killed (worker report)."
+
 [[finding]]
 id = "F-3"
-status = "answered"
+status = "verified"
 severity = "minor"
 title = "The test fixture should spare queue views made outside it; it reuses and then kills a user's view"
 detail = """
@@ -80,9 +96,14 @@ role = "responder"
 disposition = "fix-now"
 response = "Fixture records the views that exist on entry, kills only new ones, and refuses to start when a view of the same queue already exists. Add the probe as a test."
 
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in 136fe79 per the agreed response; just gate 309/309 on Emacs 31.1 and 30.2, test-each green; named mutants killed (worker report)."
+
 [[finding]]
 id = "F-4"
-status = "answered"
+status = "verified"
 severity = "minor"
 title = "Point-at-marker command test helpers should be one helper; there are five plus inline copies"
 detail = """
@@ -102,9 +123,14 @@ role = "responder"
 disposition = "fix-now"
 response = "One org-iw-cmd-test--call-at helper, with the confirmation-prompt guard for every caller, replaces the five helpers and the inline copies."
 
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in 136fe79 per the agreed response; just gate 309/309 on Emacs 31.1 and 30.2, test-each green; named mutants killed (worker report)."
+
 [[finding]]
 id = "F-5"
-status = "answered"
+status = "verified"
 severity = "minor"
 title = "org-iw-list-queue on a non-empty queue should be pinned to return nil; reporting the empty text unconditionally survives"
 detail = """
@@ -124,9 +150,14 @@ role = "responder"
 disposition = "fix-now"
 response = "Pin list-queue's return value on a non-empty queue, to match the F-6 ruling."
 
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in 136fe79 per the agreed response; just gate 309/309 on Emacs 31.1 and 30.2, test-each green; named mutants killed (worker report)."
+
 [[finding]]
 id = "F-6"
-status = "answered"
+status = "verified"
 severity = "minor"
 title = "The view should report scan problems like every other command; list-queue and g on a non-empty queue say nothing"
 detail = """
@@ -146,9 +177,14 @@ role = "responder"
 disposition = "fix-now"
 response = "User agreed (2026-10-03). Design § 5.4 amended (run re-locked, RV-008): list-queue and g report through org-iw--report, 'Queue NAME: N entries' ('1 entry') or 'Queue NAME is empty', carrying the scan-problem suffix. F-5's pin follows this."
 
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in 136fe79 per the agreed response; just gate 309/309 on Emacs 31.1 and 30.2, test-each green; named mutants killed (worker report)."
+
 [[finding]]
 id = "F-7"
-status = "answered"
+status = "verified"
 severity = "nit"
 title = "The view should read a row's title through one accessor; view-open reads it by column index and leaks its face into the refusal"
 detail = """
@@ -167,9 +203,14 @@ role = "responder"
 disposition = "fix-now"
 response = "Add org-iw--view-title ID, which strips text properties. view-open uses it and PHASE-07 b/a will too."
 
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in 136fe79 per the agreed response; just gate 309/309 on Emacs 31.1 and 30.2, test-each green; named mutants killed (worker report)."
+
 [[finding]]
 id = "F-8"
-status = "answered"
+status = "verified"
 severity = "nit"
 title = "Re-entering org-iw-view-mode should not orphan the view; it clears the queue and the next list-queue makes a second buffer"
 detail = """
@@ -188,9 +229,14 @@ role = "responder"
 disposition = "fix-now"
 response = "Mark org-iw--view-queue permanent-local, so re-entering the mode keeps it. --view-revert refuses when no queue is set."
 
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in 136fe79 per the agreed response; just gate 309/309 on Emacs 31.1 and 30.2, test-each green; named mutants killed (worker report)."
+
 [[finding]]
 id = "F-9"
-status = "answered"
+status = "verified"
 severity = "nit"
 title = "g should keep point near its row when that entry has left the queue; it jumps to row 1"
 detail = """
@@ -209,9 +255,14 @@ role = "responder"
 disposition = "fix-now"
 response = "User accepted (2026-10-03). Design § 5.2 amended: when the row's entry is gone, redraw keeps the same line, or the last row when fewer remain."
 
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in 136fe79 per the agreed response; just gate 309/309 on Emacs 31.1 and 30.2, test-each green; named mutants killed (worker report)."
+
 [[finding]]
 id = "F-10"
-status = "answered"
+status = "verified"
 severity = "nit"
 title = "The OTHER-WINDOW visit test should pin 'not the selected window'; plain pop-to-buffer survives"
 detail = """
@@ -230,9 +281,14 @@ role = "responder"
 disposition = "fix-now"
 response = "Add the probe org-iw-cmd-test-visit-other-window-not-same."
 
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in 136fe79 per the agreed response; just gate 309/309 on Emacs 31.1 and 30.2, test-each green; named mutants killed (worker report)."
+
 [[finding]]
 id = "F-11"
-status = "answered"
+status = "verified"
 severity = "nit"
 title = "org-iw-cmd-test-view-redraw-goto-id's docstring should be accurate; it says no command passes GOTO-ID, but view-open does"
 detail = """
@@ -251,9 +307,14 @@ role = "responder"
 disposition = "fix-now"
 response = "Correct the docstring and keep GOTO-ID (design § 5.2; PHASE-07 D uses it)."
 
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in 136fe79 per the agreed response; just gate 309/309 on Emacs 31.1 and 30.2, test-each green; named mutants killed (worker report)."
+
 [[finding]]
 id = "F-12"
-status = "answered"
+status = "verified"
 severity = "minor"
 title = "org-iw--scanned-entry-at should refuse 'excluded' when the entry's own IW_<Q> line was dropped; with another valid membership it says 'not in queue'"
 detail = """
@@ -273,9 +334,14 @@ role = "responder"
 disposition = "fix-now"
 response = "Queue-scoped 'excluded' refusal in the QUEUE arm, sharing one helper with --check-heading. F-13's test guards against over-refusal."
 
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in 136fe79 per the agreed response; just gate 309/309 on Emacs 31.1 and 30.2, test-each green; named mutants killed (worker report)."
+
 [[finding]]
 id = "F-13"
-status = "answered"
+status = "verified"
 severity = "minor"
 title = "org-iw--scanned-entry-at's 'excluded' guard should be pinned for a member whose ID has another problem; dropping (not entry) survives"
 detail = """
@@ -294,6 +360,11 @@ act = "dispose"
 role = "responder"
 disposition = "fix-now"
 response = "Add the probe org-iw-cmd-test-move-command-member-with-other-problems."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in 136fe79 per the agreed response; just gate 309/309 on Emacs 31.1 and 30.2, test-each green; named mutants killed (worker report)."
 
 # Findings are append-only `[[finding]]` tables, added by `review raise`.
 # Empty here at creation — a fresh review is Active, awaiting the raiser.
