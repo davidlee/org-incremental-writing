@@ -1,0 +1,18 @@
+schema = "doctrine.observation"
+schema_version = 1
+uid = "01a0ff88-f8e2-78c2-880e-57f85ca3ddbf"
+recorded_at = "2026-10-03T02:12:41.827014969Z"
+kind = "friction"
+summary = "verify-vt reports UNATTRIBUTABLE until phase flipped completed"
+detail = "SL-003 PHASE-01: after committing, verify-vt showed UNATTRIBUTABLE for all VT rows; flipping the phase to completed bound the delta and they passed. Ordering in orchestrator brief (verify-vt after commit, before flip) misleads."
+
+[facets.execution]
+schema_version = 1
+interface = "cli"
+interface_origin = "automatic"
+product_surface = "doctrine"
+product_surface_origin = "automatic"
+command = "observation record"
+command_origin = "automatic"
+repository_context = "primary"
+repository_context_origin = "automatic"

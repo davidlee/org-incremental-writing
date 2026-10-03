@@ -1,0 +1,18 @@
+schema = "doctrine.observation"
+schema_version = 1
+uid = "01a0ffa5-fdaa-7bd2-8c36-5cd366ea2b28"
+recorded_at = "2026-10-03T02:44:23.594825977Z"
+kind = "friction"
+summary = "Substring-matching refusal test passed with old and new no-room text"
+detail = "SL-003 PHASE-03: add-refuses-at-rank-limit matches by substring, so it did not pin the reworded text; whole-text tests did. Also: a vacuous mutant survived until the unchanged-move test made the buffer read-only."
+
+[facets.execution]
+schema_version = 1
+interface = "cli"
+interface_origin = "automatic"
+product_surface = "doctrine"
+product_surface_origin = "automatic"
+command = "observation record"
+command_origin = "automatic"
+repository_context = "primary"
+repository_context_origin = "automatic"

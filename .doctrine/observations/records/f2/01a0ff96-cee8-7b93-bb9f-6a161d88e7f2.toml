@@ -1,0 +1,18 @@
+schema = "doctrine.observation"
+schema_version = 1
+uid = "01a0ff96-cee8-7b93-bb9f-6a161d88e7f2"
+recorded_at = "2026-10-03T02:27:48.584542954Z"
+kind = "friction"
+summary = "Phase sheet assumed a lowercase-key test kills a dropped case-fold-search let"
+detail = "SL-003 PHASE-02: ERT runs with case-fold-search t, so the mutant survived until the test bound case-fold-search nil. Candidate memory: a test pinning a case-fold-search binding must bind the opposite value."
+
+[facets.execution]
+schema_version = 1
+interface = "cli"
+interface_origin = "automatic"
+product_surface = "doctrine"
+product_surface_origin = "automatic"
+command = "observation record"
+command_origin = "automatic"
+repository_context = "primary"
+repository_context_origin = "automatic"
