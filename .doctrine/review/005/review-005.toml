@@ -10,19 +10,24 @@ raiser    = "raiser"
 responder = "responder"
 rounds_base = 0
 contests_base = 0
-concluded = false
+concluded = true
 
 [[review.turn]]
 act = "conclude"
 role = "raiser"
 note = "Adversarial opus pass over design.md (write path, ownership, view mechanics, Continue Remove, prompts, tests, legibility) with experiments on Emacs 30.2/31.1; verify pass over the integrated fixes raised N-1/N-2 (F-19/F-20), fixed, not re-verified."
 
+[[review.turn]]
+act = "conclude"
+role = "raiser"
+note = "Design review of SL-003 (design.md rev 41, locked): write path, placement ownership, view redraw/point/mark behaviour, test plan vs REQ-013/017/018 and STD-001. 20 findings: 19 fix-now integrated and verified (F-1/F-2 as probes transcribed to PHASE-06/EX-4 and PHASE-07/EX-4); F-11 follow-up to a REV at reconcile."
+
 [target]                   # the outbound `reviews` edge: RV-NNN ──reviews──▶ <ref>
 ref   = "SL-003"
 
 [[finding]]
 id = "F-1"
-status = "answered"
+status = "verified"
 severity = "major"
 title = "F-1 RET loses the view's window point"
 detail = "Redraw after org-iw--visit OTHER-WINDOW runs with the source window selected; tabulated-list-print erase-buffer resets the view window's point to 1 (tl.el, Emacs 30.2 and 31.1). Same for org-iw-list-queue on an already-shown view. sec-05-4."
@@ -57,9 +62,14 @@ disposition = "fix-now"
 route = "probe"
 response = "Design fixed in prose (org-iw--view-redraw sets point in every window showing the view; RET redraws after visit). Must hold against tabulated-list-print erasing the buffer while the view sits in an unselected window (RET with the source window selected, and org-iw-list-queue on an already-shown view). Need not hold against the user moving point by hand. Criterion: an ERT test shows the view in an unselected window, runs RET and org-iw-list-queue, and asserts the view window's point stays on the target row; it must fail with the point-restoring step removed. Host phase: the one that implements the view redraw helper and RET."
 
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Probe transcribed: PHASE-06/EX-4 and VT-2 (negative control: fails with set-window-point removed). Batch reproduction checked on Emacs 30 and 31."
+
 [[finding]]
 id = "F-2"
-status = "answered"
+status = "verified"
 severity = "major"
 title = "F-2 g via tabulated-list-revert-hook wipes the mark tag"
 detail = "tabulated-list-revert runs the hook then (tabulated-list-print t) again (tabulated-list.el 31.1:393-400), erasing tags set by the hook. sec-05-3/05-4/09."
@@ -93,6 +103,11 @@ role = "responder"
 disposition = "fix-now"
 route = "probe"
 response = "Design fixed in prose (g uses a buffer-local revert-buffer-function that calls org-iw--view-redraw; tabulated-list-revert-hook is not used). Must hold against tabulated-list-revert reprinting after its hook and so erasing the mark tag. Need not hold against a marked entry that leaves the queue between redraws (the stale-row rule covers that). Criterion: an ERT test marks a row, runs g, and asserts the mark is still shown and still used by the next placement; it must fail if g is bound to tabulated-list-revert with the mark restored in the hook. Host phase: the one that implements mark and g."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Probe transcribed: PHASE-07/EX-4 and VT-3 (negative control: fails with g bound to tabulated-list-revert and the mark re-tagged in its hook)."
 
 [[finding]]
 id = "F-3"
@@ -480,7 +495,7 @@ note = "Reviewer verify pass (opus subagent, 2026-10-03): verified against revis
 
 [[finding]]
 id = "F-19"
-status = "answered"
+status = "verified"
 severity = "minor"
 title = "N-1 org-iw-list-queue re-entering the mode kills the mark"
 detail = "kill-all-local-variables clears org-iw--view-queue and org-iw--view-mark on an existing view (mode.el). sec-05-4."
@@ -497,9 +512,14 @@ role = "responder"
 disposition = "fix-now"
 response = "org-iw--view-buffer sets up mode and queue only for a new buffer; list-queue only redraws; test: mark survives list-queue. sec-05-2/05-4/09."
 
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Checked against locked design.md: § 5.2 org-iw--view-buffer sets up mode and queue only for a new buffer; § 5.4 list-queue only redraws; test in § 9; pinned at PHASE-06/EX-3."
+
 [[finding]]
 id = "F-20"
-status = "answered"
+status = "verified"
 severity = "nit"
 title = "N-2 I10′ forbids display/navigation neighbour choices the design makes"
 detail = "D's landing row, Continue Remove's head, 'position D/N'. sec-05-5."
@@ -515,6 +535,11 @@ act = "dispose"
 role = "responder"
 disposition = "fix-now"
 response = "I10′ limited to depths/neighbours deciding a rank or placement; display and navigation exempt. sec-05-5."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Checked against locked design.md § 5.5: I10′ limited to depths/neighbours deciding a rank or placement; display/navigation exempt. Pinned at PHASE-03/VA-1."
 
 # Findings are append-only `[[finding]]` tables, added by `review raise`.
 # Empty here at creation — a fresh review is Active, awaiting the raiser.

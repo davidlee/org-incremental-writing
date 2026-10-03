@@ -92,6 +92,24 @@ What the first pass was asked to probe:
 - test-plan gaps against REQ-013/017/018 ACs and STD-001 (refusals
   killed, recorder misuse).
 
+## Lock and plan (2026-10-03)
+
+User accepted the design ("I approve the design, /plan"). Recorded on
+their assent: 14 section attestations, review-disposed (conducted
+RV-005), design-accepted; run locked at rev 40. The lock gate required
+a route on the two majors: F-1 and F-2 reopened and re-disposed
+`probe` (prose fix stands; only an implementation shows it holds).
+
+Plan: eight phases, bottom-up (see plan.md). Revision after the
+critical pass: each helper lands with its first caller, so no phase
+ends with dead code. Checked: batch Emacs 30/31 reproduces F-1
+(unselected window point → 1 after tabulated-list-print), so the
+PHASE-06 probe test and its negative control are feasible.
+
+F-1/F-2 verified as transcribed; F-19/F-20 verified against the locked
+design; RV-005 concluded. Research restamped (drift was the design and
+scope edits only). Slice → ready. Next: /phase-plan PHASE-01.
+
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
 fresh-as-of: 2026-10-03 · design drafting (run rev 22) · 33c2c87
