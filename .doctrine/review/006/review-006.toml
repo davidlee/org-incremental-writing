@@ -22,7 +22,7 @@ ref   = "SL-003"
 
 [[finding]]
 id = "F-1"
-status = "answered"
+status = "verified"
 severity = "minor"
 title = "delete-rank should refuse a read-only indirect buffer; it signals raw buffer-read-only"
 detail = """
@@ -42,9 +42,14 @@ role = "responder"
 disposition = "fix-now"
 response = "Preflight also refuses when the marker's own buffer is read-only; one test per verb (read-only indirect over writable base). Local to org-iw-write.el; docstrings already promise the refusal."
 
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in cbb493e: preflight also refuses when the marker's buffer is read-only; write-test-refuses-read-only-indirect and delete-rank-refuses-read-only-indirect, both red before. just gate 239/239 on Emacs 31.1 and 30.2; test-each green."
+
 [[finding]]
 id = "F-2"
-status = "answered"
+status = "verified"
 severity = "minor"
 title = "org-iw--target-at-point should use org-back-to-heading-or-point-min; it hand-rolls it"
 detail = """
@@ -64,6 +69,11 @@ role = "responder"
 disposition = "fix-now"
 response = "Replace the hand-rolled branch with org-back-to-heading-or-point-min t inside org-with-wide-buffer; verifier showed 236/236 green on 30 and 31."
 
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in cbb493e: --target-at-point uses (org-back-to-heading-or-point-min t) in org-with-wide-buffer; suite unchanged and green. just gate 239/239 on Emacs 31.1 and 30.2; test-each green."
+
 [[finding]]
 id = "F-3"
 status = "open"
@@ -81,7 +91,7 @@ role = "raiser"
 
 [[finding]]
 id = "F-4"
-status = "answered"
+status = "verified"
 severity = "nit"
 title = "Outline should be clean text; a mid-heading cookie leaves a double space and a test pins it"
 detail = """
@@ -101,9 +111,14 @@ role = "responder"
 disposition = "fix-now"
 response = "Normalise outline whitespace in discovery's --read-entry (one owner of Org reading) and assert the clean form, before PHASE-06 renders it."
 
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = 'Fixed in cbb493e: discovery maps string-clean-whitespace over org-get-outline-path; discovery-test-scan-outline-nested asserts "Plan Site". just gate 239/239 on Emacs 31.1 and 30.2; test-each green.'
+
 [[finding]]
 id = "F-5"
-status = "answered"
+status = "verified"
 severity = "nit"
 title = "org-iw-core-beside should reject an invalid SIDE always; it accepts one when ANCHOR is TARGET"
 detail = """
@@ -123,9 +138,14 @@ role = "responder"
 disposition = "fix-now"
 response = "Validate SIDE with cl-check-type before the eq branch; table test for a bad side with anchor eq target."
 
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in cbb493e: cl-check-type side first; core-test-beside-rejects-invalid-side covers anchor eq target. just gate 239/239 on Emacs 31.1 and 30.2; test-each green."
+
 [[finding]]
 id = "F-6"
-status = "answered"
+status = "verified"
 severity = "minor"
 title = "delete-rank's emptied-drawer check should be pinned to the target's drawer; a point-min mutant survives"
 detail = """
@@ -145,9 +165,14 @@ role = "responder"
 disposition = "fix-now"
 response = "Add the reviewer's probe (rank-only drawer on a heading after another heading with a drawer)."
 
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in cbb493e: delete-rank-rank-only-drawer-is-error fixture puts a drawered heading before the target; point-min mutant killed. just gate 239/239 on Emacs 31.1 and 30.2; test-each green."
+
 [[finding]]
 id = "F-7"
-status = "answered"
+status = "verified"
 severity = "minor"
 title = "--move's no-room refusal should be tested with a configured queue name; an ID mutant survives"
 detail = """
@@ -167,9 +192,14 @@ role = "responder"
 disposition = "fix-now"
 response = "Add a no-room test with a configured :name through --should-refuse-cleanly."
 
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in cbb493e: move-refuses-without-gap configures :name Essays and asserts the name; ID mutant killed. just gate 239/239 on Emacs 31.1 and 30.2; test-each green."
+
 [[finding]]
 id = "F-8"
-status = "answered"
+status = "verified"
 severity = "minor"
 title = "Queue prompts of Add and visit-next should be pinned as non-must-match; the recorder ignores REQUIRE-MATCH"
 detail = """
@@ -189,9 +219,14 @@ role = "responder"
 disposition = "fix-now"
 response = "Recorder fails a non-candidate answer under REQUIRE-MATCH t (self-test case); Add and visit-next interactive tests assert :require-match nil."
 
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in cbb493e: recorder fails a non-candidate answer under REQUIRE-MATCH t (self-test cases); Add and visit-next assert :require-match nil; both t mutants killed. just gate 239/239 on Emacs 31.1 and 30.2; test-each green."
+
 [[finding]]
 id = "F-9"
-status = "answered"
+status = "verified"
 severity = "nit"
 title = "--find-entry's case-sensitive ID match should be pinned; a case-insensitive mutant survives"
 detail = """
@@ -211,9 +246,14 @@ role = "responder"
 disposition = "fix-now"
 response = "Add differing-case lookups (with and without FILE) to the find-entry test."
 
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in cbb493e: find-entry test adds X1 lookups with and without FILE; ignore-case mutant killed. just gate 239/239 on Emacs 31.1 and 30.2; test-each green."
+
 [[finding]]
 id = "F-10"
-status = "answered"
+status = "verified"
 severity = "nit"
 title = "Rollback test should pin the invariant error; the stub is #'ignore and any plain error passes"
 detail = """
@@ -233,9 +273,14 @@ role = "responder"
 disposition = "fix-now"
 response = 'Stub records its call; assert the exact invariant error and one call with (marker "IW_ESSAYS").'
 
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = 'Fixed in cbb493e: stub records calls, asserts one call (marker IW_ESSAYS); test pins (error "IW_ESSAYS not deleted alone"). just gate 239/239 on Emacs 31.1 and 30.2; test-each green.'
+
 [[finding]]
 id = "F-11"
-status = "answered"
+status = "verified"
 severity = "nit"
 title = "Refusal-changes-nothing tests should use --should-refuse-cleanly; two hand-compose a weaker check"
 detail = """
@@ -254,6 +299,11 @@ act = "dispose"
 role = "responder"
 disposition = "fix-now"
 response = "Rewrite the two --move refusal tests with --should-refuse-cleanly, comparing the returned message to the literal."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in cbb493e: stale-rank and no-gap --move tests use --should-refuse-cleanly with literal messages. just gate 239/239 on Emacs 31.1 and 30.2; test-each green."
 
 # Findings are append-only `[[finding]]` tables, added by `review raise`.
 # Empty here at creation — a fresh review is Active, awaiting the raiser.
