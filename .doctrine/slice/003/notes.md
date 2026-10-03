@@ -67,7 +67,7 @@ Assumptions:
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: 2026-10-03 · design drafting (run rev 22) · HEAD
+fresh-as-of: 2026-10-03 · design drafting (run rev 22) · 33c2c87
 
 ### Produced
 - research/research.md (+ raw/governance.md, raw/code-map.md)
