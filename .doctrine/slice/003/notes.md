@@ -255,3 +255,38 @@ some point i don't care much when."
   label); #26 (TOTAL passed to `--visit` in `--continue-remove` only changes an
   echo the final report overwrites; same shape as SL-002 Continue).
 - `just gate` green, 284 tests on 31.1 and 30.2; `just test-each` 284 alone green.
+
+## PHASE-06 — Queue view: display, open, refresh (2026-10-03)
+
+- org-iw.el `;;;; Queue view`: `--outline-text` (pure), `--view-context-width`
+  (30, one constant for column and text), `org-iw-view-mode` (+ map, RET),
+  `--view-queue`, `--view-buffer` (found by queue ID), `--view-row` (pure),
+  `--view-redraw SCAN &optional GOTO-ID` (sets every showing window's point),
+  `--view-revert` (buffer-local `revert-buffer-function`, so `g`),
+  `--view-id-at-point`, `org-iw-view-open`, autoloaded `org-iw-list-queue`.
+  `--visit` gains OTHER-WINDOW. New `--session-entry-p` (shared with
+  `--removed-text`). Fixture: `--release` kills view buffers;
+  `--call-with-corpus` wraps in `save-window-excursion`. 17 new tests.
+- Rulings: sheet OQ-1 → A1 (non-empty list-queue returns nil, no message;
+  design § 5.4 names only the empty message). OQ-2 → A2 (`…/` prefix also when
+  the nearest ancestor alone is cut; result fits WIDTH).
+- EX-4 / VT-2 (RV-005 F-1) negative control — the `set-window-point` loop
+  removed, each test fails reading "a1":
+  - `org-iw-cmd-test-view-redraw-keeps-window-point`:
+    `(equal "a1" "b1")` on `(org-iw-cmd-test--window-row window)`
+  - `org-iw-cmd-test-view-open-keeps-view-row`: `(equal "a1" "b1")`
+  - `org-iw-cmd-test-list-queue-keeps-view-row`: `(equal "a1" "c1")` on
+    `(tabulated-list-get-id)`; bites under the shipped order (redraw, then pop).
+- Deviations: `--session-entry-p` (one owner of the session-entry test);
+  `org-iw-cmd-test-view-redraw-goto-id` tests GOTO-ID, which has no caller until
+  PHASE-07; `--view-buffer` matches `org-iw--view-queue` only (a mode change
+  clears it); the fixture self-test lives in org-iw-test.el (needs the view mode);
+  absent-entry refusal names the row's displayed title; GOTO-ID lookup via
+  `text-property-search-forward`. Redraw has no mark step yet (PHASE-07).
+- Red runs per task T1..T5 recorded in the worker hand-back (void-function /
+  arity / stale-rows failures). The fixture's red was shown by mutants.
+- Mutation pass: 29 mutants, 28 killed. Stale-ordinal and session-queue
+  mutants first survived; killed by `org-iw-cmd-test-view-open-acts-afresh`.
+  Equivalent: list-queue popping before redraw (same user-visible result).
+- `just gate` green, 301 tests on 31.1 and 30.2; `just test-each` 301 alone
+  green on both.

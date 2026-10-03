@@ -24,7 +24,9 @@
 
 ;; ERT tests for the command layer: `org-iw-add', the session and its
 ;; mode line, `org-iw-visit-next', `org-iw-continue', `org-iw-move',
-;; `org-iw-end-session', and the private helpers the commands share.
+;; `org-iw-end-session', `org-iw-remove', the queue view
+;; (`org-iw-list-queue' and its commands), and the private helpers the
+;; commands share.
 ;; Every prompt is stubbed, so that no test reads from standard input.
 
 ;;; Code:
@@ -972,6 +974,22 @@ The total is the size of the queue visited."
                              ,org-iw-cmd-test--problem)
     (should (equal (org-iw-visit-next "ESSAYS")
                    "IW ESSAYS 1/3: A [1 source problems ignored]"))))
+
+(ert-deftest org-iw-cmd-test-visit-window ()
+  "Visit uses the selected window, or with OTHER-WINDOW another one.
+The other window is selected, and the old one keeps its buffer."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (let ((window (selected-window))
+          (count (count-windows))
+          (scan (org-iw--scan)))
+      (org-iw--visit scan (org-iw-cmd-test--entry scan "a1") "ESSAYS" 1 3)
+      (should (eq (selected-window) window))
+      (should (equal (count-windows) count))
+      (set-window-buffer window (org-iw-test-visit "d.org"))
+      (org-iw--visit scan (org-iw-cmd-test--entry scan "a1") "ESSAYS" 1 3 t)
+      (should-not (eq (selected-window) window))
+      (should (equal (org-iw-cmd-test--shown) '("a.org" "A")))
+      (should (equal (window-buffer window) (org-iw-test-visit "d.org"))))))
 
 (defun org-iw-cmd-test--narrow-to (name title)
   "Narrow corpus file NAME's buffer to the subtree of heading TITLE.
@@ -2485,6 +2503,294 @@ The hint is for the session's entry in the session's queue (I13)."
          (org-iw-cmd-test--remove-chosen
           (with-current-buffer (org-iw-test-visit "a.org")
             (copy-marker (point-min)))))))))
+
+;;;; Queue view: context text (EX-2, VT-1)
+
+(ert-deftest org-iw-cmd-test-outline-text ()
+  "The outline joins with \" / \", dropping outer ancestors behind \"…/\".
+An over-long nearest ancestor keeps its right end.  Each text fits
+WIDTH exactly at the boundaries.  The helper is pure and is tested
+directly, at widths the view does not use."
+  (pcase-dolist (`(,outline ,width ,text)
+                 '((nil 12 "")
+                   (("A" "B") 12 "A / B")
+                   (("Alpha" "Beta" "Gamma") 20 "Alpha / Beta / Gamma")
+                   (("Alpha" "Beta" "Gamma") 19 "…/Beta / Gamma")
+                   (("Alpha" "Beta" "Gamma") 14 "…/Beta / Gamma")
+                   (("Alpha" "Beta" "Gamma") 13 "…/Gamma")
+                   (("Root" "Abcdefghijklmnop") 12 "…/ghijklmnop")
+                   (("Abcdefghijklmnop") 16 "Abcdefghijklmnop")
+                   (("Abcdefghijklmnop") 12 "…/ghijklmnop")))
+    (should (equal (list outline width (org-iw--outline-text outline width))
+                   (list outline width text)))))
+
+;;;; Queue view: rows and buffers (EX-1, EX-3, VT-1)
+
+(defconst org-iw-cmd-test--view-corpus
+  `(("notes.org"
+     . ,(org-iw-test-org "* Essays [[id:x][Ideas]]"
+                         "** Craft"
+                         "*** Draft"
+                         ":PROPERTIES:" ":ID: n1"
+                         ":IW_ESSAYS: 7" ":IW_DRAFTS: 1" ":END:"
+                         "* Notes on a very long parent heading"
+                         "** Draft"
+                         ":PROPERTIES:" ":ID: n2" ":IW_ESSAYS: 9000" ":END:"))
+    ("sub/r.org"
+     . ,(org-iw-test-heading "Read [[https://x.org][the paper]]" "r1"
+                             ":IW_ESSAYS: 50")))
+  "ESSAYS holds n1, r1 and n2, at gapped ranks; DRAFTS holds n1.
+n1 and n2 are both titled Draft, under different parents.")
+
+(defun org-iw-cmd-test--view (queue)
+  "Show QUEUE with `org-iw-list-queue'; return the selected window's buffer."
+  (org-iw-list-queue queue)
+  (window-buffer (selected-window)))
+
+(defun org-iw-cmd-test--view-rows (queue)
+  "Show QUEUE with `org-iw-list-queue'; return its `tabulated-list-entries'."
+  (buffer-local-value 'tabulated-list-entries (org-iw-cmd-test--view queue)))
+
+(defun org-iw-cmd-test--cell-face (rows id column)
+  "Return the face of cell COLUMN of the row ID in ROWS."
+  (get-text-property 0 'face (aref (cadr (assoc id rows)) column)))
+
+(ert-deftest org-iw-cmd-test-fixture-kills-views ()
+  "The fixture kills the queue views and restores the windows."
+  (let ((count (count-windows))
+        view)
+    (org-iw-test-with-corpus org-iw-cmd-test--queue
+      (setq view (org-iw-cmd-test--view "ESSAYS"))
+      (split-window))
+    (should-not (buffer-live-p view))
+    (should (equal (count-windows) count))))
+
+(ert-deftest org-iw-cmd-test-list-queue-rows ()
+  "A row per member in order: ordinal, link-reduced title, context, file.
+Ordinals count from 1 whatever the ranks; the context is shadowed and
+tells same-titled entries apart; without a session nothing is starred."
+  (org-iw-test-with-corpus org-iw-cmd-test--view-corpus
+    (let* ((rows (org-iw-cmd-test--view-rows "essays"))
+           (view (window-buffer (selected-window))))
+      (should (equal rows
+                     '(("n1" ["1" "Draft" "Essays Ideas / Craft" "notes.org"])
+                       ("r1" ["2" "Read the paper" "" "r.org"])
+                       ("n2" ["3" "Draft" "…/n a very long parent heading"
+                              "notes.org"]))))
+      (should (equal (buffer-local-value 'tabulated-list-format view)
+                     [("#" 5 nil :right-align t) ("Title" 40 nil)
+                      ("Context" 30 nil) ("File" 0 nil)]))
+      (should (eq (org-iw-cmd-test--cell-face rows "n1" 2) 'shadow))
+      (should-not (org-iw-cmd-test--cell-face rows "n1" 1)))))
+
+(ert-deftest org-iw-cmd-test-list-queue-session-row ()
+  "The session's row is starred and bold, only in the session's queue."
+  (org-iw-test-with-corpus org-iw-cmd-test--view-corpus
+    (org-iw-visit-next "essays")
+    (let ((rows (org-iw-cmd-test--view-rows "essays")))
+      (should (equal (mapcar (lambda (row) (aref (cadr row) 0)) rows)
+                     '("1*" "2" "3")))
+      (should (equal (mapcar (lambda (row)
+                               (org-iw-cmd-test--cell-face rows (car row) 1))
+                             rows)
+                     '(bold nil nil))))
+    (org-iw-visit-next "drafts")
+    (let ((rows (org-iw-cmd-test--view-rows "essays")))
+      (should (equal (mapcar (lambda (row) (aref (cadr row) 0)) rows)
+                     '("1" "2" "3")))
+      (should-not (org-iw-cmd-test--cell-face rows "n1" 1)))))
+
+(ert-deftest org-iw-cmd-test-list-queue-prompts ()
+  "Without a session the queue is read over the known queues (REQ-013 AC1).
+With one, the session's queue is shown unprompted."
+  (org-iw-test-with-corpus org-iw-cmd-test--view-corpus
+    (let ((org-iw-queues '(("ideas" :name "Ideas"))))
+      (org-iw-cmd-test--with-prompt "essays"
+        (call-interactively #'org-iw-list-queue)
+        (should (equal (org-iw-cmd-test--prompted :collection)
+                       '(("DRAFTS" "ESSAYS" "IDEAS"))))
+        (should (equal (org-iw-cmd-test--prompted :require-match) '(nil))))
+      (org-iw-visit-next "drafts")
+      (org-iw-cmd-test--with-prompt nil
+        (call-interactively #'org-iw-list-queue))
+      (should (equal (buffer-local-value 'org-iw--view-queue
+                                         (window-buffer (selected-window)))
+                     "DRAFTS")))))
+
+(ert-deftest org-iw-cmd-test-list-queue-empty ()
+  "An empty queue shows an empty view and reports it."
+  (org-iw-test-with-corpus org-iw-cmd-test--view-corpus
+    (let ((org-iw-queues '(("ideas" :name "Ideas"))))
+      (should (equal (org-iw-list-queue "ideas") "Queue Ideas is empty"))
+      (let ((view (window-buffer (selected-window))))
+        (should (equal (buffer-name view) "*org-iw: Ideas*"))
+        (should-not (buffer-local-value 'tabulated-list-entries view))))))
+
+(ert-deftest org-iw-cmd-test-view-buffer-per-queue ()
+  "Each queue has its own view, found by queue ID, not name.
+Showing a queue again reuses its view without setting it up again.
+`org-iw--view-buffer' is called directly to show the lookup is by ID."
+  (org-iw-test-with-corpus org-iw-cmd-test--view-corpus
+    (let* ((org-iw-queues '(("essays" :name "Work") ("drafts" :name "Work")))
+           (setups 0)
+           (org-iw-view-mode-hook (list (lambda () (cl-incf setups))))
+           (essays (org-iw-cmd-test--view "essays"))
+           (drafts (org-iw-cmd-test--view "drafts")))
+      (should-not (eq essays drafts))
+      (should (equal (mapcar (lambda (view)
+                               (list (buffer-name view)
+                                     (buffer-local-value 'org-iw--view-queue
+                                                         view)))
+                             (list essays drafts))
+                     '(("*org-iw: Work*" "ESSAYS")
+                       ("*org-iw: Work*<2>" "DRAFTS"))))
+      (should (eq (org-iw--view-buffer "ESSAYS") essays))
+      (should (eq (org-iw-cmd-test--view "essays") essays))
+      (should (equal setups 2)))))
+
+(ert-deftest org-iw-cmd-test-view-mode-keys ()
+  "In the view, RET opens the entry and g refreshes."
+  (org-iw-test-with-corpus org-iw-cmd-test--view-corpus
+    (with-current-buffer (org-iw-cmd-test--view "essays")
+      (should (eq (key-binding (kbd "RET")) 'org-iw-view-open))
+      (should (eq (key-binding (kbd "g")) 'revert-buffer)))))
+
+;;;; Queue view: open (EX-4, EX-5, VT-2)
+
+(defun org-iw-cmd-test--window-row (window)
+  "Return the ID of the view row at WINDOW's point.
+WINDOW's point, not its buffer's: they differ while it is unselected."
+  (with-current-buffer (window-buffer window)
+    (save-excursion
+      (goto-char (window-point window))
+      (tabulated-list-get-id))))
+
+(defun org-iw-cmd-test--view-on-row (queue n)
+  "Show QUEUE's view with point on its row N; return the view's window.
+Point is moved in the selected window, which shows the view."
+  (org-iw-list-queue queue)
+  (goto-char (point-min))
+  (forward-line (1- n))
+  (selected-window))
+
+(defun org-iw-cmd-test--leave (window)
+  "Select another window, showing d.org, leaving WINDOW unselected.
+Assert WINDOW is still on its row."
+  (let ((id (org-iw-cmd-test--window-row window)))
+    (pop-to-buffer (org-iw-test-visit "d.org") t)
+    (should-not (eq (selected-window) window))
+    (should (equal (org-iw-cmd-test--window-row window) id))))
+
+(ert-deftest org-iw-cmd-test-view-redraw-keeps-window-point ()
+  "A redraw leaves an unselected window showing the view on its row.
+The redraw is called directly: this pins its window step alone."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (let ((window (org-iw-cmd-test--view-on-row "ESSAYS" 2)))
+      (org-iw-cmd-test--leave window)
+      (with-current-buffer (window-buffer window)
+        (org-iw--view-redraw (org-iw--scan)))
+      (should (equal (org-iw-cmd-test--window-row window) "b1")))))
+
+(ert-deftest org-iw-cmd-test-view-redraw-goto-id ()
+  "Given GOTO-ID, the redraw puts point on its row, if it is listed.
+Called directly: no command in this phase passes GOTO-ID."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (org-iw-cmd-test--view-on-row "ESSAYS" 2)
+    (org-iw--view-redraw (org-iw--scan) "c1")
+    (should (equal (tabulated-list-get-id) "c1"))
+    (org-iw--view-redraw (org-iw--scan) "d1")
+    (should (equal (tabulated-list-get-id) "c1"))))
+
+(ert-deftest org-iw-cmd-test-view-open-keeps-view-row ()
+  "RET visits the entry in another window and sets the session.
+The view's star moves to it, and its window stays on its row (REQ-013
+AC4)."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (org-iw-visit-next "essays")
+    (let* ((window (org-iw-cmd-test--view-on-row "ESSAYS" 2))
+           (view (window-buffer window)))
+      (should (equal (org-iw-view-open) "IW ESSAYS 2/3: B"))
+      (should-not (eq (selected-window) window))
+      (should (equal (org-iw-cmd-test--shown) '("b.org" "B")))
+      (should (equal (list (org-iw--session-queue org-iw--session)
+                           (org-iw--session-id org-iw--session)
+                           (org-iw--session-title org-iw--session))
+                     '("ESSAYS" "b1" "B")))
+      (should (equal (mapcar (lambda (row) (aref (cadr row) 0))
+                             (buffer-local-value 'tabulated-list-entries view))
+                     '("1" "2*" "3")))
+      (should (equal (org-iw-cmd-test--window-row window) "b1"))
+      (select-window window)
+      (should (equal (tabulated-list-get-id) "b1")))))
+
+(ert-deftest org-iw-cmd-test-list-queue-keeps-view-row ()
+  "Showing a view again from another window finds it on its row."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (let ((window (org-iw-cmd-test--view-on-row "ESSAYS" 3)))
+      (org-iw-cmd-test--leave window)
+      (org-iw-list-queue "ESSAYS")
+      (should (eq (selected-window) window))
+      (should (equal (tabulated-list-get-id) "c1")))))
+
+(ert-deftest org-iw-cmd-test-view-open-acts-afresh ()
+  "RET opens the row's entry in the view's queue, at its fresh position.
+The session is in another queue, and the order changed after the view
+was drawn."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (org-iw-visit-next "drafts")
+    (org-iw-cmd-test--view-on-row "ESSAYS" 2)
+    (org-iw-cmd-test--set-rank "a.org" 1024 4096)
+    (should (equal (org-iw-view-open) "IW ESSAYS 1/3: B"))
+    (should (equal (org-iw--session-queue org-iw--session) "ESSAYS"))))
+
+(ert-deftest org-iw-cmd-test-view-open-refuses-off-row ()
+  "RET off a row refuses: in an empty view, and past the last row."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (org-iw-cmd-test--open-all)
+    (let ((org-iw-queues '(("ideas" :name "Ideas"))))
+      (org-iw-list-queue "ideas"))
+    (org-iw-cmd-test--should-refuse-cleanly "no entry at point"
+                                            #'org-iw-view-open)
+    (org-iw-list-queue "ESSAYS")
+    (goto-char (point-max))
+    (org-iw-cmd-test--should-refuse-cleanly "no entry at point"
+                                            #'org-iw-view-open)))
+
+(ert-deftest org-iw-cmd-test-view-open-refuses-absent-entry ()
+  "RET on a row whose entry has left the queue refuses, naming it."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (org-iw-cmd-test--open-all)
+    (org-iw-cmd-test--view-on-row "ESSAYS" 1)
+    (org-iw-cmd-test--delete-in-a "^:IW_ESSAYS: 1024\n")
+    (should (equal (org-iw-cmd-test--should-refuse-cleanly
+                    "" #'org-iw-view-open)
+                   "A is no longer in queue ESSAYS"))))
+
+;;;; Queue view: refresh (EX-5, VT-1)
+
+(defun org-iw-cmd-test--view-ids (view)
+  "Return the IDs of the rows of VIEW, in order."
+  (mapcar #'car (buffer-local-value 'tabulated-list-entries view)))
+
+(ert-deftest org-iw-cmd-test-view-refresh-after-undo ()
+  "Refresh rescans: it shows an edit, then its undo (REQ-013 AC3).
+Point follows its entry by ID."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (let ((view (org-iw-cmd-test--view "ESSAYS")))
+      (should (equal (org-iw-cmd-test--view-ids view) '("a1" "b1" "c1")))
+      (goto-char (point-min))
+      (with-current-buffer (org-iw-test-visit "a.org")
+        (undo-boundary)
+        (org-iw-cmd-test--set-rank "a.org" 1024 4096)
+        (undo-boundary))
+      (revert-buffer)
+      (should (equal (org-iw-cmd-test--view-ids view) '("b1" "c1" "a1")))
+      (should (equal (tabulated-list-get-id) "a1"))
+      (should (equal (line-number-at-pos) 3))
+      (with-current-buffer (org-iw-test-visit "a.org")
+        (undo))
+      (revert-buffer)
+      (should (equal (org-iw-cmd-test--view-ids view) '("a1" "b1" "c1"))))))
 
 (provide 'org-iw-test)
 ;;; org-iw-test.el ends here

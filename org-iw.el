@@ -35,6 +35,8 @@
 (require 'seq)
 (require 'subr-x)
 (require 'org)
+(require 'tabulated-list)
+(require 'text-property-search)
 (require 'org-iw-core)
 (require 'org-iw-discovery)
 (require 'org-iw-write)
@@ -387,6 +389,12 @@ Return the session that ended, or nil if there was none."
                                        global-mode-string)))
     (force-mode-line-update t)))
 
+(defun org-iw--session-entry-p (queue id)
+  "Return non-nil if the session's entry is ID in QUEUE, a canonical queue ID."
+  (and org-iw--session
+       (equal (org-iw--session-queue org-iw--session) queue)
+       (equal (org-iw--session-id org-iw--session) id)))
+
 (defun org-iw--session-hint ()
   "Return the hint shown when the session names an entry no longer queued."
   (concat "The session still names it: org-iw-visit-next to go on,"
@@ -494,16 +502,20 @@ Return the message shown."
 
 ;;;; Visit
 
-(defun org-iw--visit (scan entry queue pos total)
+(defun org-iw--visit (scan entry queue pos total &optional other-window)
   "Show ENTRY of SCAN, POS of TOTAL in QUEUE, and make it the session.
 QUEUE is a canonical queue ID.  The entry's buffer is shown in the
-selected window, widened only if its narrowing hides the entry, with
-point at the entry and the entry revealed.  If the entry cannot be
-resolved, refuse before anything changes.  Nothing is written.
+selected window or, if OTHER-WINDOW is non-nil, in another window,
+which is selected.  It is widened only if its narrowing hides the
+entry, with point at the entry and the entry revealed.  If the entry
+cannot be resolved, refuse before anything changes.  Nothing is
+written.
 
 Return the message shown."
   (let ((marker (org-iw--entry-marker scan entry)))
-    (pop-to-buffer-same-window (marker-buffer marker))
+    (if other-window
+        (pop-to-buffer (marker-buffer marker) t)
+      (pop-to-buffer-same-window (marker-buffer marker)))
     ;; The heading starts at MARKER, so at point-max it is hidden too.
     (unless (and (<= (point-min) marker) (< marker (point-max)))
       (widen))
@@ -792,10 +804,7 @@ ENTRY in QUEUE."
          (list (format "Removed %s from %s %s" (org-iw-entry-title entry)
                        (org-iw--queue-name queue) (org-iw--save-status status))
                then
-               (and org-iw--session
-                    (equal (org-iw--session-id org-iw--session)
-                           (org-iw-entry-id entry))
-                    (equal (org-iw--session-queue org-iw--session) queue)
+               (and (org-iw--session-entry-p queue (org-iw-entry-id entry))
                     (org-iw--session-hint))))
    ". "))
 
@@ -828,6 +837,152 @@ Return the message shown."
     (org-iw--report scan "%s" (org-iw--removed-text
                                entry queue-id
                                (org-iw--delete-rank scan entry queue-id)))))
+
+;;;; Queue view
+
+(defun org-iw--outline-text (outline width)
+  "Return OUTLINE, ancestor titles outermost first, as text WIDTH wide or less.
+The titles join with \" / \".  Text too wide drops the outermost
+ancestors behind \"…/\" until it fits; if the nearest ancestor alone is
+too wide, its right end is kept, so that the nearest stay visible."
+  (let ((tail outline)
+        (text (string-join outline " / ")))
+    (while (and (cdr tail) (> (string-width text) width))
+      (setq tail (cdr tail)
+            text (concat "…/" (string-join tail " / "))))
+    (if (<= (string-width text) width)
+        text
+      (let ((end (car tail)))
+        (while (> (string-width end) (- width 2))
+          (setq end (substring end 1)))
+        (concat "…/" end)))))
+
+(defconst org-iw--view-context-width 30
+  "The width of the queue view's Context column.")
+
+(defvar-keymap org-iw-view-mode-map
+  :doc "Keymap for `org-iw-view-mode'."
+  :parent tabulated-list-mode-map
+  "RET" #'org-iw-view-open)
+
+(define-derived-mode org-iw-view-mode tabulated-list-mode "IW Queue"
+  "Major mode for the view of one queue, its entries listed in order.
+Each row shows the entry's position, title, outline context and file;
+the session's entry is starred.
+
+\\{org-iw-view-mode-map}"
+  (setq tabulated-list-format
+        `[("#" 5 nil :right-align t) ("Title" 40 nil)
+          ("Context" ,org-iw--view-context-width nil) ("File" 0 nil)])
+  (setq-local revert-buffer-function #'org-iw--view-revert)
+  (tabulated-list-init-header))
+
+(defvar-local org-iw--view-queue nil
+  "The canonical ID of the queue the view buffer shows.")
+
+(defun org-iw--view-buffer (queue)
+  "Return the view buffer of QUEUE, a canonical queue ID, making it if need be.
+A view is found by queue ID, so queues sharing a name have a view
+each.  Only a new view is put in `org-iw-view-mode'."
+  (or (seq-find (lambda (buffer)
+                  (equal (buffer-local-value 'org-iw--view-queue buffer) queue))
+                (buffer-list))
+      (with-current-buffer (generate-new-buffer
+                            (format "*org-iw: %s*" (org-iw--queue-name queue)))
+        (org-iw-view-mode)
+        (setq org-iw--view-queue queue)
+        (current-buffer))))
+
+(defun org-iw--view-row (entry ordinal current)
+  "Return the view row of ENTRY, ORDINAL in its queue's order, 1-based.
+CURRENT non-nil marks the session's entry: its ordinal is starred and
+its title bold.  The row is (ID [ORDINAL TITLE CONTEXT FILE]), as in
+`tabulated-list-entries'."
+  (let ((title (org-link-display-format (org-iw-entry-title entry))))
+    (list (org-iw-entry-id entry)
+          (vector (format "%d%s" ordinal (if current "*" ""))
+                  (if current (propertize title 'face 'bold) title)
+                  (propertize (org-iw--outline-text
+                               (org-iw-entry-outline entry)
+                               org-iw--view-context-width)
+                              'face 'shadow)
+                  (file-name-nondirectory (org-iw-entry-file entry))))))
+
+(defun org-iw--view-redraw (scan &optional goto-id)
+  "Show the members of the view's queue in SCAN in the current buffer.
+Point goes to the row of the entry GOTO-ID, if given and listed, else
+stays on the row it was on, found by ID.  Then every window showing
+the buffer is given the buffer's point: printing erases the buffer,
+which resets the point of a window that is not selected."
+  (setq tabulated-list-entries
+        (seq-map-indexed
+         (lambda (entry index)
+           (org-iw--view-row entry (1+ index)
+                             (org-iw--session-entry-p
+                              org-iw--view-queue (org-iw-entry-id entry))))
+         (org-iw--order scan org-iw--view-queue)))
+  (tabulated-list-print t)
+  (when-let* ((goto-id)
+              (match (save-excursion
+                       (goto-char (point-min))
+                       (text-property-search-forward 'tabulated-list-id
+                                                     goto-id t))))
+    (goto-char (prop-match-beginning match)))
+  (dolist (window (get-buffer-window-list nil nil t))
+    (set-window-point window (point))))
+
+(defun org-iw--view-revert (&rest _)
+  "Redraw the view in the current buffer from a fresh scan.
+This is the view's `revert-buffer-function'."
+  (org-iw--view-redraw (org-iw--scan)))
+
+(defun org-iw--view-id-at-point ()
+  "Return the ID of the entry on the view row at point, or refuse."
+  (or (tabulated-list-get-id)
+      (org-iw-core-refuse "no entry at point")))
+
+(defun org-iw-view-open ()
+  "Visit the entry at point in another window and make it the session's.
+The entry is found afresh, and its position counted, in a new scan,
+from which the view is redrawn.  Refuses off a row, or if the entry
+has left the queue.
+
+Return the message shown."
+  (interactive)
+  (let* ((id (org-iw--view-id-at-point))
+         (view (current-buffer))
+         (queue org-iw--view-queue)
+         (scan (org-iw--scan))
+         (order (org-iw--order scan queue))
+         (entry (or (org-iw--find-entry order id)
+                    (org-iw--refuse-absent
+                     scan queue id (aref (tabulated-list-get-entry) 1)))))
+    (prog1 (org-iw--visit scan entry queue (1+ (cl-position entry order))
+                          (length order) t)
+      (with-current-buffer view
+        (org-iw--view-redraw scan id)))))
+
+;;;###autoload
+(defun org-iw-list-queue (queue)
+  "Show the view of QUEUE, its entries listed in order.
+QUEUE is a queue ID in any case.  Interactively, it is the session's
+queue; with a prefix argument, or without a session, it is read with
+completion over the configured and discovered queues.
+
+The view is the buffer *org-iw: NAME*, NAME the queue's display name,
+made the first time and refreshed after.  Nothing is written.
+Refuses if QUEUE is not a valid ID.
+
+Return the message shown for an empty queue, else nil."
+  (interactive (list (org-iw--read-session-queue)))
+  (let* ((queue-id (org-iw--queue-id queue))
+         (scan (org-iw--scan))
+         (view (org-iw--view-buffer queue-id)))
+    (with-current-buffer view
+      (org-iw--view-redraw scan))
+    (pop-to-buffer view)
+    (unless (org-iw--order scan queue-id)
+      (org-iw--report-empty scan queue-id))))
 
 ;;;; End session
 

@@ -74,12 +74,20 @@
     (seq-some (lambda (file) (string-prefix-p org-iw-test-dir file))
               (list name (file-truename name)))))
 
+(defun org-iw-test--view-buffer-p (buffer)
+  "Return non-nil if BUFFER is an org-iw queue view."
+  (provided-mode-derived-p (buffer-local-value 'major-mode buffer)
+                           'org-iw-view-mode))
+
 (defun org-iw-test--release ()
-  "Discard edits to corpus buffers, kill them and restore file modes."
+  "Discard edits to corpus buffers, kill them and restore file modes.
+Kill the queue views too: they have no file, and a view left behind
+would be found again by its queue ID."
   (dolist (buffer (seq-filter #'org-iw-test--corpus-buffer-p (buffer-list)))
     (with-current-buffer buffer
       (set-buffer-modified-p nil))
     (kill-buffer buffer))
+  (mapc #'kill-buffer (seq-filter #'org-iw-test--view-buffer-p (buffer-list)))
   (pcase-dolist (`(,path . ,modes) org-iw-test--modes)
     (set-file-modes path modes)))
 
@@ -117,7 +125,7 @@ See `org-iw-test-with-corpus'."
           (let ((before (org-iw-test--listing))
                 (completed nil))
             (unwind-protect
-                (prog1 (funcall body)
+                (prog1 (save-window-excursion (funcall body))
                   (setq completed t))
               (org-iw-test--release)
               (when-let* ((violation (org-iw-test--i8-violation before)))
@@ -139,13 +147,14 @@ session (`org-iw--session' and `global-mode-string' nil), and org-id
 isolated: `org-id-locations-file' is a temporary file outside the
 corpus, `org-id-locations' nil and `org-id-track-globally' nil.
 
-Afterwards, even if BODY fails, the corpus buffers are killed with
-their edits discarded and file modes changed through
-`org-iw-test-set-modes' are restored.  Then I8 is asserted: the
-corpus listing must equal the one before BODY, apart from *~ backups
-and paths declared by `org-iw-test-make-symlink' or
-`org-iw-test-make-fifo'.  A violation fails
-the test, unless BODY already failed.  Finally the corpus is deleted."
+BODY runs inside `save-window-excursion'.  Afterwards, even if BODY
+fails, the window configuration is restored, the corpus buffers and
+queue views are killed, the corpus buffers' edits discarded, and file
+modes changed through `org-iw-test-set-modes' are restored.  Then I8
+is asserted: the corpus listing must equal the one before BODY, apart
+from *~ backups and paths declared by `org-iw-test-make-symlink' or
+`org-iw-test-make-fifo'.  A violation fails the test, unless BODY
+already failed.  Finally the corpus is deleted."
   (declare (indent 1) (debug t))
   `(org-iw-test--call-with-corpus ,files (lambda () ,@body)))
 
