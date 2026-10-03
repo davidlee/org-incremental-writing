@@ -41,6 +41,13 @@
   "Return the IDs of ENTRIES."
   (mapcar #'org-iw-entry-id entries))
 
+(ert-deftest org-iw-core-test-entry-outline-defaults-to-nil ()
+  "An entry has no outline unless given one."
+  (should-not (org-iw-entry-outline (org-iw-core-test--entry "x")))
+  (should (equal (org-iw-entry-outline
+                  (org-iw-entry-create :id "x" :outline '("A" "B")))
+                 '("A" "B"))))
+
 (ert-deftest org-iw-core-test-canonical-queue-id-p ()
   "Only an already-canonical queue ID string is canonical."
   (dolist (good '("ESSAYS" "AFTER-X"))
@@ -280,6 +287,48 @@
                    '("q1" "q3" "q4" "q2")))
     (should (equal order copy))))
 
+;;;; Relative moves
+
+(defun org-iw-core-test--abcd ()
+  "Return entries A B C D, in queue order Q."
+  (let ((rank 0))
+    (mapcar (lambda (id)
+              (org-iw-core-test--entry id (cons "Q" (setq rank (+ rank 1024)))))
+            '("A" "B" "C" "D"))))
+
+(defun org-iw-core-test--outcome (order target placement)
+  "Return the first element of placing TARGET at PLACEMENT in ORDER of Q."
+  (car (org-iw-core-place order target "Q" placement)))
+
+(ert-deftest org-iw-core-test-beside ()
+  "Beside counts the anchor's index among the others, not TARGET included."
+  (pcase-let ((`(,a ,b ,c ,d) (org-iw-core-test--abcd)))
+    (let ((order (list a b c d)))
+      (should (equal (org-iw-core-beside order d a 'before) '(after 0)))
+      (should (equal (org-iw-core-beside order a d 'after) '(after 3)))
+      (should (equal (org-iw-core-beside order a c 'before) '(after 1)))
+      (should (eq (org-iw-core-test--outcome order a '(after 1)) 'moved))
+      (should (equal (org-iw-core-beside order b c 'before) '(after 1)))
+      (should (eq (org-iw-core-test--outcome order b '(after 1)) 'unchanged))
+      (dolist (side '(before after))
+        (should (equal (org-iw-core-beside order c c side) '(after 2)))
+        (should (eq (org-iw-core-test--outcome
+                     order c (org-iw-core-beside order c c side))
+                    'unchanged))))))
+
+(ert-deftest org-iw-core-test-step ()
+  "Step moves by DELTA and stops at either end."
+  (pcase-let ((`(,a ,b ,c ,d) (org-iw-core-test--abcd)))
+    (let ((order (list a b c d)))
+      (should (equal (org-iw-core-step order c -1) '(after 1)))
+      (should (equal (org-iw-core-step order a -1) '(after 0)))
+      (should (equal (org-iw-core-step order d 1) '(after 3)))
+      (should (equal (org-iw-core-step order a 1) '(after 1)))
+      (should (eq (org-iw-core-test--outcome order a '(after 0)) 'unchanged))
+      (should (eq (org-iw-core-test--outcome order d '(after 3)) 'unchanged))
+      (should (equal (org-iw-core-step (list a) a -1) '(after 0)))
+      (should (equal (org-iw-core-step (list a) a 1) '(after 0))))))
+
 ;;;; Placing: property
 
 (defun org-iw-core-test--pick (list)
@@ -303,17 +352,21 @@
     (2 (list 'percent (random 101)))
     (_ 'end)))
 
+(defun org-iw-core-test--random-order (count)
+  "Return COUNT random members of Q in queue order, ties included."
+  (org-iw-core-queue-order
+   (mapcar (lambda (i)
+             (org-iw-core-test--entry
+              (format "e%d" i)
+              (cons "Q" (org-iw-core-test--random-rank))))
+           (number-sequence 1 count))
+   "Q"))
+
 (defun org-iw-core-test--random-case ()
   "Return a random (ORDER TARGET PLACEMENT) for `org-iw-core-place'.
 ORDER has up to six members of Q, ties included; TARGET is one of
 them or nil."
-  (let* ((order (org-iw-core-queue-order
-                 (mapcar (lambda (i)
-                           (org-iw-core-test--entry
-                            (format "e%d" i)
-                            (cons "Q" (org-iw-core-test--random-rank))))
-                         (number-sequence 1 (random 7)))
-                 "Q"))
+  (let* ((order (org-iw-core-test--random-order (random 7)))
          (target (org-iw-core-test--pick (cons nil order))))
     (list order target (org-iw-core-test--random-placement))))
 
@@ -442,6 +495,145 @@ Each edge is called with a case's ORDER, TARGET and PLACEMENT."
     (should (zerop (org-iw-core-test--rejections #'org-iw-core-place)))
     (dolist (place wrong)
       (should (< 0 (org-iw-core-test--rejections place))))))
+
+;;;; Relative moves: property
+
+(defun org-iw-core-test--relative-cases ()
+  "Return 500 seeded random (ORDER TARGET ANCHOR SIDE DELTA) cases.
+ORDER has two to six members of Q; TARGET and ANCHOR are distinct
+members; DELTA is -1 or 1."
+  (random "org-iw-core-test-relative")
+  (mapcar (lambda (_)
+            (let* ((order (org-iw-core-test--random-order (+ 2 (random 5))))
+                   (target (org-iw-core-test--pick order)))
+              (list order target
+                    (org-iw-core-test--pick (remq target order))
+                    (org-iw-core-test--pick '(before after))
+                    (org-iw-core-test--pick '(-1 1)))))
+          (number-sequence 1 500)))
+
+(defun org-iw-core-test--placed-order (order target placement)
+  "Return ORDER after placing TARGET at PLACEMENT, by the depth `place' picks."
+  (org-iw-core-reorder
+   order target (cadr (org-iw-core-place order target "Q" placement))))
+
+(defun org-iw-core-test--check-beside (order target anchor side placement)
+  "Return nil if PLACEMENT puts TARGET on SIDE of ANCHOR in ORDER.
+Otherwise return a string saying what is wrong."
+  (let* ((placed (org-iw-core-test--placed-order order target placement))
+         (gap (- (seq-position placed target #'eq)
+                 (seq-position placed anchor #'eq))))
+    (cond ((not (equal (remq target placed) (remq target order)))
+           "the others changed order")
+          ((/= gap (if (eq side 'before) -1 1)) "not adjacent on that side"))))
+
+(defun org-iw-core-test--check-step (order target delta placement)
+  "Return nil if PLACEMENT moves TARGET by DELTA in ORDER, stopping at the ends.
+Otherwise return a string saying what is wrong."
+  (let* ((placed (org-iw-core-test--placed-order order target placement))
+         (wanted (max 0 (min (1- (length order))
+                             (+ (seq-position order target #'eq) delta)))))
+    (cond ((not (equal (remq target placed) (remq target order)))
+           "the others changed order")
+          ((/= (seq-position placed target #'eq) wanted) "wrong place"))))
+
+(defun org-iw-core-test--beside-rejections (beside)
+  "Return how many seeded cases the checker rejects for BESIDE.
+BESIDE is called like `org-iw-core-beside'."
+  (seq-count (pcase-lambda (`(,order ,target ,anchor ,side ,_))
+               (org-iw-core-test--check-beside
+                order target anchor side
+                (funcall beside order target anchor side)))
+             (org-iw-core-test--relative-cases)))
+
+(defun org-iw-core-test--step-rejections (step)
+  "Return how many seeded cases the checker rejects for STEP.
+STEP is called like `org-iw-core-step'."
+  (seq-count (pcase-lambda (`(,order ,target ,_ ,_ ,delta))
+               (org-iw-core-test--check-step
+                order target delta (funcall step order target delta)))
+             (org-iw-core-test--relative-cases)))
+
+(ert-deftest org-iw-core-test-beside-property ()
+  "Beside puts the target next to the anchor on 500 seeded random cases."
+  (pcase-dolist (`(,order ,target ,anchor ,side ,_)
+                 (org-iw-core-test--relative-cases))
+    (should-not (org-iw-core-test--check-beside
+                 order target anchor side
+                 (org-iw-core-beside order target anchor side)))))
+
+(ert-deftest org-iw-core-test-step-property ()
+  "Step moves the target by the delta on 500 seeded random cases."
+  (pcase-dolist (`(,order ,target ,_ ,_ ,delta)
+                 (org-iw-core-test--relative-cases))
+    (should-not (org-iw-core-test--check-step
+                 order target delta
+                 (org-iw-core-step order target delta)))))
+
+(ert-deftest org-iw-core-test-relative-cases-reach-edges ()
+  "The seeded relative cases include each edge the properties must hold at.
+Each edge is called with a case's ORDER, TARGET, ANCHOR, SIDE and DELTA."
+  (let ((cases (org-iw-core-test--relative-cases)))
+    (pcase-dolist
+        (`(,wanted ,edge)
+         `((20 ,(lambda (order target anchor side _)
+                  (and (eq side 'before)
+                       (< (seq-position order target #'eq)
+                          (seq-position order anchor #'eq)))))
+           (20 ,(lambda (order target anchor side _)
+                  (and (eq side 'after)
+                       (< (seq-position order target #'eq)
+                          (seq-position order anchor #'eq)))))
+           (20 ,(lambda (order target anchor side _)
+                  (and (eq side 'before)
+                       (> (seq-position order target #'eq)
+                          (seq-position order anchor #'eq)))))
+           (20 ,(lambda (order target anchor side _)
+                  (and (eq side 'after)
+                       (> (seq-position order target #'eq)
+                          (seq-position order anchor #'eq)))))
+           (20 ,(lambda (order target anchor _ _)
+                  (= 1 (abs (- (seq-position order target #'eq)
+                               (seq-position order anchor #'eq))))))
+           (20 ,(lambda (order target _ _ delta)
+                  (and (= delta -1) (eq target (car order)))))
+           (20 ,(lambda (order target _ _ delta)
+                  (and (= delta 1) (eq target (car (last order))))))
+           (20 ,(lambda (order target _ _ delta)
+                  (and (= delta -1) (not (eq target (car order))))))
+           (20 ,(lambda (order target _ _ delta)
+                  (and (= delta 1) (not (eq target (car (last order)))))))))
+      (should (< wanted (seq-count (lambda (case) (apply edge case)) cases))))))
+
+(ert-deftest org-iw-core-test-relative-checker-self-test ()
+  "The relative checkers accept the real moves and reject each wrong one."
+  (let ((wrong-beside
+         (list
+          ;; The anchor's index counted with TARGET still in ORDER.
+          (lambda (order _target anchor side)
+            (list 'after (+ (seq-position order anchor #'eq)
+                            (if (eq side 'before) 0 1))))
+          (lambda (order target anchor side)
+            (org-iw-core-beside order target anchor
+                                (if (eq side 'before) 'after 'before)))
+          (lambda (order target anchor _)
+            (org-iw-core-beside order target anchor 'after))))
+        (wrong-step
+         (list
+          (lambda (order target delta) (org-iw-core-step order target (- delta)))
+          (lambda (order target delta)
+            (org-iw-core-step order target (* 2 delta)))
+          (lambda (order target _) (org-iw-core-step order target 0))
+          ;; Wraps round instead of stopping at the ends.
+          (lambda (order target delta)
+            (list 'after (mod (+ (seq-position order target #'eq) delta)
+                              (length order)))))))
+    (should (zerop (org-iw-core-test--beside-rejections #'org-iw-core-beside)))
+    (should (zerop (org-iw-core-test--step-rejections #'org-iw-core-step)))
+    (dolist (beside wrong-beside)
+      (should (< 0 (org-iw-core-test--beside-rejections beside))))
+    (dolist (step wrong-step)
+      (should (< 0 (org-iw-core-test--step-rejections step))))))
 
 (ert-deftest org-iw-core-test-refusal-is-user-error ()
   "The refusal condition is a user-error."

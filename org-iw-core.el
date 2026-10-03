@@ -51,7 +51,9 @@ Uses `format', not `format-message', which would curl apostrophes."
   id          ; string, Org ID, compared case-sensitively
   title       ; string for display
   file        ; absolute truename
-  memberships); alist (CANONICAL-QUEUE-ID . INTEGER-RANK)
+  memberships ; alist (CANONICAL-QUEUE-ID . INTEGER-RANK)
+  outline)    ; ancestor heading strings, outermost first; nil at top
+              ; level and for a document entry
 
 (cl-defstruct (org-iw-problem (:constructor org-iw-problem-create)
                               (:copier nil))
@@ -213,6 +215,28 @@ TARGET is an element of ORDER, compared with `eq'.  ORDER is not
 modified."
   (let ((others (remq target order)))
     (append (seq-take others depth) (list target) (seq-drop others depth))))
+
+;;;; Relative moves
+
+(defun org-iw-core-beside (order target anchor side)
+  "Return the placement of TARGET on SIDE of ANCHOR among ORDER.
+SIDE is `before' or `after'.  TARGET and ANCHOR are elements of ORDER,
+compared with `eq'.  The anchor's index is counted among ORDER without
+TARGET, as `org-iw-core-place' counts depth.  When ANCHOR is TARGET the
+placement is TARGET's own index, which leaves it unchanged."
+  (if (eq anchor target)
+      (list 'after (seq-position order target #'eq))
+    (let ((anchor-index (seq-position (remq target order) anchor #'eq)))
+      (list 'after (cl-ecase side
+                     (before anchor-index)
+                     (after (1+ anchor-index)))))))
+
+(defun org-iw-core-step (order target delta)
+  "Return the placement of TARGET DELTA places along ORDER.
+TARGET is an element of ORDER, compared with `eq'.  A step past either
+end stops at that end."
+  (list 'after (max 0 (min (1- (length order))
+                           (+ (seq-position order target #'eq) delta)))))
 
 (provide 'org-iw-core)
 ;;; org-iw-core.el ends here

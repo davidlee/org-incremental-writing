@@ -296,6 +296,46 @@ ENTRIES and PROBLEMS are as returned by
                      '("plain" "The Doc")))
       (should-not (org-iw-scan-problems scan)))))
 
+(defun org-iw-discovery-test--outlines (scan)
+  "Return the entries of SCAN as (ID . OUTLINE)."
+  (mapcar (lambda (entry)
+            (cons (org-iw-entry-id entry) (org-iw-entry-outline entry)))
+          (org-iw-scan-entries scan)))
+
+(ert-deftest org-iw-discovery-test-scan-outline-nested ()
+  "An entry's outline is its ancestors' text, outermost first.
+Cookies are stripped (leaving their spaces) and links reduced; a
+member's outline holds its member parent, and a preceding top-level
+heading does not leak in."
+  (org-iw-test-with-corpus
+      `(("a.org" . ,(concat
+                     (org-iw-test-heading "Other" nil)
+                     (org-iw-test-heading
+                      "Plan [1/3] [[https://x.example][Site]]" "p1"
+                      ":IW_Q: 1")
+                     "*" (org-iw-test-heading "Mid" "m1" ":IW_Q: 2")
+                     "**" (org-iw-test-heading "Deep" "d1" ":IW_Q: 3"))))
+    (let ((outlines (org-iw-discovery-test--outlines
+                     (org-iw-discovery-test--scan))))
+      (should (equal (assoc "m1" outlines) (list "m1" "Plan  Site")))
+      (should (equal (assoc "d1" outlines) (list "d1" "Plan  Site" "Mid"))))))
+
+(ert-deftest org-iw-discovery-test-scan-outline-top-level-and-document ()
+  "A top-level heading, even after nested ones, and a document have no outline."
+  (org-iw-test-with-corpus
+      `(("a.org" . ,(concat
+                     (org-iw-test-heading "Parent" "p1" ":IW_Q: 1")
+                     "*" (org-iw-test-heading "Child" "c1" ":IW_Q: 2")
+                     (org-iw-test-heading "Next" "n1" ":IW_Q: 3")))
+        ("b.org" . ,(org-iw-test-org
+                     ":PROPERTIES:" ":ID: d1" ":IW_Q: 4" ":END:"
+                     "* Heading")))
+    (let ((outlines (org-iw-discovery-test--outlines
+                     (org-iw-discovery-test--scan))))
+      (should (equal (assoc "c1" outlines) '("c1" "Parent")))
+      (dolist (id '("p1" "n1" "d1"))
+        (should (equal (assoc id outlines) (list id)))))))
+
 (ert-deftest org-iw-discovery-test-scan-no-inheritance ()
   "Members' children are not members, nor do they inherit the ID."
   (let ((org-use-property-inheritance t))

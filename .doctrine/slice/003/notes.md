@@ -110,6 +110,28 @@ F-1/F-2 verified as transcribed; F-19/F-20 verified against the locked
 design; RV-005 concluded. Research restamped (drift was the design and
 scope edits only). Slice → ready. Next: /phase-plan PHASE-01.
 
+## PHASE-01 (2026-10-03, execute)
+
+Landed: `outline` slot on `org-iw-entry`; pure `org-iw-core-beside` and
+`org-iw-core-step` (placements only, via `org-iw-core-place`); discovery
+`--read-entry` sets `:outline` from `org-get-outline-path`. Tests:
+`org-iw-core-test-entry-outline-defaults-to-nil`, `-beside`, `-step`,
+`-beside-property`, `-step-property`, `-relative-cases-reach-edges`,
+`-relative-checker-self-test`; discovery `-scan-outline-nested`,
+`-scan-outline-top-level-and-document`. `--random-order` was factored out of
+the place generator (seeded stream unchanged). `just gate` (31.1 and 30.2) and
+`just test-each` green; 11 hand mutants all killed.
+
+Surprise: `org-get-outline-path` strips a statistics cookie but leaves both
+neighbouring spaces, so `* Plan [1/3] [[..][Site]]` gives `"Plan  Site"` (two
+spaces), not `"Plan Site"`; same on 30.2 and 31.1. Links are reduced to their
+description. Point-min (document entry) and top-level headings give nil.
+Anything that compares or renders `:outline` strings later must expect the
+double space (or normalise deliberately).
+
+Upper clamp in `step` is unobservable through `place` (which clamps depth),
+so only the literal-placement unit test `org-iw-core-test-step` pins it.
+
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
 fresh-as-of: 2026-10-03 · design drafting (run rev 22) · 33c2c87
