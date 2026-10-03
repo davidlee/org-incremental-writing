@@ -48,6 +48,9 @@
 (defvar org-iw-test--modes nil
   "Alist (PATH . MODES) of file modes to restore after the test.")
 
+(defvar org-iw-test--outside-views nil
+  "The queue views that existed when the current fixture started.")
+
 (defun org-iw-test-path (name)
   "Return the absolute name of NAME in the corpus."
   (expand-file-name name org-iw-test-dir))
@@ -79,15 +82,24 @@
   (provided-mode-derived-p (buffer-local-value 'major-mode buffer)
                            'org-iw-view-mode))
 
+(defun org-iw-test--spare-outside-view (view)
+  "Return VIEW, found by `org-iw--view-buffer', or fail the test.
+A view made outside the fixture fails it, before the view is redrawn."
+  (when (memq view org-iw-test--outside-views)
+    (ert-fail (list "Queue view made outside the test" (buffer-name view))))
+  view)
+
 (defun org-iw-test--release ()
   "Discard edits to corpus buffers, kill them and restore file modes.
-Kill the queue views too: they have no file, and a view left behind
-would be found again by its queue ID."
+Kill the queue views made in the test too: they have no file, and a
+view left behind would be found again by its queue ID."
   (dolist (buffer (seq-filter #'org-iw-test--corpus-buffer-p (buffer-list)))
     (with-current-buffer buffer
       (set-buffer-modified-p nil))
     (kill-buffer buffer))
-  (mapc #'kill-buffer (seq-filter #'org-iw-test--view-buffer-p (buffer-list)))
+  (mapc #'kill-buffer
+        (seq-difference (seq-filter #'org-iw-test--view-buffer-p (buffer-list))
+                        org-iw-test--outside-views))
   (pcase-dolist (`(,path . ,modes) org-iw-test--modes)
     (set-file-modes path modes)))
 
@@ -109,6 +121,8 @@ See `org-iw-test-with-corpus'."
                             (make-temp-file "org-iw-test-" t))))
          (org-iw-test--extras nil)
          (org-iw-test--modes nil)
+         (org-iw-test--outside-views
+          (seq-filter #'org-iw-test--view-buffer-p (buffer-list)))
          (ids-file (make-temp-file "org-iw-test-ids-"))
          (org-iw-sources (list org-iw-test-dir))
          (org-iw-exclude-regexp nil)
@@ -118,6 +132,8 @@ See `org-iw-test-with-corpus'."
          (org-id-locations-file ids-file)
          (org-id-locations nil)
          (org-id-track-globally nil))
+    (advice-add 'org-iw--view-buffer :filter-return
+                #'org-iw-test--spare-outside-view)
     (unwind-protect
         (progn
           (pcase-dolist (`(,name . ,content) files)
@@ -133,6 +149,7 @@ See `org-iw-test-with-corpus'."
                 (if completed
                     (ert-fail violation)
                   (message "Also violated: %S" violation))))))
+      (advice-remove 'org-iw--view-buffer #'org-iw-test--spare-outside-view)
       (delete-directory org-iw-test-dir t)
       (delete-file ids-file))))
 
@@ -147,10 +164,12 @@ session (`org-iw--session' and `global-mode-string' nil), and org-id
 isolated: `org-id-locations-file' is a temporary file outside the
 corpus, `org-id-locations' nil and `org-id-track-globally' nil.
 
-BODY runs inside `save-window-excursion'.  Afterwards, even if BODY
-fails, the window configuration is restored, the corpus buffers and
-queue views are killed, the corpus buffers' edits discarded, and file
-modes changed through `org-iw-test-set-modes' are restored.  Then I8
+BODY runs inside `save-window-excursion'.  A queue view that existed
+before BODY is spared: BODY fails if it would show that view's queue.
+Afterwards, even if BODY fails, the window configuration is restored,
+the corpus buffers and BODY's queue views are killed, the corpus
+buffers' edits discarded, and file modes changed through
+`org-iw-test-set-modes' are restored.  Then I8
 is asserted: the corpus listing must equal the one before BODY, apart
 from *~ backups and paths declared by `org-iw-test-make-symlink' or
 `org-iw-test-make-fifo'.  A violation fails the test, unless BODY

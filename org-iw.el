@@ -420,6 +420,14 @@ is a prefix argument or no session."
   "Return problem TYPES, a list of symbols, as text for a refusal."
   (if types (mapconcat #'symbol-name types ", ") "unknown"))
 
+(defun org-iw--excluded-types (scan queue id)
+  "Return why SCAN excluded the heading at point, ID, from QUEUE, or nil.
+QUEUE is a canonical queue ID, and the heading is not one of its
+members.  If the heading has an IW_ line for QUEUE, the scan excluded
+it: return SCAN's problem types for ID, as text.  Else return nil."
+  (and (org-iw-discovery-queue-lines queue)
+       (org-iw--problem-types-text (org-iw-discovery-problem-types scan id))))
+
 (defun org-iw--check-heading (marker scan order queue)
   "Refuse unless the heading at MARKER may join QUEUE, a canonical queue ID.
 ORDER is QUEUE's members in SCAN.  Refuse if the heading has an IW_
@@ -429,17 +437,13 @@ if it is already a member, else nil."
   (org-with-point-at marker
     (let ((id (org-iw-discovery-entry-id))
           (file (org-iw--buffer-truename)))
-      (cond
-       ((org-iw-discovery-queue-lines queue)
-        (if-let* ((index (cl-position (org-iw--find-entry order id file)
-                                      order)))
-            (1+ index)
-          (org-iw-core-refuse
-           "heading has IW_%s but it is excluded (%s)" queue
-           (org-iw--problem-types-text
-            (org-iw-discovery-problem-types scan id)))))
-       ((and id (org-iw-discovery-shared-id-p scan id file))
-        (org-iw-core-refuse "ID shared with another heading"))))))
+      (if-let* ((index (cl-position (org-iw--find-entry order id file) order)))
+          (1+ index)
+        (when-let* ((types (org-iw--excluded-types scan queue id)))
+          (org-iw-core-refuse "heading has IW_%s but it is excluded (%s)"
+                              queue types))
+        (when (and id (org-iw-discovery-shared-id-p scan id file))
+          (org-iw-core-refuse "ID shared with another heading"))))))
 
 ;;;###autoload
 (defun org-iw-add (queue &optional label)
@@ -602,6 +606,17 @@ WHERE being its text, with its preposition."
     (`(moved ,depth ,rank)
      (list 'moved depth (org-iw--put-rank scan entry queue rank)))))
 
+(defun org-iw--moved-text (result title where total)
+  "Return the text reporting RESULT of `org-iw--move' for the entry TITLE.
+WHERE names the placement, as \"Soon\" or \"Soon in ESSAYS\", and TOTAL
+is the number of the queue's members."
+  (pcase result
+    (`(unchanged ,depth)
+     (format "%s already at %s, %d/%d" title where (1+ depth) total))
+    (`(moved ,depth ,status)
+     (format "Moved %s to %s, %d/%d %s" title where (1+ depth) total
+             (org-iw--save-status status)))))
+
 (defun org-iw--continue-place (scan order entry queue choice)
   "Move ENTRY, of ORDER, to the placement CHOICE in QUEUE; visit the head.
 ORDER is QUEUE's members in SCAN, QUEUE a canonical queue ID, and
@@ -613,22 +628,16 @@ entry is left alone.  Return the message shown."
     (if (null (cdr order))
         (org-iw--report scan "%s is the only entry in queue %s"
                         title (org-iw--queue-name queue))
-      (pcase-let
-          ((`(,text . ,new-order)
-            (pcase (org-iw--move scan order entry queue placement
-                                 (format "at %s" label))
-              (`(unchanged ,depth)
-               (cons (format "%s already at %s, %d/%d"
-                             title label (1+ depth) total)
-                     order))
-              (`(moved ,depth ,status)
-               (cons (format "Moved %s to %s, %d/%d %s"
-                             title label (1+ depth) total
-                             (org-iw--save-status status))
-                     (org-iw-core-reorder order entry depth))))))
+      (let* ((result (org-iw--move scan order entry queue placement
+                                   (format "at %s" label)))
+             (new-order (pcase result
+                          (`(moved ,depth ,_)
+                           (org-iw-core-reorder order entry depth))
+                          (_ order))))
         (org-iw--visit scan (car new-order) queue 1 total)
-        (org-iw--report scan "%s. Now 1/%d: %s" text total
-                        (org-iw-entry-title (car new-order)))))))
+        (org-iw--report scan "%s. Now 1/%d: %s"
+                        (org-iw--moved-text result title label total)
+                        total (org-iw-entry-title (car new-order)))))))
 
 (defun org-iw--continue-remove (scan order entry queue)
   "Remove ENTRY, of ORDER, from QUEUE; visit the head of the rest.
@@ -708,26 +717,30 @@ Return the message shown."
 
 (defun org-iw--scanned-entry-at (marker scan &optional queue)
   "Return the element of SCAN's entries for the entry at MARKER, or refuse.
-Refuse if SCAN has problems with the entry's ID, naming their types,
-and otherwise, also for an entry with no ID, as being in no queue.
-Given QUEUE, a canonical queue ID, refuse also unless the entry is in
-it."
-  (pcase-let* ((`(,id . ,file)
-                (org-with-point-at marker
-                  (cons (org-iw-discovery-entry-id) (org-iw--buffer-truename))))
-               (entry (and id (org-iw--find-entry (org-iw-scan-entries scan)
-                                                  id file)))
-               (types (and id (not entry)
-                           (org-iw-discovery-problem-types scan id))))
-    (cond (types (org-iw-core-refuse "entry at point is excluded (%s)"
-                                     (org-iw--problem-types-text types)))
-          ((not entry)
-           (org-iw-core-refuse "entry at point is not in any queue"))
-          ((and queue (not (org-iw-core-rank entry queue)))
-           (org-iw-core-refuse "%s is not in queue %s"
-                               (org-iw-entry-title entry)
-                               (org-iw--queue-name queue)))
-          (t entry))))
+Refuse if SCAN left the entry out: as excluded, naming the problem
+types of its ID, if it has any, else, also for an entry with no ID, as
+being in no queue.  Given QUEUE, a canonical queue ID, refuse also
+unless the entry is in it: as excluded if it has an IW_ line for QUEUE
+\(see `org-iw--excluded-types'), else as not in QUEUE."
+  (org-with-point-at marker
+    (let* ((id (org-iw-discovery-entry-id))
+           (entry (and id (org-iw--find-entry (org-iw-scan-entries scan)
+                                              id (org-iw--buffer-truename))))
+           (absent (and entry queue (not (org-iw-core-rank entry queue))))
+           (excluded
+            (cond (absent (org-iw--excluded-types scan queue id))
+                  ((and id (not entry))
+                   (when-let* ((types (org-iw-discovery-problem-types scan id)))
+                     (org-iw--problem-types-text types))))))
+      (cond (excluded
+             (org-iw-core-refuse "entry at point is excluded (%s)" excluded))
+            ((not entry)
+             (org-iw-core-refuse "entry at point is not in any queue"))
+            (absent
+             (org-iw-core-refuse "%s is not in queue %s"
+                                 (org-iw-entry-title entry)
+                                 (org-iw--queue-name queue)))
+            (t entry)))))
 
 (defun org-iw--membership-queue (entry)
   "Return the queue, a canonical ID, to act on for ENTRY.
@@ -779,18 +792,14 @@ Return the message shown."
                (`(,label . ,placement) (org-iw--placement queue-id label))
                (scan (org-iw--scan))
                (entry (org-iw--scanned-entry-at marker scan queue-id))
-               (order (org-iw--order scan queue-id))
-               (title (org-iw-entry-title entry))
-               (name (org-iw--queue-name queue-id)))
-    (pcase (org-iw--move scan order entry queue-id placement
-                         (format "at %s" label))
-      (`(unchanged ,depth)
-       (org-iw--report scan "%s already at %s in %s, %d/%d"
-                       title label name (1+ depth) (length order)))
-      (`(moved ,depth ,status)
-       (org-iw--report scan "Moved %s to %s in %s, %d/%d %s"
-                       title label name (1+ depth) (length order)
-                       (org-iw--save-status status))))))
+               (order (org-iw--order scan queue-id)))
+    (org-iw--report scan "%s" (org-iw--moved-text
+                               (org-iw--move scan order entry queue-id
+                                             placement (format "at %s" label))
+                               (org-iw-entry-title entry)
+                               (format "%s in %s" label
+                                       (org-iw--queue-name queue-id))
+                               (length order)))))
 
 ;;;; Remove
 
@@ -878,7 +887,9 @@ the session's entry is starred.
   (tabulated-list-init-header))
 
 (defvar-local org-iw--view-queue nil
-  "The canonical ID of the queue the view buffer shows.")
+  "The canonical ID of the queue the view buffer shows.
+It survives turning the mode on again.")
+(put 'org-iw--view-queue 'permanent-local t)
 
 (defun org-iw--view-buffer (queue)
   "Return the view buffer of QUEUE, a canonical queue ID, making it if need be.
@@ -908,33 +919,59 @@ its title bold.  The row is (ID [ORDINAL TITLE CONTEXT FILE]), as in
                               'face 'shadow)
                   (file-name-nondirectory (org-iw-entry-file entry))))))
 
+(defun org-iw--view-title (id)
+  "Return the title on the view row of the entry ID, as plain text."
+  (substring-no-properties (aref (cadr (assoc id tabulated-list-entries)) 1)))
+
 (defun org-iw--view-redraw (scan &optional goto-id)
   "Show the members of the view's queue in SCAN in the current buffer.
 Point goes to the row of the entry GOTO-ID, if given and listed, else
-stays on the row it was on, found by ID.  Then every window showing
-the buffer is given the buffer's point: printing erases the buffer,
-which resets the point of a window that is not selected."
-  (setq tabulated-list-entries
-        (seq-map-indexed
-         (lambda (entry index)
-           (org-iw--view-row entry (1+ index)
-                             (org-iw--session-entry-p
-                              org-iw--view-queue (org-iw-entry-id entry))))
-         (org-iw--order scan org-iw--view-queue)))
-  (tabulated-list-print t)
-  (when-let* ((goto-id)
+stays on the row it was on, found by ID.  If that entry is gone, point
+stays on the same line, or goes to the last row when fewer remain.
+Then every window showing the buffer is given the buffer's point:
+printing erases the buffer, which resets the point of a window that is
+not selected."
+  (let ((id (tabulated-list-get-id))
+        (line (line-number-at-pos)))
+    (setq tabulated-list-entries
+          (seq-map-indexed
+           (lambda (entry index)
+             (org-iw--view-row entry (1+ index)
+                               (org-iw--session-entry-p
+                                org-iw--view-queue (org-iw-entry-id entry))))
+           (org-iw--order scan org-iw--view-queue)))
+    (tabulated-list-print t)
+    (if-let* ((goto-id)
               (match (save-excursion
                        (goto-char (point-min))
                        (text-property-search-forward 'tabulated-list-id
                                                      goto-id t))))
-    (goto-char (prop-match-beginning match)))
+        (goto-char (prop-match-beginning match))
+      (unless (equal (tabulated-list-get-id) id)
+        (goto-char (point-min))
+        (forward-line (1- (min line (length tabulated-list-entries)))))))
   (dolist (window (get-buffer-window-list nil nil t))
     (set-window-point window (point))))
 
+(defun org-iw--view-refresh (scan)
+  "Redraw the view in the current buffer from SCAN; report its queue.
+The report counts the queue's members, noting SCAN's problems.
+Return the message shown."
+  (org-iw--view-redraw scan)
+  (let ((queue org-iw--view-queue)
+        (count (length tabulated-list-entries)))
+    (if (zerop count)
+        (org-iw--report-empty scan queue)
+      (org-iw--report scan "Queue %s: %d %s" (org-iw--queue-name queue)
+                      count (if (= count 1) "entry" "entries")))))
+
 (defun org-iw--view-revert (&rest _)
-  "Redraw the view in the current buffer from a fresh scan.
-This is the view's `revert-buffer-function'."
-  (org-iw--view-redraw (org-iw--scan)))
+  "Refresh the view in the current buffer from a fresh scan.
+This is the view's `revert-buffer-function'.  Refuse if the buffer
+shows no queue.  Return the message shown."
+  (unless org-iw--view-queue
+    (org-iw-core-refuse "no queue in this view; run org-iw-list-queue"))
+  (org-iw--view-refresh (org-iw--scan)))
 
 (defun org-iw--view-id-at-point ()
   "Return the ID of the entry on the view row at point, or refuse."
@@ -956,7 +993,7 @@ Return the message shown."
          (order (org-iw--order scan queue))
          (entry (or (org-iw--find-entry order id)
                     (org-iw--refuse-absent
-                     scan queue id (aref (tabulated-list-get-entry) 1)))))
+                     scan queue id (org-iw--view-title id)))))
     (prog1 (org-iw--visit scan entry queue (1+ (cl-position entry order))
                           (length order) t)
       (with-current-buffer view
@@ -970,19 +1007,18 @@ queue; with a prefix argument, or without a session, it is read with
 completion over the configured and discovered queues.
 
 The view is the buffer *org-iw: NAME*, NAME the queue's display name,
-made the first time and refreshed after.  Nothing is written.
+made the first time and refreshed after.  The queue's number of
+entries is reported, or that it is empty.  Nothing is written.
 Refuses if QUEUE is not a valid ID.
 
-Return the message shown for an empty queue, else nil."
+Return the message shown."
   (interactive (list (org-iw--read-session-queue)))
   (let* ((queue-id (org-iw--queue-id queue))
          (scan (org-iw--scan))
          (view (org-iw--view-buffer queue-id)))
-    (with-current-buffer view
-      (org-iw--view-redraw scan))
-    (pop-to-buffer view)
-    (unless (org-iw--order scan queue-id)
-      (org-iw--report-empty scan queue-id))))
+    (prog1 (with-current-buffer view
+             (org-iw--view-refresh scan))
+      (pop-to-buffer view))))
 
 ;;;; End session
 
