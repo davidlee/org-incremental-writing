@@ -23,7 +23,7 @@
 ;;; Commentary:
 
 ;; ERT tests for the command layer: `org-iw-add', the session and its
-;; mode line, `org-iw-visit-next', `org-iw-continue',
+;; mode line, `org-iw-visit-next', `org-iw-continue', `org-iw-move',
 ;; `org-iw-end-session', and the private helpers the commands share.
 ;; Every prompt is stubbed, so that no test reads from standard input.
 
@@ -1770,6 +1770,388 @@ The corpus is a directory source and the edit's lock file is present
     (should (buffer-modified-p (org-iw-test-visit "a.org")))
     (should (equal (org-iw-test-file-string "a.org") org-iw-cmd-test--a-file))
     (should (equal (org-iw-cmd-test--shown) '("b.org" "B")))))
+
+;;;; Move from the source: the entry at point
+
+(defconst org-iw-cmd-test--document
+  (concat (org-iw-test-org ":PROPERTIES:" ":ID: doc1" ":IW_ESSAYS: 1024" ":END:"
+                           "#+title: Doc" "Intro.")
+          (org-iw-test-heading "H" "h1"))
+  "A member document, in ESSAYS at 1024, with text and a heading after it.")
+
+(defun org-iw-cmd-test--scanned-at (marker)
+  "Return the scanned entry at MARKER, from a fresh scan."
+  (org-iw--scanned-entry-at marker (org-iw--scan)))
+
+(defun org-iw-cmd-test--scanned-refusal (marker)
+  "Return the refusal of `org-iw--scanned-entry-at' at MARKER."
+  (org-iw-cmd-test--refusal (lambda () (org-iw-cmd-test--scanned-at marker))))
+
+(ert-deftest org-iw-cmd-test-scanned-entry-at-finds-member ()
+  "The entry at a member heading is the scan's own element."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (let* ((scan (org-iw--scan))
+           (entry (org-iw--scanned-entry-at
+                   (org-iw-test-marker "b.org" "C") scan)))
+      (should (eq entry (org-iw-cmd-test--entry scan "c1"))))))
+
+(ert-deftest org-iw-cmd-test-scanned-entry-at-matches-file ()
+  "A heading sharing a member's ID in another file is not that member."
+  (org-iw-test-with-corpus
+      `(("a.org" . ,(org-iw-test-heading "A" "m1" ":IW_ESSAYS: 1"))
+        ("b.org" . ,(org-iw-test-heading "Copy" "m1")))
+    (should (equal (org-iw-entry-file
+                    (org-iw-cmd-test--scanned-at
+                     (org-iw-test-marker "a.org" "A")))
+                   (org-iw-test-path "a.org")))
+    (should (equal (org-iw-cmd-test--scanned-refusal
+                    (org-iw-test-marker "b.org" "Copy"))
+                   "entry at point is not in any queue"))))
+
+(ert-deftest org-iw-cmd-test-scanned-entry-at-refuses-excluded ()
+  "An ID the scan has problems with is excluded, naming the types.
+Distinct types are listed once each, in scan order; no ID is shown."
+  (pcase-dolist (`(,files ,name ,title ,message)
+                 `(((("a.org" . ,(org-iw-test-heading "H" "h1" ":IW_ESSAYS+: 1")))
+                    "a.org" "H" "entry at point is excluded (invalid-property)")
+                   ((("a.org" . ,(concat (org-iw-test-heading "H" "h1"
+                                                              ":IW_ESSAYS: 1")
+                                         (org-iw-test-heading "Copy" "h1"))))
+                    "a.org" "H" "entry at point is excluded (duplicate-id)")
+                   ((("a.org" . ,(org-iw-test-heading "H" "h1" ":IW_ESSAYS+: 1"))
+                     ("b.org" . ,(org-iw-test-heading "B" "h1" ":IW_ESSAYS: x")))
+                    "a.org" "H"
+                    "entry at point is excluded (invalid-property, invalid-rank)")))
+    (org-iw-test-with-corpus files
+      (should (equal (org-iw-cmd-test--scanned-refusal
+                      (org-iw-test-marker name title))
+                     message)))))
+
+(ert-deftest org-iw-cmd-test-scanned-entry-at-refuses-no-queue ()
+  "An entry with no ID, or an ID and no IW line, is in no queue.
+Without an ID the scan's own missing-id problem is not shown as exclusion."
+  (pcase-dolist (`(,text ,title)
+                 `((,(org-iw-test-heading "H" nil ":IW_ESSAYS: 1") "H")
+                   (,(org-iw-test-heading "H" "h1") "H")
+                   (,(org-iw-test-heading "H" "h1" ":IW_ESSAYS: 1") nil)))
+    (org-iw-test-with-corpus
+        `(("a.org" . ,(if title text (concat (org-iw-test-org "Intro.") text))))
+      (should (equal (org-iw-cmd-test--scanned-refusal
+                      (org-iw-cmd-test--at "a.org" title))
+                     "entry at point is not in any queue")))))
+
+(ert-deftest org-iw-cmd-test-scanned-entry-at-document ()
+  "A document with an ID and an IW line is found; without an ID it is in no queue."
+  (org-iw-test-with-corpus `(("a.org" . ,org-iw-cmd-test--document)
+                             ("b.org" . ,org-iw-cmd-test--intro))
+    (should (equal (org-iw-entry-id
+                    (org-iw-cmd-test--scanned-at
+                     (org-iw-cmd-test--at "a.org" nil)))
+                   "doc1"))
+    (should (equal (org-iw-cmd-test--scanned-refusal
+                    (org-iw-cmd-test--at "b.org" nil))
+                   "entry at point is not in any queue"))))
+
+(ert-deftest org-iw-cmd-test-scanned-entry-at-narrowed-and-indirect ()
+  "A marker in a narrowed buffer or an indirect buffer finds its entry."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (let ((marker (org-iw-test-marker "b.org" "C")))
+      (with-current-buffer (marker-buffer marker)
+        (org-iw-cmd-test--narrow-to-line "* B"))
+      (should (equal (org-iw-entry-id (org-iw-cmd-test--scanned-at marker))
+                     "c1"))
+      (org-iw-test-call-with-indirect
+       marker (lambda (indirect-marker)
+                (should (equal (org-iw-entry-id
+                                (org-iw-cmd-test--scanned-at indirect-marker))
+                               "c1")))))))
+
+;;;; Move from the source: choosing the queue
+
+(defconst org-iw-cmd-test--multi
+  `(,@org-iw-cmd-test--queue
+    ("m.org" . ,(org-iw-test-heading "M" "m1" ":IW_ESSAYS: 5000"
+                                     ":IW_DRAFTS: 1000"))
+    ("n.org" . ,(org-iw-test-heading "N" "n1" ":IW_NOTES: 1")))
+  "The queue corpus, M in ESSAYS (last) and DRAFTS (after D), N in NOTES.")
+
+(defun org-iw-cmd-test--membership-queue (name title)
+  "Return `org-iw--membership-queue' of the entry TITLE in corpus file NAME."
+  (org-iw--membership-queue
+   (org-iw-cmd-test--scanned-at (org-iw-test-marker name title))))
+
+(ert-deftest org-iw-cmd-test-membership-queue-single ()
+  "An entry in one queue has that queue, unprompted, with or without a session."
+  (org-iw-test-with-corpus org-iw-cmd-test--multi
+    (org-iw-cmd-test--with-prompt nil
+      (should (equal (org-iw-cmd-test--membership-queue "a.org" "A") "ESSAYS"))
+      (let ((org-iw--session (org-iw-cmd-test--session "NOTES" "N")))
+        (should (equal (org-iw-cmd-test--membership-queue "a.org" "A")
+                       "ESSAYS"))))))
+
+(ert-deftest org-iw-cmd-test-membership-queue-prompts-over-its-queues ()
+  "With several queues and no session, one must-match prompt offers only them."
+  (org-iw-test-with-corpus org-iw-cmd-test--multi
+    (org-iw-cmd-test--with-prompt "DRAFTS"
+      (should (equal (org-iw-cmd-test--membership-queue "m.org" "M") "DRAFTS"))
+      (pcase-let ((`(,call) org-iw-cmd-test--prompts))
+        (should (equal (plist-get call :prompt) "Queue: "))
+        (should (equal (plist-get call :order) '("DRAFTS" "ESSAYS")))
+        (should (eq (plist-get call :require-match) t))))))
+
+(ert-deftest org-iw-cmd-test-membership-queue-session ()
+  "A session in one of the entry's queues chooses it; any other prompts.
+The session is not changed."
+  (org-iw-test-with-corpus org-iw-cmd-test--multi
+    (dolist (queue '("ESSAYS" "DRAFTS"))
+      (let* ((session (org-iw-cmd-test--session queue "S"))
+             (org-iw--session session))
+        (org-iw-cmd-test--with-prompt nil
+          (should (equal (org-iw-cmd-test--membership-queue "m.org" "M")
+                         queue)))
+        (should (eq org-iw--session session))))
+    (let* ((session (org-iw-cmd-test--session "NOTES" "N"))
+           (org-iw--session session))
+      (org-iw-cmd-test--with-prompt "ESSAYS"
+        (should (equal (org-iw-cmd-test--membership-queue "m.org" "M")
+                       "ESSAYS"))
+        (should (= (length org-iw-cmd-test--prompts) 1)))
+      (should (eq org-iw--session session)))))
+
+;;;; Move from the source: the command
+
+(defun org-iw-cmd-test--move-at (marker queue &optional label)
+  "Call `org-iw-move' for QUEUE and LABEL with point at MARKER, in its buffer.
+Return its result."
+  (with-current-buffer (marker-buffer marker)
+    (goto-char marker)
+    (org-iw-move queue label)))
+
+(defun org-iw-cmd-test--move-chosen (marker)
+  "Call `org-iw-move' interactively with point at MARKER, in its buffer."
+  (with-current-buffer (marker-buffer marker)
+    (goto-char marker)
+    (call-interactively #'org-iw-move)))
+
+(defun org-iw-cmd-test--move-refuses (text queue substring &optional title)
+  "Assert Move refuses with SUBSTRING in a corpus holding a.org as TEXT.
+Move is at heading TITLE of a.org, or its start if TITLE is nil, to
+QUEUE.  Return the refusal message."
+  (org-iw-test-with-corpus `(("a.org" . ,text))
+    (let ((marker (org-iw-cmd-test--at "a.org" title)))
+      (org-iw-cmd-test--should-refuse-cleanly
+       substring (lambda () (org-iw-cmd-test--move-at marker queue))))))
+
+(ert-deftest org-iw-cmd-test-move-command-moves-one-line ()
+  "Move writes one rank, canonicalising QUEUE, and names the queue and place.
+Without a label it uses the queue's default."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (let ((org-iw-queues '(("essays" :name "Essays"))))
+      (should (equal (org-iw-cmd-test--should-move
+                      (lambda ()
+                        (org-iw-cmd-test--move-at
+                         (org-iw-test-marker "a.org" "A") "essays"))
+                      "a.org" 1024 4096)
+                     "Moved A to End in Essays, 3/3 (saved)"))
+      (should (equal (org-iw-cmd-test--order "ESSAYS") '("b1" "c1" "a1"))))))
+
+(ert-deftest org-iw-cmd-test-move-command-leaves-other-memberships ()
+  "Only the chosen queue's line changes; the entry's other IW lines stand."
+  (org-iw-test-with-corpus org-iw-cmd-test--multi
+    (should (equal (org-iw-cmd-test--should-move
+                    (lambda ()
+                      (org-iw-cmd-test--move-at
+                       (org-iw-test-marker "m.org" "M") "ESSAYS" "Later"))
+                    "m.org" 5000 1536)
+                   "Moved M to Later in ESSAYS, 2/4 (saved)"))
+    (should (equal (org-iw-cmd-test--order "DRAFTS") '("d1" "m1")))))
+
+(ert-deftest org-iw-cmd-test-move-command-already-there ()
+  "An entry already at its place is reported and nothing is written.
+Its buffer is read-only, which would refuse any write."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (org-iw-cmd-test--open-all)
+    (with-current-buffer (org-iw-test-visit "b.org")
+      (read-only-mode 1))
+    (should (equal (org-iw-cmd-test--should-change-nothing
+                    (lambda ()
+                      (org-iw-cmd-test--move-at
+                       (org-iw-test-marker "b.org" "C") "ESSAYS" "End")))
+                   "C already at End in ESSAYS, 3/3"))))
+
+(ert-deftest org-iw-cmd-test-move-command-counts-source-problems ()
+  "Move's message counts the scan's problems."
+  (org-iw-test-with-corpus `(,@org-iw-cmd-test--queue ,org-iw-cmd-test--problem)
+    (should (equal (org-iw-cmd-test--move-at
+                    (org-iw-test-marker "a.org" "A") "ESSAYS")
+                   (concat "Moved A to End in ESSAYS, 3/3 (saved)"
+                           " [1 source problems ignored]")))))
+
+(ert-deftest org-iw-cmd-test-move-command-keeps-session-and-window ()
+  "Move starts no session, ends none, and shows nothing (I13)."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (let ((marker (org-iw-test-marker "a.org" "A")))
+      (pcase-dolist (`(,visiting ,label) '((nil "Soon") (t "Later")))
+        (when visiting
+          (org-iw-visit-next "DRAFTS"))
+        (let ((session org-iw--session)
+              (window (selected-window))
+              (buffer (current-buffer))
+              (shown (org-iw-cmd-test--shown)))
+          (should (string-prefix-p
+                   "Moved A" (org-iw-cmd-test--move-at marker "ESSAYS" label)))
+          (should (eq org-iw--session session))
+          (should (eq (selected-window) window))
+          (should (eq (current-buffer) buffer))
+          (should (equal (org-iw-cmd-test--shown) shown))
+          (should (equal (null org-iw--session) (not visiting))))))))
+
+(ert-deftest org-iw-cmd-test-move-command-no-room ()
+  "Between neighbours ranked 5 and 6 there is no room; nothing changes."
+  (org-iw-test-with-corpus
+      `(("a.org" . ,(concat (org-iw-test-heading "A" "a1" ":IW_ESSAYS: 1")
+                            (org-iw-test-heading "B" "b1" ":IW_ESSAYS: 5")
+                            (org-iw-test-heading "C" "c1" ":IW_ESSAYS: 6"))))
+    (org-iw-cmd-test--open-all)
+    (let ((org-iw-queues '(("essays" :placements (("Second" (after 1)))))))
+      (should (equal (org-iw-cmd-test--should-refuse-cleanly
+                      "no room"
+                      (lambda ()
+                        (org-iw-cmd-test--move-at
+                         (org-iw-test-marker "a.org" "A") "ESSAYS" "Second")))
+                     (org-iw-cmd-test--no-room "at Second"))))))
+
+(ert-deftest org-iw-cmd-test-move-command-member-document ()
+  "A member document moves, as a heading does, from within its preamble."
+  (org-iw-test-with-corpus `(("a.org" . ,org-iw-cmd-test--document)
+                             ("b.org" . ,org-iw-cmd-test--b-file))
+    (with-current-buffer (org-iw-test-visit "a.org")
+      (org-iw-cmd-test--narrow-to-line "Intro.")
+      (should (equal (org-iw-cmd-test--should-move
+                      (lambda () (org-iw-move "ESSAYS"))
+                      "a.org" 1024 4096)
+                     "Moved Doc to End in ESSAYS, 3/3 (saved)")))))
+
+(ert-deftest org-iw-cmd-test-move-command-first-line-heading ()
+  "A heading on the first line moves; it is not mistaken for a document."
+  (org-iw-test-with-corpus
+      `(("a.org" . ,(concat (org-iw-test-heading "A" "a1" ":IW_ESSAYS: 1024")
+                            (org-iw-test-org "Body.")))
+        ("b.org" . ,org-iw-cmd-test--b-file))
+    (with-current-buffer (org-iw-test-visit "a.org")
+      (org-iw-cmd-test--narrow-to-line "Body.")
+      (should (equal (org-iw-move "ESSAYS")
+                     "Moved A to End in ESSAYS, 3/3 (saved)")))))
+
+(ert-deftest org-iw-cmd-test-move-command-refuses ()
+  "Move refuses, changing nothing, where the entry cannot be moved."
+  (let ((no-queue "entry at point is not in any queue"))
+    (pcase-dolist (`(,text ,queue ,title ,message)
+                   `((,(org-iw-test-heading "A" "a1" ":IW_ESSAYS: 1")
+                      "ess_ays" "A" "invalid queue ID \"ess_ays\"")
+                     (,(org-iw-test-heading "A" "a1" ":IW_ESSAYS: 1")
+                      "DRAFTS" "A" "A is not in queue DRAFTS")
+                     (,(org-iw-test-heading "H" "h1") "ESSAYS" "H" ,no-queue)
+                     (,(org-iw-test-heading "H" nil ":IW_ESSAYS: 1")
+                      "ESSAYS" "H" ,no-queue)
+                     (,(org-iw-test-heading "H" "h1" ":IW_ESSAYS+: 1")
+                      "ESSAYS" "H" "entry at point is excluded (invalid-property)")
+                     (,org-iw-cmd-test--intro "ESSAYS" nil ,no-queue)))
+      (should (equal (org-iw-cmd-test--move-refuses text queue message title)
+                     message)))))
+
+(ert-deftest org-iw-cmd-test-move-command-refuses-outside-sources ()
+  "Move refuses a file outside the sources and a buffer not in Org mode."
+  (org-iw-test-with-corpus '(("a.org" . "* A\n") ("b.org" . "* B\n"))
+    (let ((org-iw-sources (list (org-iw-test-path "a.org")))
+          (marker (org-iw-test-marker "b.org" "B")))
+      (org-iw-cmd-test--should-refuse-cleanly
+       "not under org-iw-sources"
+       (lambda () (org-iw-cmd-test--move-at marker "ESSAYS")))))
+  (org-iw-test-with-corpus `(("a.txt" . ,org-iw-cmd-test--member))
+    (let ((org-iw-sources (list (org-iw-test-path "a.txt"))))
+      (with-current-buffer (org-iw-test-visit "a.txt")
+        (text-mode)
+        (should (string-search "buffer not in Org mode"
+                               (cadr (should-error (org-iw-move "ESSAYS")
+                                                   :type 'org-iw-refusal))))))))
+
+(ert-deftest org-iw-cmd-test-move-command-refuses-placement-before-scan ()
+  "A bad queue, label or configuration refuses before any scan."
+  (pcase-dolist (`(,queues ,queue ,label ,message)
+                 '((nil "ess_ays" nil "invalid queue ID \"ess_ays\"")
+                   (nil "ESSAYS" "Nope" "queue ESSAYS has no placement \"Nope\"")
+                   ((("essays" :placements nil)) "ESSAYS" nil
+                    "queue ESSAYS :placements: no placements")))
+    (org-iw-test-with-corpus org-iw-cmd-test--queue
+      (let ((org-iw-queues queues)
+            (marker (org-iw-test-marker "a.org" "A")))
+        (cl-letf (((symbol-function 'org-iw--scan)
+                   (lambda () (ert-fail "Scanned"))))
+          (should (equal (org-iw-cmd-test--should-refuse-cleanly
+                          ""
+                          (lambda () (org-iw-cmd-test--move-at marker queue label)))
+                         message)))))))
+
+;;;; Move from the source: interactively
+
+(ert-deftest org-iw-cmd-test-move-chosen-one-queue ()
+  "An entry in one queue is asked for a placement only, default last."
+  (org-iw-test-with-corpus org-iw-cmd-test--multi
+    (let ((org-iw-queues '(("essays" :placements (("Again" (after 0))
+                                                  ("Back" end))
+                            :default "Back"))))
+      (org-iw-cmd-test--with-prompt "Again"
+        (should (equal (org-iw-cmd-test--move-chosen
+                        (org-iw-test-marker "a.org" "A"))
+                       "A already at Again in ESSAYS, 1/4"))
+        (pcase-let ((`(,call) org-iw-cmd-test--prompts))
+          (should (equal (plist-get call :prompt) "Placement: "))
+          (should (equal (plist-get call :order) '("Again" "Back")))
+          (should (equal (plist-get call :default) "Back")))))))
+
+(ert-deftest org-iw-cmd-test-move-chosen-two-queues ()
+  "With two queues and no session, Move asks for the queue, then a placement.
+The queue prompt offers the entry's queues only."
+  (org-iw-test-with-corpus org-iw-cmd-test--multi
+    (org-iw-cmd-test--with-prompt '("DRAFTS" "Soon")
+      (should (equal (org-iw-cmd-test--move-chosen
+                      (org-iw-test-marker "m.org" "M"))
+                     "M already at Soon in DRAFTS, 2/2"))
+      (should (equal (org-iw-cmd-test--prompted :prompt)
+                     '("Queue: " "Placement: ")))
+      (should (equal (plist-get (car org-iw-cmd-test--prompts) :order)
+                     '("DRAFTS" "ESSAYS")))
+      (should (eq (plist-get (car org-iw-cmd-test--prompts) :require-match) t)))))
+
+(ert-deftest org-iw-cmd-test-move-chosen-session-queue ()
+  "With a session in one of the entry's queues Move asks for a placement only."
+  (org-iw-test-with-corpus org-iw-cmd-test--multi
+    (let ((org-iw--session (org-iw-cmd-test--session "ESSAYS" "S")))
+      (org-iw-cmd-test--with-prompt "Later"
+        (should (string-prefix-p
+                 "Moved M to Later in ESSAYS"
+                 (org-iw-cmd-test--move-chosen
+                  (org-iw-test-marker "m.org" "M"))))
+        (should (equal (org-iw-cmd-test--prompted :prompt)
+                       '("Placement: ")))))))
+
+(ert-deftest org-iw-cmd-test-move-chosen-refuses-before-prompting ()
+  "Interactively, nothing is prompted for an entry in no queue or bad config."
+  (org-iw-test-with-corpus org-iw-cmd-test--multi
+    (org-iw-cmd-test--open-all)
+    (org-iw-cmd-test--with-prompt nil
+      (org-iw-cmd-test--should-refuse-cleanly
+       "queue ESSAYS :placements: no placements"
+       (lambda ()
+         (let ((org-iw-queues '(("essays" :placements nil))))
+           (org-iw-cmd-test--move-chosen (org-iw-test-marker "a.org" "A")))))
+      (org-iw-cmd-test--should-refuse-cleanly
+       "entry at point is not in any queue"
+       (lambda ()
+         (org-iw-cmd-test--move-chosen
+          (with-current-buffer (org-iw-test-visit "a.org")
+            (copy-marker (point-min)))))))))
 
 (provide 'org-iw-test)
 ;;; org-iw-test.el ends here

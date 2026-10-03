@@ -213,3 +213,18 @@ some point i don't care much when."
   document-target refusal) confirmed by the user.
 - Title double space (sibling of F-4) → IMP-005 item 3; timing open.
 - Fix-now findings F-1, F-2, F-4..F-11 landed in cbb493e.
+
+## PHASE-04 — Move (2026-10-03)
+
+- `org-iw--scanned-entry-at` (PHASE-03 deferral, EX-5), `org-iw--membership-queue`
+  and autoloaded `org-iw-move` in org-iw.el `;;;; Move`. 24 new tests.
+- Sheet R3 settled from design § 5.2 (design.md:274-276): no ID → "not in any
+  queue"; nil ID is checked before `org-iw-discovery-problem-types`.
+- Deviations: `--check-heading` left unshared (two-line overlap). Sheet case
+  T1(d) (same ID in two files) is unreachable — `--drop-shared-ids` removes such
+  entries; covered instead by `scanned-entry-at-matches-file`. Worker wrote tests
+  and code in one pass (no recorded red); the mutation pass stands in.
+- Mutation pass: 26 mutants, all killed; j3 (Move ends the session) survived
+  first and was killed by making each loop iteration actually move.
+- `just gate` green, 263 tests on 31.1 and 30.2; `just test-each` 263 alone
+  green; verify-vt PHASE-04 VT-1 PASS.

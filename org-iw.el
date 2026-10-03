@@ -631,6 +631,82 @@ Return the message shown."
             (org-iw--report scan "%s. Now 1/%d: %s" text total
                             (org-iw-entry-title (car new-order)))))))))
 
+;;;; Move
+
+(defun org-iw--scanned-entry-at (marker scan)
+  "Return the element of SCAN's entries for the entry at MARKER, or refuse.
+Refuse if SCAN has problems with the entry's ID, naming their types,
+and otherwise, also for an entry with no ID, as being in no queue."
+  (pcase-let ((`(,id . ,file)
+               (org-with-point-at marker
+                 (cons (org-iw-discovery-entry-id) (org-iw--buffer-truename)))))
+    (or (and id (org-iw--find-entry (org-iw-scan-entries scan) id file))
+        (if-let* ((types (and id (org-iw-discovery-problem-types scan id))))
+            (org-iw-core-refuse "entry at point is excluded (%s)"
+                                (org-iw--problem-types-text types))
+          (org-iw-core-refuse "entry at point is not in any queue")))))
+
+(defun org-iw--membership-queue (entry)
+  "Return the queue, a canonical ID, to act on for ENTRY.
+That is ENTRY's only queue; of several, the session's if it is one of
+them, else the one read from the user, who must choose among them."
+  (let ((queues (mapcar #'car (org-iw-entry-memberships entry)))
+        (session-queue (and org-iw--session
+                            (org-iw--session-queue org-iw--session))))
+    (cond ((null (cdr queues)) (car queues))
+          ((member session-queue queues) session-queue)
+          (t (org-iw--read-queue queues t)))))
+
+;;;###autoload
+(defun org-iw-move (queue &optional label)
+  "Move the entry at point to the placement LABEL in QUEUE.
+QUEUE is a queue ID in any case, one the entry is in; LABEL names one
+of the queue's placements (see `org-iw-placements' and
+`org-iw-queues'), nil meaning the queue's default.  Interactively,
+QUEUE is the entry's only queue or, of several, the session's if it is
+one of them, else it is read; then LABEL is read, defaulting to the
+queue's default.
+
+The entry is the heading at or above point, even outside a narrowing,
+or the document before the first heading; indirect buffers work.  Its
+rank in QUEUE is rewritten through its buffer, which is saved unless
+it already had unsaved changes.  Nothing is visited and the session is
+left as it is.  An entry already at its placement is not written.
+
+Move refuses, writing nothing, if the buffer is not a source file or
+not in Org mode, QUEUE is not a valid ID, LABEL is not one of the
+queue's labels or its placements are misconfigured (checked before any
+scan), the entry is in no queue, was excluded by the scan or is not in
+QUEUE, there is no room for a rank at the placement, or the write
+refuses (the file changed on disk or is not writable, its buffer is
+read-only, or the entry has a property drawer Org doesn't recognise).
+
+Return the message shown."
+  (interactive
+   (let ((queue (org-iw--membership-queue
+                 (org-iw--scanned-entry-at (org-iw--target-at-point)
+                                           (org-iw--scan)))))
+     (list queue (org-iw--read-placement queue))))
+  (pcase-let* ((queue-id (org-iw--queue-id queue))
+               (marker (org-iw--target-at-point))
+               (`(,label . ,placement) (org-iw--placement queue-id label))
+               (scan (org-iw--scan))
+               (entry (org-iw--scanned-entry-at marker scan))
+               (order (org-iw--order scan queue-id))
+               (title (org-iw-entry-title entry))
+               (name (org-iw--queue-name queue-id)))
+    (unless (org-iw-core-rank entry queue-id)
+      (org-iw-core-refuse "%s is not in queue %s" title name))
+    (pcase (org-iw--move scan order entry queue-id placement
+                         (format "at %s" label))
+      (`(unchanged ,depth)
+       (org-iw--report scan "%s already at %s in %s, %d/%d"
+                       title label name (1+ depth) (length order)))
+      (`(moved ,depth ,status)
+       (org-iw--report scan "Moved %s to %s in %s, %d/%d %s"
+                       title label name (1+ depth) (length order)
+                       (org-iw--save-status status))))))
+
 ;;;; End session
 
 ;;;###autoload
