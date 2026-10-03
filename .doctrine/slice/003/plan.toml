@@ -74,21 +74,21 @@ requirements = []
 [[phase]]
 id        = "PHASE-03"
 name      = "Command-layer helpers, behaviour-preserving"
-objective = "Introduce the shared org-iw.el helpers of design § 5.2 before any new command uses them, and route existing code through them: --add-target → --target-at-point (Add keeps the document refusal), --find-entry (used by --check-heading and Continue), --scanned-entry-at, --known-queues, generalised --read-queue, --read-session-queue (used by visit-next), generalised --refuse-absent, reworded --refuse-no-room, --session-hint, and --move replacing Continue's inline place handling. Only the absence and no-room texts change."
+objective = "Introduce the shared org-iw.el helpers of design § 5.2 before any new command uses them, and route existing code through them: --add-target → --target-at-point (Add keeps the document refusal), --find-entry (used by --check-heading and Continue), --known-queues, generalised --read-queue, --read-session-queue (used by visit-next), generalised --refuse-absent, reworded --refuse-no-room, and --move (WHERE required) replacing Continue's inline place handling. Only the absence and no-room texts change. Each other § 5.2 helper lands with its first caller: --scanned-entry-at in PHASE-04, --session-hint and --delete-rank in PHASE-05, --move's nil WHERE in PHASE-07."
 entrance_criteria = [
   { id = "EN-1", text = "PHASE-02 completed; just gate green." },
 ]
 exit_criteria = [
   { id = "EX-1", text = "org-iw--add-target is gone; --target-at-point returns a marker at the heading or at point-min before the first heading; Add refuses a document marker with \"document targets are not yet supported\" before the queue prompt, as today." },
-  { id = "EX-2", text = "--find-entry is the one lookup by ID (RV-005 F-10): --check-heading, --scanned-entry-at and Continue use it; grep finds no other cl-find/seq-find over entries by ID in org-iw.el." },
-  { id = "EX-3", text = "--scanned-entry-at refuses \"entry at point is excluded (TYPES)\" and \"entry at point is not in any queue\"; both killed by tests." },
+  { id = "EX-2", text = "--find-entry is the one lookup by ID (RV-005 F-10): --check-heading and Continue use it (and --scanned-entry-at from PHASE-04); grep finds no other cl-find/seq-find over entries by ID in org-iw.el." },
+  { id = "EX-3", text = "No helper is added without a caller in this phase (moved: --scanned-entry-at to PHASE-04/EX-5, --session-hint to PHASE-05/EX-1, --move nil WHERE to PHASE-07/EX-2)." },
   { id = "EX-4", text = "visit-next behaves as before through --read-session-queue; --read-queue takes QUEUES and REQUIRE-MATCH; one queue prompt in org-iw.el (POL-002)." },
   { id = "EX-5", text = "--refuse-absent takes SCAN QUEUE ID TITLE; its two texts name no act (RV-005 F-6) and are pinned. --refuse-no-room reads \"no room WHERE in NAME; redistribution is not yet available\" with WHERE carrying its preposition; \"at the end\" (plain Add) and \"at LABEL\" are pinned; the old advice is gone from code and tests." },
-  { id = "EX-6", text = "Continue's placement path goes through --move with WHERE \"at LABEL\"; its SL-002 messages and navigation are otherwise unchanged; --move with nil WHERE refuses \"at position D/N\" (helper-level test, reason stated per STD-001 item 6). --session-hint returns the DEC-015 text without punctuation (RV-005 F-5)." },
+  { id = "EX-6", text = "Continue's placement path goes through --move with WHERE \"at LABEL\"; its SL-002 messages and navigation are otherwise unchanged." },
 ]
 verification = [
-  { id = "VT-1", expects = "target-at-point and Add's document refusal; scanned-entry-at refusals; find-entry", test_file = "test/org-iw-test.el", keywords = ["org-iw--target-at-point", "org-iw--scanned-entry-at", "org-iw--find-entry"], waived = false },
-  { id = "VT-2", expects = "absence and no-room texts; --move outcomes and nil-WHERE text; session hint", test_file = "test/org-iw-test.el", keywords = ["org-iw--refuse-absent", "org-iw--move", "org-iw--session-hint", "org-iw-cmd-test--no-room"], waived = false },
+  { id = "VT-1", expects = "target-at-point and Add's document refusal; find-entry", test_file = "test/org-iw-test.el", keywords = ["org-iw--target-at-point", "org-iw--find-entry"], waived = false },
+  { id = "VT-2", expects = "absence and no-room texts; Continue through --move", test_file = "test/org-iw-test.el", keywords = ["org-iw--refuse-absent", "org-iw--move", "org-iw-cmd-test--no-room"], waived = false },
   { id = "VA-1", text = "Agent greps org-iw.el: no org-iw--add-target; org-iw-core-place is called only by --move and Add (I14); no depth or neighbour arithmetic deciding a rank or placement outside the core (I10′, RV-005 F-12/F-20)." },
 ]
 specs        = []
@@ -97,7 +97,7 @@ requirements = []
 [[phase]]
 id        = "PHASE-04"
 name      = "Move from the source"
-objective = "Add org-iw--membership-queue (DEC-012) and the autoloaded org-iw-move QUEUE &optional LABEL per design § 5.4."
+objective = "Add org-iw--scanned-entry-at, org-iw--membership-queue (DEC-012) and the autoloaded org-iw-move QUEUE &optional LABEL per design § 5.4."
 entrance_criteria = [
   { id = "EN-1", text = "PHASE-03 completed; just gate green." },
 ]
@@ -106,9 +106,10 @@ exit_criteria = [
   { id = "EX-2", text = "Moved writes one line and only that membership changes (REQ-017 AC2); unchanged writes nothing; no gap → \"no room at LABEL in NAME; …\" with nothing changed. Messages per design § 5.4 table." },
   { id = "EX-3", text = "Session unchanged (eq), selected window and buffer unchanged (I13). A member document moves (DEC-018)." },
   { id = "EX-4", text = "From Lisp: QUEUE is canonicalised (RV-005 F-17); a queue the entry isn't in → \"T is not in queue NAME\", nothing changed; not a member and excluded each refuse; bad config or unknown label refuses before the scan." },
+  { id = "EX-5", text = "--scanned-entry-at (via --find-entry) refuses \"entry at point is excluded (TYPES)\" and \"entry at point is not in any queue\" (no ID included); both killed by tests." },
 ]
 verification = [
-  { id = "VT-1", expects = "queue choice, moved/unchanged/no-gap, session and window unchanged, document, Lisp refusals", test_file = "test/org-iw-test.el", keywords = ["org-iw-move", "org-iw--membership-queue", "org-iw-cmd-test--with-prompt"], waived = false },
+  { id = "VT-1", expects = "queue choice, moved/unchanged/no-gap, session and window unchanged, document, Lisp refusals", test_file = "test/org-iw-test.el", keywords = ["org-iw-move", "org-iw--membership-queue", "org-iw--scanned-entry-at"], waived = false },
 ]
 specs        = []
 requirements = []
@@ -116,7 +117,7 @@ requirements = []
 [[phase]]
 id        = "PHASE-05"
 name      = "Remove from the source and from Continue"
-objective = "Add org-iw--delete-rank, the autoloaded org-iw-remove QUEUE, Continue's remove LABEL with Remove as the chooser's final candidate (--read-placement WITH-REMOVE, DEC-016), and the reserved-label check in --check-placements (design § 5.2, § 5.4)."
+objective = "Add org-iw--delete-rank, org-iw--session-hint, the autoloaded org-iw-remove QUEUE, Continue's remove LABEL with Remove as the chooser's final candidate (--read-placement WITH-REMOVE, DEC-016), and the reserved-label check in --check-placements (design § 5.2, § 5.4)."
 entrance_criteria = [
   { id = "EN-1", text = "PHASE-04 completed; just gate green." },
 ]
@@ -163,7 +164,7 @@ entrance_criteria = [
 ]
 exit_criteria = [
   { id = "EX-1", text = "Recorder: org-iw-cmd-test--with-prompt also answers y-or-n-p from the answer list (:yes / :no) and records its prompt; a string answer to y-or-n-p or a keyword answer to completing-read fails; its self-test covers each case. Still one recorder (POL-002)." },
-  { id = "EX-2", text = "M-<down>/M-<up> move through step and --move, point follows; at the end or front \"already\", nothing written; no gap refuses \"at position D/N\". Moving one entry out of a tied pair succeeds; landing between equal ranks refuses (RV-005 F-14)." },
+  { id = "EX-2", text = "M-<down>/M-<up> move through step and --move, point follows; at the end or front \"already\", nothing written; --move's WHERE becomes optional and nil refuses no gap \"at position D/N\". Moving one entry out of a tied pair succeeds; landing between equal ranks refuses (RV-005 F-14)." },
   { id = "EX-3", text = "m then b/a on another row places the marked entry beside the entry at point, point on the marked entry, mark cleared; already adjacent → nothing written, mark cleared; b without a mark refuses; a refused b/a (no gap, marked or anchor entry gone) keeps the mark; m on a second row replaces the mark (RV-005 F-8). The mark is cleared when its entry leaves." },
   { id = "EX-4", text = "RV-005 F-2 (probe): a marked row survives g — the tag is still shown and the next b/a uses it — and survives org-iw-list-queue on the same queue. The test must fail if g is bound to tabulated-list-revert with the mark re-tagged in tabulated-list-revert-hook (record the observed failure in the phase sheet)." },
   { id = "EX-5", text = "D: row ID, rescan, find (refuse absent before any prompt), then y-or-n-p \"Remove T from NAME? \" with the scanned title (RV-005 F-7). y → deleted, point on the next row else the previous; n → nothing changed. Stale row after a source undo acts on the fresh state (I12)." },

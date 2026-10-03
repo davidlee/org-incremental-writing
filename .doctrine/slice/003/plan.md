@@ -32,7 +32,9 @@ PHASE-02 write ──────────┼─▶ PHASE-03 helpers ─▶ 0
 - **PHASE-03, helpers before features.** Same tactic as SL-002 PHASE-02:
   route existing Add, Continue and visit-next through the new shared
   helpers (`--target-at-point`, `--find-entry`, `--read-queue`,
-  `--refuse-absent`, `--move`) with no new commands. The reworded no-room
+  `--refuse-absent`, `--move`) with no new commands. A helper whose first
+  caller is a later command lands with that command instead (PHASE-03/EX-3),
+  so no phase ends with dead code. The reworded no-room
   and absence texts change their expectations once, here. Every later
   phase then adds a command on top of one owner per concept (POL-002), and
   the I14 grep ("one placer") is checkable before any new caller exists.
@@ -59,7 +61,7 @@ criteria with a negative control each:
 Their terminal verify happens after `slice phases`, against those criteria.
 
 Findings fixed in prose are still pinned by criteria: F-3 → PHASE-02/EX-3;
-F-4 → PHASE-05/EX-3; F-5 → PHASE-03/EX-6, PHASE-05/EX-1; F-6 →
+F-4 → PHASE-05/EX-3; F-5 → PHASE-05/EX-1; F-6 →
 PHASE-03/EX-5; F-7 → PHASE-07/EX-5; F-8 → PHASE-07/EX-3; F-10 →
 PHASE-03/EX-2; F-12, F-20 → PHASE-03/VA-1; F-13 → PHASE-08/VH-1; F-14 →
 PHASE-07/EX-2; F-15 → PHASE-01/EX-2; F-16 → PHASE-05/EX-4; F-17 →
@@ -68,6 +70,12 @@ gaps) is spread across the phases' test lists. F-11 is a follow-up: a REV
 qualifying REQ-013 AC2 at reconcile, not a phase.
 
 ## Notes
+
+- **F-1's probe runs in batch.** Checked while planning: in `emacs
+  --batch` (30 and 31), `tabulated-list-print` on a buffer shown in an
+  unselected window resets that window's point to 1 while the buffer's
+  point stays. So the PHASE-06 test can reproduce the defect, and its
+  negative control is real.
 
 - **Test file size.** `test/org-iw-test.el` is ~1,600 lines and gains the
   Move, Remove and view tests. STD-004 mirrors tests to sources, so they
