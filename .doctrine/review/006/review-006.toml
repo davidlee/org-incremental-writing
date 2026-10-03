@@ -1,0 +1,259 @@
+id    = 6
+slug  = "code-review-review-of-sl-003"
+title = "code-review review of SL-003"
+# no status — a review's status is DERIVED from its findings, so
+# it is never stored (the storage rule forbids derived data in authored files).
+
+[review]
+facet     = "code-review"     # scope|design|plan|phase-plan|implementation|code-review|reconciliation
+raiser    = "reviewer"
+responder = "seat"
+rounds_base = 0
+contests_base = 0
+concluded = true
+
+[[review.turn]]
+act = "conclude"
+role = "raiser"
+note = "Code review of SL-003 PHASE-01..03 (e7213f2..afec99d, sources and tests) under the STD-003 roster: opus modelling/architecture reviewer (write path probes on Emacs 30/31, POL-002 greps, D1 assessment), opus test reviewer (39 extra mutants, 5 survivors, test-each isolation), sonnet verifier (all 11 raised candidates confirmed by reading or execution). No blockers or majors."
+
+[target]                   # the outbound `reviews` edge: RV-NNN ──reviews──▶ <ref>
+ref   = "SL-003"
+
+[[finding]]
+id = "F-1"
+status = "answered"
+severity = "minor"
+title = "delete-rank should refuse a read-only indirect buffer; it signals raw buffer-read-only"
+detail = """
+Expected: both write verbs share one preflight and treat a read-only buffer as the documented refusal "buffer is read-only" (org-iw-write.el docstrings :116, :145).
+Observed: preflight (org-iw-write.el:73-74) checks only the base buffer's buffer-read-only. With a marker in a read-only indirect buffer over a writable base, delete-rank signals (buffer-read-only #<buffer ind>) (not org-iw-refusal); put-rank writes and saves because org-entry-put wraps org-no-read-only. Probe on Emacs 30 and 31 (scratchpad probe2.el). Text is restored by rollback. Unreachable from current commands (markers come from org-iw-discovery-resolve, base buffer), but delete-rank is public.
+Fix: preflight also checks (buffer-local-value 'buffer-read-only (marker-buffer marker)); one test per verb."""
+disposition = "fix-now"
+response = "Preflight also refuses when the marker's own buffer is read-only; one test per verb (read-only indirect over writable base). Local to org-iw-write.el; docstrings already promise the refusal."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Preflight also refuses when the marker's own buffer is read-only; one test per verb (read-only indirect over writable base). Local to org-iw-write.el; docstrings already promise the refusal."
+
+[[finding]]
+id = "F-2"
+status = "answered"
+severity = "minor"
+title = "org-iw--target-at-point should use org-back-to-heading-or-point-min; it hand-rolls it"
+detail = """
+Expected (STD-004 primitives first; discovery already uses the primitive at org-iw-discovery.el:451): (org-with-wide-buffer (org-back-to-heading-or-point-min t) (point-marker)).
+Observed: org-iw.el:169-173 writes the if/org-before-first-heading-p/org-back-to-heading branch by hand. Verifier: the replacement passes 236/236 on Emacs 30 and 31 and is behaviour-identical.
+Related: 'is the entry at point the document?' is decided by org-before-first-heading-p at org-iw.el:170 and :389 (--heading-or-refuse) and differently in discovery (:275, :451)."""
+disposition = "fix-now"
+response = "Replace the hand-rolled branch with org-back-to-heading-or-point-min t inside org-with-wide-buffer; verifier showed 236/236 green on 30 and 31."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Replace the hand-rolled branch with org-back-to-heading-or-point-min t inside org-with-wide-buffer; verifier showed 236/236 green on 30 and 31."
+
+[[finding]]
+id = "F-3"
+status = "open"
+severity = "minor"
+title = "Write layer should read Org structure only via discovery (ADR-003); delete-rank calls org-get-property-block"
+detail = """
+Expected (ADR-003 as amended by REV-002): every reader of Org structure lives in discovery behind public functions; mutation reads the entry only through them.
+Observed: org-iw-write.el:164 calls (org-get-property-block) after org-entry-delete to check the drawer survived. Design § 5.2 (design.md:234) prescribes this exact code, so the locked design and the ADR disagree: drift between two binding sources.
+Mitigation: it is a post-write invariant check, not an entry read for decision-making.
+Resolution needs a choice: amend ADR-003 to allow post-edit invariant checks in mutation, or expose a discovery predicate and call it (touches the locked design)."""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding]]
+id = "F-4"
+status = "answered"
+severity = "nit"
+title = "Outline should be clean text; a mid-heading cookie leaves a double space and a test pins it"
+detail = """
+Expected: discovery, the one Org reader, yields outline strings without Org artefacts, so the view (PHASE-06 --outline-text) never compensates.
+Observed: org-get-outline-path strips a mid-heading cookie but keeps both surrounding spaces: '* Plan [1/3] [[..][Site]]' → "Plan  Site". test/org-iw-discovery-test.el:320-321 asserts the double space, pinning Org's quirk rather than org-iw behaviour. Nothing in PHASE-01..03 renders the outline.
+Fix (before PHASE-06): normalise whitespace in --read-entry and assert the clean form."""
+disposition = "fix-now"
+response = "Normalise outline whitespace in discovery's --read-entry (one owner of Org reading) and assert the clean form, before PHASE-06 renders it."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Normalise outline whitespace in discovery's --read-entry (one owner of Org reading) and assert the clean form, before PHASE-06 renders it."
+
+[[finding]]
+id = "F-5"
+status = "answered"
+severity = "nit"
+title = "org-iw-core-beside should reject an invalid SIDE always; it accepts one when ANCHOR is TARGET"
+detail = """
+Expected: SIDE validated as before or after in every case.
+Observed: org-iw-core.el:226 returns early for (eq anchor target) before cl-ecase; (org-iw-core-beside '(a b) 'a 'a 'bogus) → (after 0).
+Fix: (cl-check-type side (member before after)) first."""
+disposition = "fix-now"
+response = "Validate SIDE with cl-check-type before the eq branch; table test for a bad side with anchor eq target."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Validate SIDE with cl-check-type before the eq branch; table test for a bad side with anchor eq target."
+
+[[finding]]
+id = "F-6"
+status = "answered"
+severity = "minor"
+title = "delete-rank's emptied-drawer check should be pinned to the target's drawer; a point-min mutant survives"
+detail = """
+Expected: tests distinguish the target's drawer from an earlier one (STD-001 item 5, neighbouring heading before).
+Observed: mutant at org-iw-write.el:164 (save-excursion (goto-char (point-min)) (org-get-property-block)) passes all 236 tests: every fixture's target is the first heading (test/org-iw-write-test.el:669-690).
+Fix: a rank-only-drawer case with another heading (with a drawer) before the target; probe in scratchpad mut/probes.el."""
+disposition = "fix-now"
+response = "Add the reviewer's probe (rank-only drawer on a heading after another heading with a drawer)."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Add the reviewer's probe (rank-only drawer on a heading after another heading with a drawer)."
+
+[[finding]]
+id = "F-7"
+status = "answered"
+severity = "minor"
+title = "--move's no-room refusal should be tested with a configured queue name; an ID mutant survives"
+detail = """
+Expected: a test pins that the no-room refusal names the queue's configured :name.
+Observed: mutant (org-iw--refuse-no-room where queue) at org-iw.el:562 survives: every no-room test uses unconfigured ESSAYS, where name and ID coincide. Move and the view reuse this path later.
+Fix: probe org-iw-cmd-test-move-no-room-names-queue with org-iw-queues '(("essays" :name "Essays")); prefer --should-refuse-cleanly."""
+disposition = "fix-now"
+response = "Add a no-room test with a configured :name through --should-refuse-cleanly."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Add a no-room test with a configured :name through --should-refuse-cleanly."
+
+[[finding]]
+id = "F-8"
+status = "answered"
+severity = "minor"
+title = "Queue prompts of Add and visit-next should be pinned as non-must-match; the recorder ignores REQUIRE-MATCH"
+detail = """
+Expected: PHASE-03 EX-4 — Add and visit-next still accept a newly typed queue (REQUIRE-MATCH nil); the prompt recorder can tell a must-match prompt from a free one.
+Observed: passing t as REQUIRE-MATCH in --read-session-queue (org-iw.el:383) and Add's interactive spec (:449-451) survives. org-iw-cmd-test--with-prompt (test/org-iw-test.el:66-95) returns any answer under REQUIRE-MATCH t; only direct --read-queue tests (:772, :784) assert :require-match. PHASE-04 EX-1 (must-match over memberships, REQ-017 AC1) will rest on this oracle.
+Fix: assert :require-match nil in Add and visit-next interactive tests; make the recorder fail a non-candidate answer under REQUIRE-MATCH t, with a self-test case."""
+disposition = "fix-now"
+response = "Recorder fails a non-candidate answer under REQUIRE-MATCH t (self-test case); Add and visit-next interactive tests assert :require-match nil."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Recorder fails a non-candidate answer under REQUIRE-MATCH t (self-test case); Add and visit-next interactive tests assert :require-match nil."
+
+[[finding]]
+id = "F-9"
+status = "answered"
+severity = "nit"
+title = "--find-entry's case-sensitive ID match should be pinned; a case-insensitive mutant survives"
+detail = """
+Expected: IDs compared case-sensitively, as org-iw-entry documents.
+Observed: mutant string-equal-ignore-case at org-iw.el:204-209 survives; test/org-iw-test.el:149-160 has no differing-case lookup.
+Fix: (should-not (org-iw--find-entry entries "X1")) and the FILE variant."""
+disposition = "fix-now"
+response = "Add differing-case lookups (with and without FILE) to the find-entry test."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Add differing-case lookups (with and without FILE) to the find-entry test."
+
+[[finding]]
+id = "F-10"
+status = "answered"
+severity = "nit"
+title = "Rollback test should pin the invariant error; the stub is #'ignore and any plain error passes"
+detail = """
+Expected (STD-001 item 6): the stubbed org-entry-delete records its call and the test pins the error message.
+Observed: test/org-iw-write-test.el:671 stubs with #'ignore; --check-rollback (:415-430) accepts any condition of symbol error. Related mutants are killed elsewhere, so this is oracle precision, not a suite gap.
+Fix: stub records args; assert (error "IW_ESSAYS not deleted alone") and one call with (marker "IW_ESSAYS")."""
+disposition = "fix-now"
+response = 'Stub records its call; assert the exact invariant error and one call with (marker "IW_ESSAYS").'
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = 'Stub records its call; assert the exact invariant error and one call with (marker "IW_ESSAYS").'
+
+[[finding]]
+id = "F-11"
+status = "answered"
+severity = "nit"
+title = "Refusal-changes-nothing tests should use --should-refuse-cleanly; two hand-compose a weaker check"
+detail = """
+Expected (POL-002 for test helpers, STD-001 item 7): one helper for 'refuses and changes nothing'.
+Observed: test/org-iw-test.el:1542-1575 (stale-rank and no-gap --move tests) combine --should-write-nothing with --refusal, skipping the session and window checks --should-refuse-cleanly (:1131) makes.
+Fix: use --should-refuse-cleanly and compare its returned message to the literal; keep --refusal for pure refusal-text tests."""
+disposition = "fix-now"
+response = "Rewrite the two --move refusal tests with --should-refuse-cleanly, comparing the returned message to the literal."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Rewrite the two --move refusal tests with --should-refuse-cleanly, comparing the returned message to the literal."
+
+# Findings are append-only `[[finding]]` tables, added by `review raise`.
+# Empty here at creation — a fresh review is Active, awaiting the raiser.
