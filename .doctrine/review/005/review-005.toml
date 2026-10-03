@@ -1,0 +1,520 @@
+id    = 5
+slug  = "design-review-of-sl-003"
+title = "design review of SL-003"
+# no status — a review's status is DERIVED from its findings, so
+# it is never stored (the storage rule forbids derived data in authored files).
+
+[review]
+facet     = "design"     # scope|design|plan|phase-plan|implementation|code-review|reconciliation
+raiser    = "raiser"
+responder = "responder"
+rounds_base = 0
+contests_base = 0
+concluded = false
+
+[[review.turn]]
+act = "conclude"
+role = "raiser"
+note = "Adversarial opus pass over design.md (write path, ownership, view mechanics, Continue Remove, prompts, tests, legibility) with experiments on Emacs 30.2/31.1; verify pass over the integrated fixes raised N-1/N-2 (F-19/F-20), fixed, not re-verified."
+
+[target]                   # the outbound `reviews` edge: RV-NNN ──reviews──▶ <ref>
+ref   = "SL-003"
+
+[[finding]]
+id = "F-1"
+status = "answered"
+severity = "major"
+title = "F-1 RET loses the view's window point"
+detail = "Redraw after org-iw--visit OTHER-WINDOW runs with the source window selected; tabulated-list-print erase-buffer resets the view window's point to 1 (tl.el, Emacs 30.2 and 31.1). Same for org-iw-list-queue on an already-shown view. sec-05-4."
+disposition = "fix-now"
+response = "Design fixed in prose (org-iw--view-redraw sets point in every window showing the view; RET redraws after visit). Must hold against tabulated-list-print erasing the buffer while the view sits in an unselected window (RET with the source window selected, and org-iw-list-queue on an already-shown view). Need not hold against the user moving point by hand. Criterion: an ERT test shows the view in an unselected window, runs RET and org-iw-list-queue, and asserts the view window's point stays on the target row; it must fail with the point-restoring step removed. Host phase: the one that implements the view redraw helper and RET."
+route = "probe"
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Verified (tl.el re-run). org-iw--view-redraw sets point in every window showing the view; RET redraws after visit; test added. sec-05-2/05-4/08/09."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Reviewer verify pass (opus subagent, 2026-10-03): verified against revised design.md."
+
+[[finding.turn]]
+act = "reopen"
+role = "raiser"
+note = "Reopened to route: the lock gate requires a route on major findings. The prose fix stands; whether it holds depends on Emacs runtime behaviour only an implementation can show."
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+route = "probe"
+response = "Design fixed in prose (org-iw--view-redraw sets point in every window showing the view; RET redraws after visit). Must hold against tabulated-list-print erasing the buffer while the view sits in an unselected window (RET with the source window selected, and org-iw-list-queue on an already-shown view). Need not hold against the user moving point by hand. Criterion: an ERT test shows the view in an unselected window, runs RET and org-iw-list-queue, and asserts the view window's point stays on the target row; it must fail with the point-restoring step removed. Host phase: the one that implements the view redraw helper and RET."
+
+[[finding]]
+id = "F-2"
+status = "answered"
+severity = "major"
+title = "F-2 g via tabulated-list-revert-hook wipes the mark tag"
+detail = "tabulated-list-revert runs the hook then (tabulated-list-print t) again (tabulated-list.el 31.1:393-400), erasing tags set by the hook. sec-05-3/05-4/09."
+disposition = "fix-now"
+response = "Design fixed in prose (g uses a buffer-local revert-buffer-function that calls org-iw--view-redraw; tabulated-list-revert-hook is not used). Must hold against tabulated-list-revert reprinting after its hook and so erasing the mark tag. Need not hold against a marked entry that leaves the queue between redraws (the stale-row rule covers that). Criterion: an ERT test marks a row, runs g, and asserts the mark is still shown and still used by the next placement; it must fail if g is bound to tabulated-list-revert with the mark restored in the hook. Host phase: the one that implements mark and g."
+route = "probe"
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Verified (tabulated-list.el 31.1:393-400). g uses a buffer-local revert-buffer-function calling org-iw--view-redraw; revert hook not used; recorded as a local choice. sec-05-2/07."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Reviewer verify pass (opus subagent, 2026-10-03): verified against revised design.md."
+
+[[finding.turn]]
+act = "reopen"
+role = "raiser"
+note = "Reopened to route: the lock gate requires a route on major findings. The prose fix stands; whether it holds depends on Emacs runtime behaviour only an implementation can show."
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+route = "probe"
+response = "Design fixed in prose (g uses a buffer-local revert-buffer-function that calls org-iw--view-redraw; tabulated-list-revert-hook is not used). Must hold against tabulated-list-revert reprinting after its hook and so erasing the mark tag. Need not hold against a marked entry that leaves the queue between redraws (the stale-row rule covers that). Criterion: an ERT test marks a row, runs g, and asserts the mark is still shown and still used by the next placement; it must fail if g is bound to tabulated-list-revert with the mark restored in the hook. Host phase: the one that implements mark and g."
+
+[[finding]]
+id = "F-3"
+status = "verified"
+severity = "minor"
+title = "F-3 one-line delete relies on :ID: sharing the drawer; unstated"
+detail = "org-entry-delete removes an emptied drawer (del.el only-iw-no-id: 3 lines deleted). Public delete-rank contract and I11 omit the precondition; no test. sec-05-2, sec-05-5."
+disposition = "fix-now"
+response = "Precondition stated; invariant check also errors if the drawer is gone (rollback); I11 says the drawer stays; two drawer tests added. sec-05-2/05-5/08/09."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Precondition stated; invariant check also errors if the drawer is gone (rollback); I11 says the drawer stays; two drawer tests added. sec-05-2/05-5/08/09."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Reviewer verify pass (opus subagent, 2026-10-03): verified against revised design.md."
+
+[[finding]]
+id = "F-4"
+status = "verified"
+severity = "minor"
+title = "F-4 bad vocabulary blocks interactive Continue Remove"
+detail = "read-placement resolves the vocabulary before the prompt (org-iw.el:272), so 'never blocks Remove' holds only from Lisp. Continue's flow refers to Move's step numbers. sec-05-4, sec-07."
+disposition = "fix-now"
+response = "Claim narrowed to the Lisp call; interactive chooser needs a valid vocabulary (local choice with rationale). Continue flow numbered 1-6. sec-05-4/07."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Claim narrowed to the Lisp call; interactive chooser needs a valid vocabulary (local choice with rationale). Continue flow numbered 1-6. sec-05-4/07."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Reviewer verify pass (opus subagent, 2026-10-03): verified against revised design.md."
+
+[[finding]]
+id = "F-5"
+status = "verified"
+severity = "minor"
+title = "F-5 message assembly yields a doubled period"
+detail = "Hint begins '. The session…' and the empty-queue text ends with '.', giving '..'. Exact literals unspecified. sec-05-4."
+disposition = "fix-now"
+response = "org-iw--session-hint owns the text without punctuation; sentences join with '. ', no final period; exact literals per case in the messages table. sec-05-2/05-4."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "org-iw--session-hint owns the text without punctuation; sentences join with '. ', no final period; exact literals per case in the messages table. sec-05-2/05-4."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Reviewer verify pass (opus subagent, 2026-10-03): verified against revised design.md."
+
+[[finding]]
+id = "F-6"
+status = "verified"
+severity = "minor"
+title = "F-6 absence refusal says 'not moved' for Remove and the anchor"
+detail = "org-iw--refuse-absent text 'ID X is duplicated; T not moved' (org-iw.el:511) reused for D, Continue Remove and a vanished b/a anchor. sec-05-2, sec-05-4."
+disposition = "fix-now"
+response = "Absence texts now name no act: 'ID X is duplicated; T is excluded from queue NAME'. Both texts pinned by tests. sec-05-2/09/10."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Absence texts now name no act: 'ID X is duplicated; T is excluded from queue NAME'. Both texts pinned by tests. sec-05-2/09/10."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Reviewer verify pass (opus subagent, 2026-10-03): verified against revised design.md."
+
+[[finding]]
+id = "F-7"
+status = "verified"
+severity = "minor"
+title = "F-7 D's confirm vs rescan order unspecified"
+detail = "Confirming before rescan would ask before refusing a vanished entry, and with a stale title. sec-05-4."
+disposition = "fix-now"
+response = "D order specified: row ID, rescan, find (refuse absent), confirm with scanned title, delete. Test: vanished entry refuses before the prompt. sec-05-4/09."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "D order specified: row ID, rescan, find (refuse absent), confirm with scanned title, delete. Test: vanished entry refuses before the prompt. sec-05-4/09."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Reviewer verify pass (opus subagent, 2026-10-03): verified against revised design.md."
+
+[[finding]]
+id = "F-8"
+status = "verified"
+severity = "minor"
+title = "F-8 redraw/point/mark rules underspecified"
+detail = "b/a REMEMBER-POS follows the anchor not the moved entry; unchanged b/a mark fate; whether m/u rescan; session * condition. No redraw helper named. sec-05-3/05-4."
+disposition = "fix-now"
+response = "org-iw--view-redraw SCAN &optional GOTO-ID named; b/a GOTO-ID = marked entry; mark clears on moved or unchanged, kept on refusal; m/u retag without rescan; * = session queue is the view's and ID matches. sec-05-2/05-3/05-4/07."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "org-iw--view-redraw SCAN &optional GOTO-ID named; b/a GOTO-ID = marked entry; mark clears on moved or unchanged, kept on refusal; m/u retag without rescan; * = session queue is the view's and ID matches. sec-05-2/05-3/05-4/07."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Reviewer verify pass (opus subagent, 2026-10-03): verified against revised design.md."
+
+[[finding]]
+id = "F-9"
+status = "verified"
+severity = "minor"
+title = "F-9 test-plan gaps"
+detail = "Missing: Move/Remove from Lisp with a non-member queue; Continue Remove with absent/duplicated entry; view refuse-absent on vanished row/mark/anchor; I13 eq-session for view moves, D and source Remove; mark kept after refused b/a; unchanged b/a writes nothing; source Remove of a document; F-3 drawer case. sec-09."
+disposition = "fix-now"
+response = "All listed cases added to sec-09 (non-member queue from Lisp, Continue Remove absent/duplicated, view refuse-absent, I13 eq for view and source Remove, mark kept on refusal, unchanged b/a, document Remove, drawer cases)."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "All listed cases added to sec-09 (non-member queue from Lisp, Continue Remove absent/duplicated, view refuse-absent, I13 eq for view and source Remove, mark kept on refusal, unchanged b/a, document Remove, drawer cases)."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Reviewer verify pass (opus subagent, 2026-10-03): verified against revised design.md."
+
+[[finding]]
+id = "F-10"
+status = "verified"
+severity = "minor"
+title = "F-10 POL-002: entry lookup by ID/file implemented 3-4 times"
+detail = "scanned-entry-at duplicates check-heading's cl-position-if (org-iw.el:381-385), Continue's seq-find (575-577) and the view's lookup. sec-05-2."
+disposition = "fix-now"
+response = "org-iw--find-entry ENTRIES ID &optional FILE is the one lookup; check-heading, scanned-entry-at, Continue and the view use it. sec-05-2/10."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "org-iw--find-entry ENTRIES ID &optional FILE is the one lookup; check-heading, scanned-entry-at, Continue and the view use it. sec-05-2/10."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Reviewer verify pass (opus subagent, 2026-10-03): verified against revised design.md."
+
+[[finding]]
+id = "F-11"
+status = "verified"
+severity = "minor"
+title = "F-11 REQ-013 AC2 only partly met; drift with DEC-017 not surfaced"
+detail = "AC2 is unconditional; DEC-017 accepts same-title/same-parent/same-file collisions. Design records the gap but not the conflict or its reconciliation. sec-05-5."
+disposition = "follow-up"
+response = "Drift surfaced in sec-05-5 and sec-06: AC2 met in part under DEC-017. Repair is a REV qualifying REQ-013 AC2 at reconcile."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "follow-up"
+response = "Drift surfaced in sec-05-5 and sec-06: AC2 met in part under DEC-017. Repair is a REV qualifying REQ-013 AC2 at reconcile."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Reviewer verify pass (opus subagent, 2026-10-03): verified against revised design.md."
+
+[[finding]]
+id = "F-12"
+status = "verified"
+severity = "nit"
+title = "F-12 I10 wording no longer fits"
+detail = "beside/step compute depths; 'compute no rank' half-covers I10. sec-05-5."
+disposition = "fix-now"
+response = "I10′ restated: depths/neighbours only in core (placement-depth, beside, step). sec-05-5."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "I10′ restated: depths/neighbours only in core (placement-depth, beside, step). sec-05-5."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Reviewer verify pass (opus subagent, 2026-10-03): verified against revised design.md."
+
+[[finding]]
+id = "F-13"
+status = "verified"
+severity = "nit"
+title = "F-13 front-exhaustion and trial step 8 ambiguous"
+detail = "Before the current first row never exhausts; before the same entry does (~12). sec-05-5, sec-09."
+disposition = "fix-now"
+response = "Edge case reworded (same entry halves; current first never exhausts); trial step 8 places entries after one fixed entry. sec-05-5/09."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Edge case reworded (same entry halves; current first never exhausts); trial step 8 places entries after one fixed entry. sec-05-5/09."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Reviewer verify pass (opus subagent, 2026-10-03): verified against revised design.md."
+
+[[finding]]
+id = "F-14"
+status = "verified"
+severity = "nit"
+title = "F-14 'up/down across a tied pair refuses' imprecise"
+detail = "Only landing between equal ranks refuses. sec-05-5."
+disposition = "fix-now"
+response = "Reworded: only landing between equal ranks refuses. sec-05-5."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Reworded: only landing between equal ranks refuses. sec-05-5."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Reviewer verify pass (opus subagent, 2026-10-03): verified against revised design.md."
+
+[[finding]]
+id = "F-15"
+status = "verified"
+severity = "nit"
+title = "F-15 beside property undefined when anchor is target"
+detail = "sec-05-5, sec-09."
+disposition = "fix-now"
+response = "Property generator draws anchors distinct from target; anchor=target is a table test (unchanged). sec-05-5/09."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Property generator draws anchors distinct from target; anchor=target is a table test (unchanged). sec-05-5/09."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Reviewer verify pass (opus subagent, 2026-10-03): verified against revised design.md."
+
+[[finding]]
+id = "F-16"
+status = "verified"
+severity = "nit"
+title = "F-16 reserved-label refusal text ambiguous"
+detail = "Fixed 'remove' or echo the configured label? sec-05-2."
+disposition = "fix-now"
+response = "Refusal echoes the configured label; test asserts it. sec-05-2/09."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Refusal echoes the configured label; test asserts it. sec-05-2/09."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Reviewer verify pass (opus subagent, 2026-10-03): verified against revised design.md."
+
+[[finding]]
+id = "F-17"
+status = "verified"
+severity = "nit"
+title = "F-17 Move/Remove steps don't canonicalise a Lisp QUEUE"
+detail = "Add calls org-iw--queue-id (org-iw.el:430); Move/Remove steps omit it. sec-05-4."
+disposition = "fix-now"
+response = "Move step 1 canonicalises QUEUE with org-iw--queue-id; Remove shares it. sec-05-4."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Move step 1 canonicalises QUEUE with org-iw--queue-id; Remove shares it. sec-05-4."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Reviewer verify pass (opus subagent, 2026-10-03): verified against revised design.md."
+
+[[finding]]
+id = "F-18"
+status = "verified"
+severity = "nit"
+title = "F-18 'only route to the core' inaccurate; same-:name queues share a view buffer"
+detail = "View also uses order and accessors; *org-iw: NAME* collides for two queues with the same :name. sec-05-1, sec-05-3."
+disposition = "fix-now"
+response = "sec-05-1 reworded (order and accessors also used). View buffers found by queue ID via org-iw--view-buffer, generate-new-buffer on name clash; test added."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "sec-05-1 reworded (order and accessors also used). View buffers found by queue ID via org-iw--view-buffer, generate-new-buffer on name clash; test added."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Reviewer verify pass (opus subagent, 2026-10-03): verified against revised design.md."
+
+[[finding]]
+id = "F-19"
+status = "answered"
+severity = "minor"
+title = "N-1 org-iw-list-queue re-entering the mode kills the mark"
+detail = "kill-all-local-variables clears org-iw--view-queue and org-iw--view-mark on an existing view (mode.el). sec-05-4."
+disposition = "fix-now"
+response = "org-iw--view-buffer sets up mode and queue only for a new buffer; list-queue only redraws; test: mark survives list-queue. sec-05-2/05-4/09."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "org-iw--view-buffer sets up mode and queue only for a new buffer; list-queue only redraws; test: mark survives list-queue. sec-05-2/05-4/09."
+
+[[finding]]
+id = "F-20"
+status = "answered"
+severity = "nit"
+title = "N-2 I10′ forbids display/navigation neighbour choices the design makes"
+detail = "D's landing row, Continue Remove's head, 'position D/N'. sec-05-5."
+disposition = "fix-now"
+response = "I10′ limited to depths/neighbours deciding a rank or placement; display and navigation exempt. sec-05-5."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "I10′ limited to depths/neighbours deciding a rank or placement; display and navigation exempt. sec-05-5."
+
+# Findings are append-only `[[finding]]` tables, added by `review raise`.
+# Empty here at creation — a fresh review is Active, awaiting the raiser.

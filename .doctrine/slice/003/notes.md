@@ -65,6 +65,33 @@ Assumptions:
 - The view needs no auto-refresh: `g` rescans, which reads live buffers
   (REQ-006).
 
+## Design draft (2026-10-03, run rev 31)
+
+design.md drafted from DEC-012..019 and inq-9. User ruling while
+drafting: view up/down no-room says "at position D/N". Agent self-review
+fixed the recorder's `y-or-n-p` answers (`:yes`/`:no`, since a nil answer
+reads as exhausted), Add's document refusal before the prompt, and the
+tag padding.
+
+RV-005 adversarial pass (opus, run rev 32–36): 20 findings, all
+integrated; F-1..F-18 verified by the reviewer. F-11 is a follow-up:
+REV qualifying REQ-013 AC2 at reconcile. Learned: `tabulated-list-print`
+resets an unselected window's point, and `tabulated-list-revert` reprints
+after its hook (wipes tags); candidate memory at close.
+
+A further pass would only re-probe F-19/F-20 (mechanical, unverified)
+and the view's redraw helper once code exists; none needed before lock.
+
+What the first pass was asked to probe:
+- the write path: `delete-rank`'s preflight coverage and rollback;
+  whether I11 holds for a document entry's drawer;
+- whether `org-iw--move` really owns every existing-member placement,
+  including Continue's `unchanged`/`moved` messages and reorder;
+- the view's stale-row (I12) and point-placement behaviour against
+  `tabulated-list-print`'s REMEMBER-POS;
+- test-plan gaps against REQ-013/017/018 ACs and STD-001 (refusals
+  killed, recorder misuse).
+
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
 fresh-as-of: 2026-10-03 · design drafting (run rev 22) · 33c2c87
