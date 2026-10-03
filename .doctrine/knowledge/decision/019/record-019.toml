@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 19
+slug = "queue-view-surface-list-queue-mark-then-place-open-in-another-window"
+title = "Queue view surface: list-queue, mark-then-place, open in another window"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-03"
+updated = "2026-10-03"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "REQ-013 needs a queue view with open, up/down, place before/after, remove and refresh. DEC-017 fixed its columns. Remaining: entry command, buffer, keys, how the other entry is chosen for before/after, where open shows the entry, and point after actions."
+choice = "org-iw-list-queue picks the queue by visit-next's rule (session queue unless prefix argument or no session, else the same queue completion) and shows *org-iw: NAME*, one buffer per queue, refreshing an existing one. An empty queue opens an empty view and reports it. Rows keep queue order (no header sorting). The session's entry is marked (bold, with a marker in the # column). Keys: RET open; M-<up>/M-<down> move the entry at point; m marks one entry (a tabulated-list tag, held as its Org ID, replacing any previous mark), u unmarks; b/a place the marked entry before/after the entry at point, then clear the mark, refusing without a mark; D removes after y-or-n-p; g refreshes, q quits, n/p move (inherited). No other keys are bound, so the user's search and jump commands (isearch, avy, etc.) work as in any buffer. RET shows the entry in another window and selects it, via a display parameter on org-iw--visit (visit-next and Continue keep the current window); it sets the session as visit-next does. Every action rescans, finds its entry by ID, and redraws; point follows a moved entry and goes to the next row (else previous) after a remove. No automatic refresh on source edits."
+alternatives = ["choose the anchor by completion over ordinal-prefixed candidates", "open in the view's own window", "prompt-free Remove from the view", "collision-only or no session marker"]
+rationale = "Mark-then-place keeps the list visually still, preserving orientation; the user reaches near entries with M-<up>/M-<down> and distant ones with their own search and jump commands, which stay unshadowed (user ruling). Opening in another window keeps the view as a location list, as occur and xref do. Single-key removal confirms because undo is unavailable in the view. The session marker makes DEC-015's lingering session visible."
+consequences = ["The mark is view-local UI state (an Org ID), not queue state (ADR-001); after a refresh it is re-shown if the entry remains, else cleared.", "org-iw--visit gains a display parameter.", "Minimal key bindings are a constraint for later view features."]
+decided_by = "user"
+decided_on = "2026-10-03"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-003"

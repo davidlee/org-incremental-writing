@@ -1,0 +1,38 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 16
+slug = "remove-is-a-reserved-action-in-continues-chooser"
+title = "Remove is a reserved action in Continue's chooser"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-02"
+updated = "2026-10-02"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "PRD-001 §6 and REQ-018 want Remove offered in Continue's chooser as a distinct action that does not reinsert. DEC-011 defined the chooser as the queue's labels and deferred Remove to SL-003."
+choice = "Refines DEC-011. The chooser lists the queue's labels, then a final candidate 'Remove'. Placement-config validation refuses a label equal to 'Remove' ignoring case, as reserved. Remove is never the default. org-iw-continue's LABEL may be the symbol remove; the chooser maps the candidate to it. On remove, Continue rescans, refuses a missing or duplicated entry as for a placement, deletes the rank via org-iw-write-delete-rank (DEC-014), then visits the new first entry, which becomes the session entry. The sole entry can be removed. If the queue is then empty, Continue reports it with DEC-015's hint (org-iw-visit-next / org-iw-end-session) and leaves the session."
+alternatives = ["an unlikely candidate string such as [Remove from queue] with no reservation", "a separate command instead of a chooser candidate"]
+rationale = "One command for 'done with this, next'. Reservation is one more check in the function that already validates labels; a symbol in the Lisp API cannot collide with label strings. Removing is not a placement, so the sole-entry 'nowhere to go' rule does not apply. Leaving the session on an emptied queue is consistent with DEC-015."
+consequences = ["A configured label 'Remove' (any case) becomes a configuration refusal; README notes the reservation.", "Remove stays last even under completion UIs that bubble the default."]
+decided_by = "user"
+decided_on = "2026-10-03"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "references"
+role = "concerns"
+target = "DEC-011"
+
+[[relation]]
+label = "shapes"
+target = "SL-003"

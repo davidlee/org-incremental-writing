@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 14
+slug = "remove-writes-through-org-iw-write-delete-rank"
+title = "Remove writes through org-iw-write-delete-rank"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-02"
+updated = "2026-10-02"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "Remove deletes one IW_<Q> line (REQ-001, REQ-018). ADR-003 puts setting or removing one property in the mutation layer; POL-002 forbids a second preflight. org-iw-write-put-rank is type checks → --preflight → --apply, and only the edit inside apply is rank-specific."
+choice = "Add org-iw-write-delete-rank (marker queue &key expected), EXPECTED an integer (the scanned rank), no ENSURE-ID. It shares org-iw-write--preflight and org-iw-write--apply with put-rank. Its edit binds case-fold-search to t around org-entry-delete and signals an error if nothing was deleted, rolling back the atomic change. The write-layer commentary and put-rank docstring describe two operations sharing one preflight and apply; org-iw--save-status covers both; put-rank's refusal list gains 'buffer is read-only', closing ISS-001."
+alternatives = ["generalise put-rank so a nil RANK deletes", "name it org-iw-write-remove-membership"]
+rationale = "A sibling avoids a hidden mode switched by a nil argument and cross-argument checks (:absent and ENSURE-ID are meaningless for delete). The write layer names the property it changes (rank); membership and Remove are command-layer words, as Continue calls put-rank. org-entry-delete skips a lowercase key unless case-fold-search is t (verified by experiment, research fact 3), and discovery reads keys case-insensitively."
+consequences = ["Preflight is mandatory for delete: org-entry-delete would also remove duplicate and IW_<Q>+ lines, which preflight refuses.", "A member's drawer is never emptied (its :ID: shares the drawer), so Org's empty-drawer removal does not arise.", "STD-003 scale-up applies: the write path changes.", "ISS-001 resolved by this slice."]
+decided_by = "user"
+decided_on = "2026-10-03"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-003"

@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 13
+slug = "relative-moves-become-placements-in-the-core"
+title = "Relative moves become placements in the core"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-02"
+updated = "2026-10-02"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "The queue view moves an entry up, down, or before/after another entry. org-iw-core-place takes only a placement ((after N) etc.) measured against the order without the target. SL-002 design I10 and ADR-003 keep depth and neighbour computation out of the command layer."
+choice = "org-iw-core.el gains two pure functions returning a placement: org-iw-core-beside (order target anchor side) puts TARGET immediately before or after ANCHOR (SIDE before/after); org-iw-core-step (order target delta) moves TARGET by DELTA (-1 up, +1 down), clamped at the ends. The command layer passes the result unchanged to org-iw-core-place, which still decides unchanged / moved / no-gap."
+alternatives = ["command layer computes (after k) from indices, with a DEC ruling it input translation rather than ordering logic", "entry-relative placement forms such as (before ID) in the placement type"]
+rationale = "Outputs are identical either way; the choice is where the logic lives and how it is tested. The core keeps I10 literal and tests the off-by-one-prone index rule (index among the order without the target) as pure data, including a property over random orders. Returning a placement adds no path around org-iw-core-place. Entry-relative forms would leak entry IDs into user-configured placements."
+consequences = ["Two new public core functions, property-tested: reordering by the result puts TARGET adjacent to ANCHOR on SIDE.", "Up at the front / down at the end and already-adjacent moves come back from place as unchanged; equal-rank neighbours as no-gap (refuse until SL-006).", "Lower-is-earlier: up moves toward the front."]
+decided_by = "user"
+decided_on = "2026-10-03"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-003"

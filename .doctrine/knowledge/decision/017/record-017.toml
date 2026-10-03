@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 17
+slug = "queue-view-distinguishes-entries-by-a-dimmed-outline-context-column"
+title = "Queue view distinguishes entries by a dimmed outline context column"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-03"
+updated = "2026-10-03"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "REQ-013 AC2: same-title entries must be distinguishable by file/outline context. org-iw-entry carries only id, title, file and memberships; the file alone fails two same-title headings in one file."
+choice = "org-iw-entry gains an outline field: the list of ancestor heading strings (empty for a top-level heading or a document entry), read by discovery during the scan with org-get-outline-path. The view's columns are # / Title / Context / File. Title is rendered with org-link-display-format (view only; the stored title stays raw). Context shows the ancestors joined by ' / ' in the shadow face, always (not only on collision), left-truncated behind '…/' to a fixed width so the nearest ancestors stay visible. File is the file name without directory. The mode line is unchanged."
+alternatives = ["file plus line number", "file only", "resolve each row's context at display time", "one combined column with a dimmed path prefix before the title", "show context only when titles collide"]
+rationale = "The outline path is how the user locates an entry, and the scan already holds every file as Org text, so reading it costs one ancestor walk per entry and keeps discovery the sole Org reader (ADR-003, DEC-003). A separate dimmed column keeps titles aligned and primary; left truncation keeps the distinguishing part (the parent). Always-on avoids collision detection and a column that comes and goes."
+consequences = ["Accepted gap: same-title headings under the same parent in the same file differ only by ordinal.", "Same-named files in different directories look alike (ASM-001).", "Mode line and messages keep the raw title; uniform rendering is a logged follow-up."]
+decided_by = "user"
+decided_on = "2026-10-03"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-003"

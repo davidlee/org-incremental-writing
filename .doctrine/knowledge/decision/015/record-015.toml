@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 15
+slug = "removing-the-sessions-entry-leaves-the-session"
+title = "Removing the session's entry leaves the session"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-02"
+updated = "2026-10-02"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "The session (queue, entry ID, title) lives in memory and drives Continue; DEC-005 clears it only through org-iw-end-session. Remove from the queue view or the source entry can delete the session's own membership. An entry leaving its queue by hand edit already leaves the session, and the next Continue refuses 'no longer in queue' (REQ-015)."
+choice = "Remove from the view or the source entry never changes the session. When the removed membership is the session's entry in the session's queue, the remove message says so concisely and names the commands to go on or stop: org-iw-visit-next and org-iw-end-session. The README explains this behaviour and why, in user terms. (Remove in Continue's chooser visits the next entry, so it is not this case.)"
+alternatives = ["end the session on removing its entry (amending DEC-005)", "visit the next entry, as Continue does"]
+rationale = "Remove then undo in the source restores everything, session included, so Continue works again; ending the session would make undo restore the file but not the session. One lazy rule covers every way an entry leaves its queue, and DEC-005 stands unchanged."
+consequences = ["The mode line can name a removed entry until the user visits or ends the session; the message and README carry the explanation (user ruling: potentially confusing without the rationale).", "A test pins that the message names org-iw-end-session and org-iw-visit-next for the session-entry case only.", "README update is part of SL-003's scope, as each slice should keep user documentation current."]
+decided_by = "user"
+decided_on = "2026-10-03"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-003"

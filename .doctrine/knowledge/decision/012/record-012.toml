@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 12
+slug = "source-entry-move-uses-the-queues-placement-vocabulary"
+title = "Source-entry move uses the queue's placement vocabulary"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-02"
+updated = "2026-10-02"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "REQ-017 requires moving one membership from the source entry but names no way to say where; PRD-001 §6 is silent too."
+choice = "org-iw-move acts on the heading at point (not the session entry). It resolves the queue: no membership refuses; one is used; several prefer the session queue if among them, else prompt over those queues only. It always prompts for a placement with completing-read over the queue's labels (org-iw--read-placement), the queue's default label as default, and places through org-iw-core-place without navigating; the session is unchanged. Already at the placement writes nothing; no gap refuses."
+alternatives = ["explicit position number (read-number → (after n-1))", "before/after an entry chosen by completion", "a mixed chooser of labels plus before/after-entry candidates"]
+rationale = "Same vocabulary and code path as Continue (POL-002); covers the common 'send this back Soon' case from anywhere; exact positioning lives in the queue view. Position numbers are meaningless without seeing the queue."
+consequences = ["Judged by the user a necessary baseline for a complete implementation, not proven sufficient: position or relative-to-entry source moves stay open for a later slice and are not excluded.", "On the session's own entry in its queue, Move equals Continue without navigation."]
+decided_by = "user"
+decided_on = "2026-10-03"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-003"

@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 18
+slug = "one-entry-at-point-target-move-and-remove-accept-member-documents"
+title = "One entry-at-point target; Move and Remove accept member documents"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-03"
+updated = "2026-10-03"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "Discovery and the write layer already handle document entries (drawer before the first heading, marker at point-min), so the view can move and remove them. Add refuses before the first heading ('document targets are not yet supported'); RFC-001 assigns document enrolment to SL-004."
+choice = "org-iw--add-target becomes org-iw--target-at-point: a marker at the heading at or above point, or at point-min when point is before the first heading (properties before the first heading belong to the document). Add keeps refusing the document case as its own precondition until SL-004. Move and Remove accept it: they act only on members discovery admitted, matched by ID and file, and never insert an ID."
+alternatives = ["Move and Remove also refuse documents until SL-004"]
+rationale = "No gap between the view and the source commands; one definition of the entry at point; SL-004 deletes one refusal. A member document already has its drawer and ID, so nothing is created."
+consequences = ["Document identity questions (explicit ID required? inserted with what scheme? inferred from #+identifier: or the filename?) stay with SL-004 enrolment and QUE-002; Move/Remove inherit the answer through discovery's ID reader.", "A document without an :ID: is not a member today, so Move/Remove refuse it through the existing excluded / not-in-queue path."]
+decided_by = "user"
+decided_on = "2026-10-03"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-003"
