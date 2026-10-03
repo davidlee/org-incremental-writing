@@ -198,3 +198,18 @@ fresh-as-of: 2026-10-03 · design drafting (run rev 22) · 33c2c87
 - IMP-005 — uniform title rendering in mode line/messages; compact IDs
 - CHR-003 — standard: each slice updates README
 - ISS-001 — to be resolved by this slice (DEC-014)
+
+## RV-006 rulings (2026-10-03)
+
+User reply: "update the ADR. all ok … for #4 as long as we fix it at
+some point i don't care much when."
+
+- F-3 → REV-004 amends ADR-003: the mutation layer may read structure it
+  just edited to check a rollback-only invariant. delete-rank's
+  `org-get-property-block` check stands. F-3 verified; RV-006 done.
+- ADR-004 item 5 now names the shared preflight and apply instead of
+  "the one write path" (REV-004).
+- Deviation D1 (`org-iw--heading-or-refuse`, single owner of Add's
+  document-target refusal) confirmed by the user.
+- Title double space (sibling of F-4) → IMP-005 item 3; timing open.
+- Fix-now findings F-1, F-2, F-4..F-11 landed in cbb493e.

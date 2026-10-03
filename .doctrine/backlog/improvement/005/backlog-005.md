@@ -19,3 +19,9 @@ renders titles with `org-link-display-format`).
    options include: avoid showing IDs at all (prefer title + file), show an
    abbreviated ID, or recommend/offer a compact `org-id-method`. Generating
    non-Org IDs would interact with QUE-002 (identity source).
+3. Titles keep Org's double space where a mid-heading statistics cookie
+   is stripped (`* Plan [1/3] Site` → "Plan  Site"), as outlines did
+   until RV-006 F-4 (cbb493e) normalised them in discovery with
+   `string-clean-whitespace`. The title is read by
+   `org-iw-discovery--title`; fix it there, in discovery, the one Org
+   reader. User (2026-10-03): fix at some point, timing open.

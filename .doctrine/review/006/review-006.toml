@@ -76,7 +76,7 @@ note = "Fixed in cbb493e: --target-at-point uses (org-back-to-heading-or-point-m
 
 [[finding]]
 id = "F-3"
-status = "open"
+status = "verified"
 severity = "minor"
 title = "Write layer should read Org structure only via discovery (ADR-003); delete-rank calls org-get-property-block"
 detail = """
@@ -84,10 +84,23 @@ Expected (ADR-003 as amended by REV-002): every reader of Org structure lives in
 Observed: org-iw-write.el:164 calls (org-get-property-block) after org-entry-delete to check the drawer survived. Design § 5.2 (design.md:234) prescribes this exact code, so the locked design and the ADR disagree: drift between two binding sources.
 Mitigation: it is a post-write invariant check, not an entry read for decision-making.
 Resolution needs a choice: amend ADR-003 to allow post-edit invariant checks in mutation, or expose a discovery predicate and call it (touches the locked design)."""
+disposition = "fix-now"
+response = "User ruled (2026-10-03): amend the ADR. REV-004 adds to ADR-003's ownership rules a narrow exception: the mutation layer may read the structure it just edited to check an invariant that only decides rollback. delete-rank's org-get-property-block check (design § 5.2) is now conformant; no code change."
 
 [[finding.turn]]
 act = "raise"
 role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "User ruled (2026-10-03): amend the ADR. REV-004 adds to ADR-003's ownership rules a narrow exception: the mutation layer may read the structure it just edited to check an invariant that only decides rollback. delete-rank's org-get-property-block check (design § 5.2) is now conformant; no code change."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "ADR-003 now permits the post-edit invariant check (REV-004); code and locked design unchanged and conformant."
 
 [[finding]]
 id = "F-4"
