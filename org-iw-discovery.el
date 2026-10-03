@@ -228,7 +228,8 @@ TALLY counts the buffer's ID property line values.  Return (ENTRY
                      (org-iw-entry-create
                       :id id :title (org-iw-discovery--title file)
                       :file file :memberships memberships
-                      :outline (org-get-outline-path)))
+                      :outline (mapcar #'string-clean-whitespace
+                                       (org-get-outline-path))))
                 (mapcar #'problem types))))))))
 
 (defun org-iw-discovery--in-block-p ()

@@ -61,16 +61,17 @@ line whose value parses to it."
 (defun org-iw-write--preflight (marker queue expected)
   "Refuse unless writing QUEUE's rank at MARKER is safe.
 The base buffer's file must be unchanged on disk since visited and
-writable, and the buffer not read-only.  The entry at MARKER must hold
-the rank EXPECTED in QUEUE, a canonical queue ID, and have no property
-drawer Org fails to recognise.  Nothing is changed."
+writable, and neither it nor MARKER's buffer read-only.  The entry at
+MARKER must hold the rank EXPECTED in QUEUE, a canonical queue ID, and
+have no property drawer Org fails to recognise.  Nothing is changed."
   (let* ((base (org-iw-discovery-base-buffer (marker-buffer marker)))
          (file (buffer-file-name base)))
     (unless (verify-visited-file-modtime base)
       (org-iw-write--refuse marker "changed on disk; revert first"))
     (unless (file-writable-p file)
       (org-iw-write--refuse marker "not writable"))
-    (when (buffer-local-value 'buffer-read-only base)
+    (when (or (buffer-local-value 'buffer-read-only base)
+              (buffer-local-value 'buffer-read-only (marker-buffer marker)))
       (org-iw-write--refuse marker "buffer is read-only"))
     (org-with-point-at marker
       (unless (org-iw-write--expected-p (org-iw-discovery-queue-lines queue)

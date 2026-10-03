@@ -316,6 +316,13 @@
                      order c (org-iw-core-beside order c c side))
                     'unchanged))))))
 
+(ert-deftest org-iw-core-test-beside-rejects-invalid-side ()
+  "A SIDE other than before or after is a programming error, anchor or not."
+  (pcase-let ((`(,a ,b) (org-iw-core-test--abcd)))
+    (dolist (anchor (list a b))
+      (should-error (org-iw-core-beside (list a b) a anchor 'bogus)
+                    :type 'wrong-type-argument))))
+
 (ert-deftest org-iw-core-test-step ()
   "Step moves by DELTA and stops at either end."
   (pcase-let ((`(,a ,b ,c ,d) (org-iw-core-test--abcd)))

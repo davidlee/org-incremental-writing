@@ -304,7 +304,7 @@ ENTRIES and PROBLEMS are as returned by
 
 (ert-deftest org-iw-discovery-test-scan-outline-nested ()
   "An entry's outline is its ancestors' text, outermost first.
-Cookies are stripped (leaving their spaces) and links reduced; a
+Cookies are stripped, links reduced and whitespace collapsed; a
 member's outline holds its member parent, and a preceding top-level
 heading does not leak in."
   (org-iw-test-with-corpus
@@ -317,8 +317,8 @@ heading does not leak in."
                      "**" (org-iw-test-heading "Deep" "d1" ":IW_Q: 3"))))
     (let ((outlines (org-iw-discovery-test--outlines
                      (org-iw-discovery-test--scan))))
-      (should (equal (assoc "m1" outlines) (list "m1" "Plan  Site")))
-      (should (equal (assoc "d1" outlines) (list "d1" "Plan  Site" "Mid"))))))
+      (should (equal (assoc "m1" outlines) (list "m1" "Plan Site")))
+      (should (equal (assoc "d1" outlines) (list "d1" "Plan Site" "Mid"))))))
 
 (ert-deftest org-iw-discovery-test-scan-outline-top-level-and-document ()
   "A top-level heading, even after nested ones, and a document have no outline."

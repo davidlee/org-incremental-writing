@@ -224,6 +224,7 @@ SIDE is `before' or `after'.  TARGET and ANCHOR are elements of ORDER,
 compared with `eq'.  The anchor's index is counted among ORDER without
 TARGET, as `org-iw-core-place' counts depth.  When ANCHOR is TARGET the
 placement is TARGET's own index, which leaves it unchanged."
+  (cl-check-type side (member before after))
   (if (eq anchor target)
       (list 'after (seq-position order target #'eq))
     (let ((anchor-index (seq-position (remq target order) anchor #'eq)))

@@ -67,7 +67,8 @@ sorting UI would show them."
   "Run BODY with `completing-read' stubbed to answer from ANSWER.
 ANSWER is a string, or a list of strings answering successive prompts.
 A prompt with no answer left fails the test, so ANSWER nil proves BODY
-never prompts.  Each call is recorded, in order, in
+never prompts, as does an answer that is not a candidate when
+REQUIRE-MATCH is t.  Each call is recorded, in order, in
 `org-iw-cmd-test--prompts' as a plist (:prompt :collection
 :require-match :default :order :annotate), :order being
 `org-iw-cmd-test--cycle-order'."
@@ -90,18 +91,27 @@ never prompts.  Each call is recorded, in order, in
                                   :annotate (plist-get
                                              completion-extra-properties
                                              :annotation-function)))))
-                    (or (pop ,answers)
-                        (ert-fail (list "Unexpected prompt" prompt))))))
+                    (let ((reply
+                           (or (pop ,answers)
+                               (ert-fail (list "Unexpected prompt" prompt)))))
+                      (when (and (eq require-match t)
+                                 (not (test-completion reply collection
+                                                       predicate)))
+                        (ert-fail (list "Answer must match" prompt reply)))
+                      reply))))
          ,@body))))
 
+(defun org-iw-cmd-test--prompted (key)
+  "Return the value of KEY in each recorded prompt, in order."
+  (mapcar (lambda (call) (plist-get call key)) org-iw-cmd-test--prompts))
+
 (ert-deftest org-iw-cmd-test-with-prompt-self-test ()
-  "The prompt recorder answers in turn, records, and fails when out."
-  (org-iw-cmd-test--with-prompt '("a" "b")
-    (should (equal (completing-read "One: " '("y" "x") nil t nil nil "x") "a"))
+  "The prompt recorder answers in turn, records, and fails when out.
+Under REQUIRE-MATCH t it fails an answer that is not a candidate."
+  (org-iw-cmd-test--with-prompt '("y" "b")
+    (should (equal (completing-read "One: " '("y" "x") nil t nil nil "x") "y"))
     (should (equal (completing-read "Two: " '("z")) "b"))
-    (should (equal (mapcar (lambda (call) (plist-get call :prompt))
-                           org-iw-cmd-test--prompts)
-                   '("One: " "Two: ")))
+    (should (equal (org-iw-cmd-test--prompted :prompt) '("One: " "Two: ")))
     (pcase-let ((`(,one ,two) org-iw-cmd-test--prompts))
       (should (equal (plist-get one :default) "x"))
       (should (eq (plist-get one :require-match) t))
@@ -110,6 +120,10 @@ never prompts.  Each call is recorded, in order, in
     (should-error (completing-read "Three: " '("w")) :type 'ert-test-failed))
   (org-iw-cmd-test--with-prompt nil
     (should-error (completing-read "Any: " '("w")) :type 'ert-test-failed))
+  (org-iw-cmd-test--with-prompt '("new" "new")
+    (should-error (completing-read "Must: " '("w") nil t)
+                  :type 'ert-test-failed)
+    (should (equal (completing-read "Free: " '("w")) "new")))
   (let ((table (lambda (string pred action)
                  (if (eq action 'metadata)
                      '(metadata (cycle-sort-function . identity))
@@ -155,7 +169,7 @@ The queue is shown by its configured name."
                      "B is no longer in queue Essays")))))
 
 (ert-deftest org-iw-cmd-test-find-entry ()
-  "An entry is found by ID, and by file too when one is given; else nil."
+  "An entry is found by ID, case-sensitively, and by file too when given."
   (let* ((a (org-iw-entry-create :id "x1" :file "/a.org"))
          (b (org-iw-entry-create :id "x1" :file "/b.org"))
          (c (org-iw-entry-create :id "c1" :file "/a.org"))
@@ -165,6 +179,8 @@ The queue is shown by its configured name."
     (should (eq (org-iw--find-entry entries "x1" "/b.org") b))
     (should-not (org-iw--find-entry entries "c1" "/b.org"))
     (should-not (org-iw--find-entry entries "zz"))
+    (should-not (org-iw--find-entry entries "X1"))
+    (should-not (org-iw--find-entry entries "X1" "/a.org"))
     (should-not (org-iw--find-entry nil "x1"))))
 
 (ert-deftest org-iw-cmd-test-files-honour-exclude-regexp ()
@@ -787,13 +803,15 @@ Invalid configured IDs are dropped; a new queue may be typed."
                                         "ESSAYS")))))))
 
 (ert-deftest org-iw-cmd-test-add-interactively ()
-  "Called interactively, Add prompts for the queue and adds the heading."
+  "Called interactively, Add prompts for the queue and adds the heading.
+The queue prompt does not require a match."
   (org-iw-test-with-corpus org-iw-cmd-test--corpus
     (let ((marker (org-iw-test-marker "a.org" "Target")))
       (org-iw-cmd-test--with-prompt "essays"
         (with-current-buffer (marker-buffer marker)
           (goto-char marker)
-          (call-interactively #'org-iw-add)))
+          (call-interactively #'org-iw-add))
+        (should (equal (org-iw-cmd-test--prompted :require-match) '(nil))))
       (should (equal (org-iw-cmd-test--order "ESSAYS") '("m1" "t1"))))))
 
 ;;;; Session and mode line (VT-1, DEC-005)
@@ -1192,17 +1210,18 @@ a navigation."
                      "IW DRAFTS 1/1: D")))))
 
 (ert-deftest org-iw-cmd-test-visit-next-prompts ()
-  "Interactively, a prefix argument or no session prompts for the queue."
+  "Interactively, a prefix argument or no session prompts for the queue.
+The queue prompt does not require a match."
   (org-iw-test-with-corpus org-iw-cmd-test--queue
     (org-iw-cmd-test--with-prompt "essays"
       (should (equal (call-interactively #'org-iw-visit-next)
                      "IW ESSAYS 1/3: A"))
-      (should (equal (length org-iw-cmd-test--prompts) 1)))
+      (should (equal (org-iw-cmd-test--prompted :require-match) '(nil))))
     (org-iw-cmd-test--with-prompt "drafts"
       (let ((current-prefix-arg '(4)))
         (should (equal (call-interactively #'org-iw-visit-next)
                        "IW DRAFTS 1/1: D")))
-      (should (equal (length org-iw-cmd-test--prompts) 1)))
+      (should (equal (org-iw-cmd-test--prompted :require-match) '(nil))))
     (should (equal (org-iw--session-queue org-iw--session) "DRAFTS"))))
 
 (ert-deftest org-iw-cmd-test-visit-next-refuses-non-org-buffer ()
@@ -1550,29 +1569,29 @@ Its buffer is read-only, which would refuse any write."
     (org-iw-cmd-test--open-all)
     (let ((scan (org-iw--scan)))
       (org-iw-cmd-test--set-rank "a.org" 1024 1500)
-      (should (string-search
-               "IW_ESSAYS changed since scan"
-               (org-iw-cmd-test--should-write-nothing
-                (lambda ()
-                  (org-iw-cmd-test--refusal
-                   (lambda ()
-                     (org-iw-cmd-test--move scan "a1" 'end "at End"))))))))))
+      (should (equal (org-iw-cmd-test--should-refuse-cleanly
+                      "changed since scan"
+                      (lambda ()
+                        (org-iw-cmd-test--move scan "a1" 'end "at End")))
+                     (concat (org-iw-test-path "a.org")
+                             ": IW_ESSAYS changed since scan"))))))
 
 (ert-deftest org-iw-cmd-test-move-refuses-without-gap ()
-  "Between neighbours ranked 5 and 6 there is no room; nothing is written."
+  "Between neighbours ranked 5 and 6 there is no room; nothing changes.
+The refusal names the queue by its configured name."
   (org-iw-test-with-corpus
       `(("a.org" . ,(concat (org-iw-test-heading "A" "a1" ":IW_ESSAYS: 1")
                             (org-iw-test-heading "B" "b1" ":IW_ESSAYS: 5")
                             (org-iw-test-heading "C" "c1" ":IW_ESSAYS: 6"))))
     (org-iw-cmd-test--open-all)
-    (let ((scan (org-iw--scan)))
-      (should (equal (org-iw-cmd-test--should-write-nothing
+    (let ((org-iw-queues '(("essays" :name "Essays")))
+          (scan (org-iw--scan)))
+      (should (equal (org-iw-cmd-test--should-refuse-cleanly
+                      "no room"
                       (lambda ()
-                        (org-iw-cmd-test--refusal
-                         (lambda ()
-                           (org-iw-cmd-test--move scan "a1" '(after 1)
-                                                  "at Second")))))
-                     (concat "no room at Second in ESSAYS; redistribution"
+                        (org-iw-cmd-test--move scan "a1" '(after 1)
+                                               "at Second")))
+                     (concat "no room at Second in Essays; redistribution"
                              " is not yet available"))))))
 
 ;;;; Continue: placements

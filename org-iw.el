@@ -167,10 +167,8 @@ mode."
     (org-iw-core-refuse "%s is not under org-iw-sources" (buffer-name)))
   (org-iw-discovery-require-org-mode (org-iw--buffer-truename))
   (org-with-wide-buffer
-   (if (org-before-first-heading-p)
-       (copy-marker (point-min))
-     (org-back-to-heading t)
-     (point-marker))))
+   (org-back-to-heading-or-point-min t)
+   (point-marker)))
 
 (defun org-iw--configured-queues ()
   "Return `org-iw-queues' as an alist (QUEUE . PLIST), QUEUE canonical.
