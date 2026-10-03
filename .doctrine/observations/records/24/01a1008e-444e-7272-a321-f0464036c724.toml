@@ -1,0 +1,18 @@
+schema = "doctrine.observation"
+schema_version = 1
+uid = "01a1008e-444e-7272-a321-f0464036c724"
+recorded_at = "2026-10-03T06:58:06.030076313Z"
+kind = "friction"
+summary = "phase sheet and criteria tell capsule workers to write under .doctrine/"
+detail = "SL-003 PHASE-05/06: sheets asked workers to record red runs and findings in the sheet and notes.md, and PHASE-06 EX-4 says 'record the observed failure in the phase sheet', but capsule workers may not write under .doctrine/. Workers reported via hand-back and the orchestrator transcribed to notes.md. Template should say 'report in the hand-back' for capsule workers."
+
+[facets.execution]
+schema_version = 1
+interface = "cli"
+interface_origin = "automatic"
+product_surface = "doctrine"
+product_surface_origin = "automatic"
+command = "observation record"
+command_origin = "automatic"
+repository_context = "primary"
+repository_context_origin = "automatic"

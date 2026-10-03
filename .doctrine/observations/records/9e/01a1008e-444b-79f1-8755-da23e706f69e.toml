@@ -1,0 +1,18 @@
+schema = "doctrine.observation"
+schema_version = 1
+uid = "01a1008e-444b-79f1-8755-da23e706f69e"
+recorded_at = "2026-10-03T06:58:06.02730074Z"
+kind = "friction"
+summary = "memory retrieve rejects a positional query"
+detail = "All three SL-003 PHASE-04..06 planners first ran 'doctrine memory retrieve <topic>' (the form in the planner prompt); the verb needs --query / --path-scope / --glob. --query also returned nothing once for PHASE-05."
+
+[facets.execution]
+schema_version = 1
+interface = "cli"
+interface_origin = "automatic"
+product_surface = "doctrine"
+product_surface_origin = "automatic"
+command = "observation record"
+command_origin = "automatic"
+repository_context = "primary"
+repository_context_origin = "automatic"

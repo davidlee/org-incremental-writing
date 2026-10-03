@@ -1,0 +1,18 @@
+schema = "doctrine.observation"
+schema_version = 1
+uid = "01a1008e-4457-7c62-a20a-4d7e77f0dd5a"
+recorded_at = "2026-10-03T06:58:06.039824986Z"
+kind = "friction"
+summary = "slice phases / research show no per-phase status"
+detail = "SL-003 PHASE-06 planner had to infer PHASE-05 completion from git log and notes.md; 'doctrine slice phases 003' printed only 'Phases up to date.'"
+
+[facets.execution]
+schema_version = 1
+interface = "cli"
+interface_origin = "automatic"
+product_surface = "doctrine"
+product_surface_origin = "automatic"
+command = "observation record"
+command_origin = "automatic"
+repository_context = "primary"
+repository_context_origin = "automatic"

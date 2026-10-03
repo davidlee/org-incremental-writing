@@ -1,0 +1,18 @@
+schema = "doctrine.observation"
+schema_version = 1
+uid = "01a1008e-4450-7e71-aa1b-8dcbde648e45"
+recorded_at = "2026-10-03T06:58:06.032787876Z"
+kind = "friction"
+summary = "verify-vt reads committed files only, so capsule workers cannot run it"
+detail = "SL-003 PHASE-05/06 workers hand back uncommitted deltas; VT keyword gaps (PHASE-05 VT-2 re-key) are found only after the orchestrator commits. A working-tree mode for verify-vt would let workers self-check."
+
+[facets.execution]
+schema_version = 1
+interface = "cli"
+interface_origin = "automatic"
+product_surface = "doctrine"
+product_surface_origin = "automatic"
+command = "observation record"
+command_origin = "automatic"
+repository_context = "primary"
+repository_context_origin = "automatic"

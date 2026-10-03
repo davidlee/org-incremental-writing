@@ -1,0 +1,18 @@
+schema = "doctrine.observation"
+schema_version = 1
+uid = "01a1008e-4453-7d12-a29a-eaf0a2a393f3"
+recorded_at = "2026-10-03T06:58:06.035178347Z"
+kind = "friction"
+summary = "no mutation tool: each phase rebuilds a throwaway harness"
+detail = "SL-003 PHASE-04..06 workers each wrote a scratchpad Python mutation harness (copy tree, apply one replacement, run suite). Tracked as CHR-001; repeated cost every phase."
+
+[facets.execution]
+schema_version = 1
+interface = "cli"
+interface_origin = "automatic"
+product_surface = "doctrine"
+product_surface_origin = "automatic"
+command = "observation record"
+command_origin = "automatic"
+repository_context = "primary"
+repository_context_origin = "automatic"

@@ -1,0 +1,18 @@
+schema = "doctrine.observation"
+schema_version = 1
+uid = "01a1008e-4455-7c32-8481-b351d2986c06"
+recorded_at = "2026-10-03T06:58:06.037549867Z"
+kind = "friction"
+summary = 'ERT selector with \| in shell --eval selects nothing'
+detail = '''SL-003 PHASE-06: a regexp selector with \| passed inside an emacs --eval string under nushell is read so that \| becomes |, giving 'Ran 0 tests' silently. Passing the selector via an environment variable works. Candidate for a just recipe taking a selector.'''
+
+[facets.execution]
+schema_version = 1
+interface = "cli"
+interface_origin = "automatic"
+product_surface = "doctrine"
+product_surface_origin = "automatic"
+command = "observation record"
+command_origin = "automatic"
+repository_context = "primary"
+repository_context_origin = "automatic"
