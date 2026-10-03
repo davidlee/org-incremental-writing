@@ -132,6 +132,29 @@ double space (or normalise deliberately).
 Upper clamp in `step` is unobservable through `place` (which clamps depth),
 so only the literal-placement unit test `org-iw-core-test-step` pins it.
 
+## PHASE-02 (2026-10-03, execute)
+
+`org-iw-write-delete-rank` landed as designed, calling the shared
+`--preflight`/`--apply`. Probed `org-entry-delete` on Org 9.7.11 (30.2) and
+9.8.10 (31.1); they agree: removes the one line, returns t; skips lowercase
+unless `case-fold-search` t; deletes an emptied drawer (block nil); with
+`IW_Q` + `IW_Q+` present deletes **both** (preflight is load-bearing).
+
+Test helpers generalised, not copied: `--should-refuse-by VERB` (old
+`--should-refuse` wraps it with `--put-4096`), `--check-refuses` optional
+VERB, `--check-rollback TEXT TITLE DIRTY TYPE CALL` (old `--check-atomic`
+wraps it). New `--should-delete-line` asserts I11 via `changed-lines` =
+`((LINE))`.
+
+Surprise: the sheet expected the lowercase test to kill the dropped
+`case-fold-search` let, but the default is already t, so the mutant
+survived. The test now binds `case-fold-search` nil around the call (a real
+caller context). The narrowed-indirect delete test compares the narrowed
+text, not positions: a deletion before the region shifts them.
+
+Mutation pass: 9 mutants, all killed (table in the phase sheet). `just gate`
+green (226 tests, 31.1 and 30.2), `just test-each` 226 alone green.
+
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
 fresh-as-of: 2026-10-03 · design drafting (run rev 22) · 33c2c87

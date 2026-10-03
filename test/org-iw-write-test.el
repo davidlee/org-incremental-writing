@@ -22,8 +22,8 @@
 
 ;;; Commentary:
 
-;; ERT tests for `org-iw-write-put-rank': the preflight refusals, the
-;; atomic edit and the save policy.
+;; ERT tests for `org-iw-write-put-rank' and `org-iw-write-delete-rank':
+;; the preflight refusals, the atomic edit and the save policy.
 
 ;;; Code:
 
@@ -35,20 +35,31 @@
 
 ;;;; Helpers
 
-(defun org-iw-write-test--should-refuse (marker queue &rest keys)
-  "Assert that put-rank at MARKER in QUEUE refuses, changing nothing.
-KEYS are the keyword arguments.  The refusal must be an
-`org-iw-refusal' naming the file; the buffer text, `buffer-modified-p'
-and disk contents must be unchanged.  Return the refusal message."
+(defun org-iw-write-test--should-refuse-by (verb marker queue &rest keys)
+  "Assert that VERB at MARKER in QUEUE refuses, changing nothing.
+VERB is called as (VERB MARKER QUEUE . KEYS), KEYS being keyword
+arguments.  The refusal must be an `org-iw-refusal' naming the file;
+the buffer text, `buffer-modified-p' and disk contents must be
+unchanged.  Return the refusal message."
   (let* ((before (org-iw-test-snapshot marker))
-         (err (should-error (apply #'org-iw-write-put-rank
-                                   marker queue 4096 keys)
+         (err (should-error (apply verb marker queue keys)
                             :type 'org-iw-refusal))
          (reason (cadr err)))
     (should (equal (org-iw-test-snapshot marker) before))
     (should (string-search
              (buffer-file-name (org-iw-test-base marker)) reason))
     reason))
+
+(defun org-iw-write-test--put-4096 (marker queue &rest keys)
+  "Put rank 4096 at MARKER in QUEUE, with keyword arguments KEYS."
+  (apply #'org-iw-write-put-rank marker queue 4096 keys))
+
+(defun org-iw-write-test--should-refuse (marker queue &rest keys)
+  "Assert that put-rank at MARKER in QUEUE refuses, changing nothing.
+KEYS are the keyword arguments; see
+`org-iw-write-test--should-refuse-by'."
+  (apply #'org-iw-write-test--should-refuse-by #'org-iw-write-test--put-4096
+         marker queue keys))
 
 (defconst org-iw-write-test--target
   (org-iw-test-org
@@ -174,12 +185,14 @@ The drawer goes after the planning line; nothing else changes."
 
 ;;;; Compare-and-set
 
-(defun org-iw-write-test--check-refuses (drawer-lines expected)
-  "Assert put-rank refuses :expected EXPECTED over DRAWER-LINES.
-DRAWER-LINES are the IW lines of a heading with an ID."
+(defun org-iw-write-test--check-refuses (drawer-lines expected &optional verb)
+  "Assert VERB refuses :expected EXPECTED in ESSAYS over DRAWER-LINES.
+DRAWER-LINES are the IW lines of a heading with an ID.  VERB is as
+for `org-iw-write-test--should-refuse-by'; nil means put-rank."
   (org-iw-test-with-corpus
       `(("a.org" . ,(apply #'org-iw-test-heading "H" "h1" drawer-lines)))
-    (org-iw-write-test--should-refuse
+    (org-iw-write-test--should-refuse-by
+     (or verb #'org-iw-write-test--put-4096)
      (org-iw-test-marker "a.org" "H") "ESSAYS"
      :expected expected)))
 
@@ -399,26 +412,34 @@ asserting that the entry already has its ID."
                    (signal 'org-iw-write-test-injected nil)))))
       (funcall fn))))
 
-(defun org-iw-write-test--check-atomic (dirty)
-  "Assert that a failing edit restores everything; DIRTY first edits.
-The error must propagate as is, and the buffer text,
+(defun org-iw-write-test--check-rollback (text title dirty type call)
+  "Assert that CALL fails with error TYPE and restores everything.
+TEXT is file a.org and CALL is called with a marker at its heading
+TITLE; DIRTY non-nil first edits the buffer elsewhere.  The error
+symbol must be TYPE exactly, and the buffer text,
 `buffer-modified-p' and disk must equal their state before the call.
 A buffer left clean holds no lock file."
-  (let ((text (org-iw-test-org "* New" "Body.")))
-    (org-iw-test-with-corpus `(("a.org" . ,text))
-      (let ((marker (org-iw-test-marker "a.org" "New")))
-        (when dirty
-          (org-iw-test-edit-elsewhere marker))
-        (let ((before (org-iw-test-snapshot marker)))
-          (org-iw-write-test--call-failing-rank-put
-           (lambda ()
-             (should-error (org-iw-write-put-rank marker "ESSAYS" 1024
-                                                  :expected :absent
-                                                  :ensure-id t)
-                           :type 'org-iw-write-test-injected)))
-          (should (equal (org-iw-test-snapshot marker) before))
-          (unless dirty
-            (should-not (file-symlink-p (org-iw-test-path ".#a.org")))))))))
+  (org-iw-test-with-corpus `(("a.org" . ,text))
+    (let ((marker (org-iw-test-marker "a.org" title)))
+      (when dirty
+        (org-iw-test-edit-elsewhere marker))
+      (let ((before (org-iw-test-snapshot marker)))
+        (should (eq (car (should-error (funcall call marker))) type))
+        (should (equal (org-iw-test-snapshot marker) before))
+        (unless dirty
+          (should-not (file-symlink-p (org-iw-test-path ".#a.org"))))))))
+
+(defun org-iw-write-test--check-atomic (dirty)
+  "Assert that a failing put-rank restores everything; DIRTY first edits.
+The rank put fails after the ID was added; see
+`org-iw-write-test--check-rollback'."
+  (org-iw-write-test--check-rollback
+   (org-iw-test-org "* New" "Body.") "New" dirty 'org-iw-write-test-injected
+   (lambda (marker)
+     (org-iw-write-test--call-failing-rank-put
+      (lambda ()
+        (org-iw-write-put-rank marker "ESSAYS" 1024
+                               :expected :absent :ensure-id t))))))
 
 (ert-deftest org-iw-write-test-failed-edit-restores-clean-buffer ()
   "An error inside the edit restores text and an unmodified flag (I7)."
@@ -463,6 +484,223 @@ saved and the disk holds the edit."
                       org-iw-write-test--target
                       (org-iw-test-file-string "a.org"))
                      org-iw-write-test--rank-change)))))
+
+;;;; delete-rank
+
+(defun org-iw-write-test--should-delete-line (text title line expected)
+  "Assert delete-rank removes LINE alone from TEXT and saves it.
+TEXT is file a.org; the entry is the heading TITLE, or the document
+entry if TITLE is nil, a member of ESSAYS at EXPECTED.  The file must
+differ from TEXT by LINE alone, and the buffer be clean and equal to
+it.  Return the file's new contents."
+  (org-iw-test-with-corpus `(("a.org" . ,text))
+    (let ((marker (if title
+                      (org-iw-test-marker "a.org" title)
+                    (with-current-buffer (org-iw-test-visit "a.org")
+                      (point-min-marker)))))
+      (should (eq (org-iw-write-delete-rank marker "ESSAYS"
+                                            :expected expected)
+                  'saved))
+      (should-not (buffer-modified-p (marker-buffer marker)))
+      (let ((disk (org-iw-test-file-string "a.org")))
+        (should (equal (org-iw-test-changed-lines text disk)
+                       (list (list line))))
+        (should (equal (org-iw-test-text marker) disk))
+        disk))))
+
+(ert-deftest org-iw-write-test-delete-rank-removes-one-line ()
+  "Only the IW_ESSAYS line is removed (I11).
+The drawer and its ID, other IW_ and IW_AFTER_ lines, other
+properties, the body and the next heading are untouched."
+  (should (string-search
+           ":PROPERTIES:\n:ID: t1\n:IW_OTHER: 5\n:IW_AFTER_ESSAYS: x\n"
+           (org-iw-write-test--should-delete-line
+            org-iw-write-test--target "Target" ":IW_ESSAYS: 2048" 2048))))
+
+(ert-deftest org-iw-write-test-delete-rank-keeps-id-only-drawer ()
+  "A drawer of the ID and the rank keeps the ID; Org would drop it empty."
+  (org-iw-write-test--should-delete-line
+   (org-iw-test-heading "H" "h1" ":IW_ESSAYS: 2048") "H"
+   ":IW_ESSAYS: 2048" 2048))
+
+(ert-deftest org-iw-write-test-delete-rank-lowercase-key ()
+  "A lowercase iw_essays line is the queue's, and is deleted.
+So it is for a caller that binds `case-fold-search' to nil."
+  (let ((case-fold-search nil))
+    (org-iw-write-test--should-delete-line
+     (org-iw-test-heading "Target" "t1" ":iw_essays: 2048" ":IW_OTHER: 5")
+     "Target" ":iw_essays: 2048" 2048)))
+
+(ert-deftest org-iw-write-test-delete-rank-keeps-heading-and-planning ()
+  "The TODO state, priority, tags and planning line are untouched."
+  (org-iw-write-test--should-delete-line
+   (org-iw-test-org "* TODO [#A] Target :tag:"
+                    "SCHEDULED: <2026-10-01 Thu>"
+                    ":PROPERTIES:" ":ID: t1" ":IW_ESSAYS: 2048" ":END:"
+                    "Body.")
+   "TODO [#A] Target :tag:" ":IW_ESSAYS: 2048" 2048))
+
+(ert-deftest org-iw-write-test-delete-rank-keeps-other-entries ()
+  "Another entry's IW_ESSAYS line, after the target's body, is untouched."
+  (org-iw-write-test--should-delete-line
+   (concat (org-iw-test-heading "Target" "t1" ":IW_ESSAYS: 2048")
+           (org-iw-test-org "Body.")
+           (org-iw-test-heading "Sibling" "s1" ":IW_ESSAYS: 1024"))
+   "Target" ":IW_ESSAYS: 2048" 2048))
+
+(ert-deftest org-iw-write-test-delete-rank-document-entry ()
+  "A document entry's rank is deleted; its ID, drawer and headings stay."
+  (org-iw-write-test--should-delete-line
+   (org-iw-test-org ":PROPERTIES:" ":ID: d1" ":IW_ESSAYS: 2048" ":END:"
+                    "* First" "Text.")
+   nil ":IW_ESSAYS: 2048" 2048))
+
+(ert-deftest org-iw-write-test-delete-rank-compares-parsed-rank ()
+  "A stored 007 is deleted with :expected 7."
+  (org-iw-write-test--should-delete-line
+   (org-iw-test-heading "H" "h1" ":IW_ESSAYS: 007") "H"
+   ":IW_ESSAYS: 007" 7))
+
+(ert-deftest org-iw-write-test-delete-rank-through-indirect-buffer ()
+  "From a narrowed indirect buffer the line goes from the base, saved.
+The indirect buffer stays narrowed to the same text, past the target."
+  (org-iw-test-with-corpus `(("a.org" . ,org-iw-write-test--target))
+    (let ((marker (org-iw-test-marker "a.org" "Target")))
+      (org-iw-test-call-with-indirect
+       marker
+       (lambda (indirect-marker)
+         (goto-char (point-min))
+         (re-search-forward "^\\* Next$")
+         (narrow-to-region (line-beginning-position) (point-max))
+         (let ((visible (buffer-string)))
+           (should (eq (org-iw-write-delete-rank indirect-marker "ESSAYS"
+                                                 :expected 2048)
+                       'saved))
+           (should (equal (buffer-string) visible)))
+         (should-not (buffer-modified-p (marker-buffer marker)))
+         (should (equal (org-iw-test-changed-lines
+                         org-iw-write-test--target
+                         (org-iw-test-file-string "a.org"))
+                        '((":IW_ESSAYS: 2048")))))))))
+
+(defun org-iw-write-test--delete-should-refuse (marker)
+  "Assert delete-rank of ESSAYS at 2048 at MARKER refuses; return why."
+  (org-iw-write-test--should-refuse-by #'org-iw-write-delete-rank
+                                       marker "ESSAYS" :expected 2048))
+
+(ert-deftest org-iw-write-test-delete-rank-refuses-changed-on-disk ()
+  "A file changed on disk refuses, directly and through an indirect buffer."
+  (org-iw-test-with-corpus `(("a.org" . ,org-iw-write-test--target))
+    (let ((marker (org-iw-test-marker "a.org" "Target")))
+      (org-iw-test-rewrite-behind
+       "a.org" (concat org-iw-write-test--target "* Added outside\n"))
+      (should (string-search "changed on disk"
+                             (org-iw-write-test--delete-should-refuse marker)))
+      (org-iw-test-call-with-indirect
+       marker
+       (lambda (indirect-marker)
+         (should (string-search "changed on disk"
+                                (org-iw-write-test--delete-should-refuse
+                                 indirect-marker))))))))
+
+(ert-deftest org-iw-write-test-delete-rank-refuses-unwritable-file ()
+  "A read-only file refuses."
+  (org-iw-test-unless-root
+    (org-iw-test-with-corpus `(("a.org" . ,org-iw-write-test--target))
+      (org-iw-test-set-modes "a.org" #o444)
+      (should (string-search "not writable"
+                             (org-iw-write-test--delete-should-refuse
+                              (org-iw-test-marker "a.org" "Target")))))))
+
+(ert-deftest org-iw-write-test-delete-rank-refuses-read-only-buffer ()
+  "A read-only base buffer refuses, directly and from a writable indirect.
+`org-entry-delete' would otherwise delete through `org-no-read-only'."
+  (org-iw-test-with-corpus `(("a.org" . ,org-iw-write-test--target))
+    (let ((marker (org-iw-test-marker "a.org" "Target")))
+      (with-current-buffer (org-iw-test-base marker)
+        (setq buffer-read-only t))
+      (should (string-search "buffer is read-only"
+                             (org-iw-write-test--delete-should-refuse marker)))
+      (org-iw-test-call-with-indirect
+       marker
+       (lambda (indirect-marker)
+         (setq buffer-read-only nil)
+         (should (string-search "buffer is read-only"
+                                (org-iw-write-test--delete-should-refuse
+                                 indirect-marker))))))))
+
+(ert-deftest org-iw-write-test-delete-rank-refuses-unexpected-lines ()
+  "A stale rank, a non-member, or a duplicated or accumulated key refuses.
+`org-entry-delete' would delete every IW_ESSAYS and IW_ESSAYS+ line."
+  (should (string-search
+           "ESSAYS"
+           (org-iw-write-test--check-refuses
+            '(":IW_ESSAYS: 2048") 1024 #'org-iw-write-delete-rank)))
+  (pcase-dolist (`(,lines ,expected)
+                 '(((":IW_OTHER: 1") 1)
+                   ((":IW_ESSAYS: 1" ":iw_essays: 1") 1)
+                   ((":IW_ESSAYS: 1" ":IW_ESSAYS+: 2") 1)
+                   ((":IW_ESSAYS+: 2") 2)))
+    (org-iw-write-test--check-refuses lines expected
+                                      #'org-iw-write-delete-rank)))
+
+(ert-deftest org-iw-write-test-delete-rank-refuses-unrecognised-drawer ()
+  "An entry whose drawer Org does not see refuses: Org sees no rank."
+  (org-iw-test-with-corpus
+      `(("a.org" . ,(org-iw-test-org "* H" "body" ":PROPERTIES:" ":ID: x1"
+                                     ":IW_ESSAYS: 2048" ":END:")))
+    (org-iw-write-test--delete-should-refuse
+     (org-iw-test-marker "a.org" "H"))))
+
+(ert-deftest org-iw-write-test-delete-rank-arguments-are-checked ()
+  "QUEUE must be canonical and EXPECTED an integer, :absent included.
+The error comes before anything changes."
+  (dolist (args '(("ESS_AYS" :expected 2048) ("essays" :expected 2048)
+                  (nil :expected 2048) ("ESSAYS" :expected :absent)
+                  ("ESSAYS" :expected 1.5) ("ESSAYS" :expected "1")
+                  ("ESSAYS" :expected nil) ("ESSAYS")))
+    (org-iw-test-with-corpus `(("a.org" . ,org-iw-write-test--target))
+      (let* ((marker (org-iw-test-marker "a.org" "Target"))
+             (before (org-iw-test-snapshot marker)))
+        (should-error (apply #'org-iw-write-delete-rank marker args)
+                      :type 'wrong-type-argument)
+        (should (equal (org-iw-test-snapshot marker) before))))))
+
+(defun org-iw-write-test--delete-target-with-nothing-deleted (marker)
+  "Delete-rank the Target at MARKER with `org-entry-delete' doing nothing."
+  (cl-letf (((symbol-function 'org-entry-delete) #'ignore))
+    (org-iw-write-delete-rank marker "ESSAYS" :expected 2048)))
+
+(ert-deftest org-iw-write-test-delete-rank-nothing-deleted-is-error ()
+  "If nothing is deleted, an error restores clean and dirty buffers.
+It is a plain error, not a refusal: preflight passed."
+  (dolist (dirty '(nil t))
+    (org-iw-write-test--check-rollback
+     org-iw-write-test--target "Target" dirty 'error
+     #'org-iw-write-test--delete-target-with-nothing-deleted)))
+
+(ert-deftest org-iw-write-test-delete-rank-rank-only-drawer-is-error ()
+  "A drawer holding only the rank is an error, with nothing changed.
+Org deletes the drawer the deletion emptied; that is rolled back."
+  (org-iw-write-test--check-rollback
+   (org-iw-test-heading "H" nil ":IW_ESSAYS: 2048") "H" nil 'error
+   (lambda (marker)
+     (org-iw-write-delete-rank marker "ESSAYS" :expected 2048))))
+
+(ert-deftest org-iw-write-test-delete-rank-leaves-dirty-buffer-unsaved ()
+  "A buffer with unsaved edits loses the line but is not saved."
+  (org-iw-test-with-corpus `(("a.org" . ,org-iw-write-test--target))
+    (let ((marker (org-iw-test-marker "a.org" "Target")))
+      (org-iw-test-edit-elsewhere marker)
+      (should (eq (org-iw-write-delete-rank marker "ESSAYS" :expected 2048)
+                  'unsaved))
+      (should (buffer-modified-p (marker-buffer marker)))
+      (should (equal (org-iw-test-changed-lines
+                      (concat org-iw-write-test--target "User edit.\n")
+                      (org-iw-test-text marker))
+                     '((":IW_ESSAYS: 2048"))))
+      (should (equal (org-iw-test-file-string "a.org")
+                     org-iw-write-test--target)))))
 
 (provide 'org-iw-write-test)
 ;;; org-iw-write-test.el ends here

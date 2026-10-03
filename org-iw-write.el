@@ -1,4 +1,4 @@
-;;; org-iw-write.el --- The one write path for org-iw  -*- lexical-binding: t; -*-
+;;; org-iw-write.el --- Put and delete org-iw ranks  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2026 David Lee
 
@@ -22,12 +22,14 @@
 
 ;;; Commentary:
 
-;; The write path for org-iw: `org-iw-write-put-rank' sets one entry's
-;; rank in one queue through the buffer visiting its file.  It checks
-;; the file and the scanned rank first, edits atomically, and saves
-;; only a buffer that had no unsaved changes.  Every operation that
-;; changes a queue writes through it.  This layer does not read the
-;; user options of `org-iw'.
+;; The write path for org-iw.  `org-iw-write-put-rank' sets one
+;; entry's rank in one queue, and `org-iw-write-delete-rank' deletes it,
+;; removing that one line and keeping the property drawer.  Both work
+;; through the buffer visiting the entry's file and share one preflight
+;; and one apply: check the file and the scanned rank first, edit
+;; atomically, and save only a buffer that had no unsaved changes.
+;; Every operation that changes a queue writes through this layer.  It
+;; does not read the user options of `org-iw'.
 
 ;;; Code:
 
@@ -98,13 +100,12 @@ flag of a clean buffer, and the error propagates.  Return `saved',
 
 (cl-defun org-iw-write-put-rank (marker queue rank &key expected ensure-id)
   "Set the rank of the entry at MARKER in QUEUE to RANK.
-This is the one write path of org-iw.  MARKER is at an entry's
-heading, or at `point-min' for a document entry, in a buffer whose
-base buffer visits a file; it may be indirect or narrowed.  QUEUE is
-a canonical queue ID, as from `org-iw-core-queue-id'; anything else
-is an error.  RANK is an integer of magnitude at most
-`org-iw-core-rank-limit', as from `org-iw-core-rank-at'; anything
-else is an error.
+MARKER is at an entry's heading, or at `point-min' for a document
+entry, in a buffer whose base buffer visits a file; it may be
+indirect or narrowed.  QUEUE is a canonical queue ID, as from
+`org-iw-core-queue-id'; anything else is an error.  RANK is an
+integer of magnitude at most `org-iw-core-rank-limit', as from
+`org-iw-core-rank-at'; anything else is an error.
 
 EXPECTED is the rank the caller scanned, or :absent for an entry not
 in QUEUE; anything else is an error.  With ENSURE-ID non-nil, an
@@ -112,11 +113,11 @@ entry without an ID is given one.
 
 Before anything changes, refuse with `org-iw-refusal', naming the
 file, if the file changed on disk since visited, the file is not
-writable, or the entry's IW_ lines for QUEUE are not exactly
-EXPECTED: one membership line whose value parses to it, or none for
-:absent.  A duplicated or accumulated key never matches.  It also
-refuses if the entry has a property drawer Org does not recognise,
-since Org would add a second one.
+writable, the buffer is read-only, or the entry's IW_ lines for
+QUEUE are not exactly EXPECTED: one membership line whose value
+parses to it, or none for :absent.  A duplicated or accumulated key
+never matches.  It also refuses if the entry has a property drawer
+Org does not recognise, since Org would add a second one.
 
 The ID and rank are then written atomically: if either signals, the
 buffer is restored and the error propagates.  A base buffer that had
@@ -133,6 +134,35 @@ buffer with unsaved changes is left modified, returning `unsaved'."
      (when ensure-id
        (org-id-get-create))
      (org-entry-put marker (concat "IW_" queue) (number-to-string rank)))))
+
+(cl-defun org-iw-write-delete-rank (marker queue &key expected)
+  "Delete the rank of the entry at MARKER in QUEUE.
+MARKER and QUEUE are as for `org-iw-write-put-rank'.  EXPECTED is
+the rank the caller scanned, an integer; anything else is an error.
+
+Before anything changes, refuse as `org-iw-write-put-rank' does: if
+the file changed on disk since visited, the file is not writable, the
+buffer is read-only, the entry's IW_ lines for QUEUE are not exactly
+one membership line whose value parses to EXPECTED, or the entry has
+a property drawer Org does not recognise.
+
+The membership line alone is then deleted, atomically.  The drawer
+must keep another line, such as the entry's ID: if nothing was
+deleted or the drawer went with it, the buffer is restored and an
+error is signalled.  Saving and the result are as for
+`org-iw-write-put-rank': `saved', `unsaved' or (save-failed . ERROR)."
+  (cl-check-type queue (satisfies org-iw-core-canonical-queue-id-p))
+  (cl-check-type expected integer)
+  (org-iw-write--preflight marker queue expected)
+  (org-iw-write--apply
+   marker
+   (lambda ()
+     ;; `org-entry-delete' skips a lowercase key unless this is t.
+     (let ((case-fold-search t))
+       (unless (and (org-entry-delete marker (concat "IW_" queue))
+                    ;; Org deletes a drawer the deletion emptied.
+                    (org-get-property-block))
+         (error "IW_%s not deleted alone" queue))))))
 
 (provide 'org-iw-write)
 ;;; org-iw-write.el ends here
