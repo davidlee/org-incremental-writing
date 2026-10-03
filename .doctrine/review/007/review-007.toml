@@ -1,0 +1,283 @@
+id    = 7
+slug  = "code-review-of-sl-003-phase-0406"
+title = "code-review of SL-003 PHASE-04..06"
+# no status — a review's status is DERIVED from its findings, so
+# it is never stored (the storage rule forbids derived data in authored files).
+
+[review]
+facet     = "code-review"     # scope|design|plan|phase-plan|implementation|code-review|reconciliation
+raiser    = "reviewer"
+responder = "seat"
+rounds_base = 0
+contests_base = 0
+
+[target]                   # the outbound `reviews` edge: RV-NNN ──reviews──▶ <ref>
+ref   = "SL-003"
+
+[[finding]]
+id = "F-1"
+status = "answered"
+severity = "minor"
+title = "Continue's Remove should be tested with the session's entry away from the head; no test fails if the wrong entry is visited"
+detail = """
+Expected: Continue acts on the session's entry wherever it now stands; after Remove the head of the rest is visited.
+Observed: mutant (rest (cdr order)) for (rest (remq entry order)) at org-iw.el:638 passes 301/301: every Remove test removes the head. Code is correct; coverage gap (verifier downgraded from major).
+Fix: probe org-iw-cmd-test-continue-remove-entry-not-at-head (/tmp/claude-1000/-home-david-dev-org-incremental-writing/77e6c44f-2b3b-4602-85a1-4d95f9578322/scratchpad/rv007-test/probes*.el) kills it."""
+disposition = "fix-now"
+response = "Add the probe org-iw-cmd-test-continue-remove-entry-not-at-head; it kills the (cdr order) mutant."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Add the probe org-iw-cmd-test-continue-remove-entry-not-at-head; it kills the (cdr order) mutant."
+
+[[finding]]
+id = "F-2"
+status = "answered"
+severity = "minor"
+title = "Move's result text should have one owner before PHASE-07 adds a third copy; --continue-place and org-iw-move each format it"
+detail = """
+Expected (POL-002): one owner per message contract, as --removed-text owns Remove's.
+Observed: org-iw.el:619-627 (--continue-place) and :787-794 (org-iw-move) pcase over --move's (unchanged depth)/(moved depth status) with near-identical 'already at'/'Moved … %d/%d STATUS' formats, differing only in the queue-name phrase. PHASE-07's view moves would add a third.
+Fix: org-iw--moved-text RESULT TITLE WHERE TOTAL; output text unchanged. No design or API change."""
+disposition = "fix-now"
+response = "Add org-iw--moved-text, used by --continue-place and org-iw-move, with the output text unchanged. PHASE-07's view moves reuse it."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Add org-iw--moved-text, used by --continue-place and org-iw-move, with the output text unchanged. PHASE-07's view moves reuse it."
+
+[[finding]]
+id = "F-3"
+status = "answered"
+severity = "minor"
+title = "The test fixture should spare queue views made outside it; it reuses and then kills a user's view"
+detail = """
+Expected (STD-001 item 1; corpus buffers are filtered by path for this reason): a user's live buffers survive a test.
+Observed: test/org-iw-test-helpers.el (~80-90) kills views by major mode, and --view-buffer finds views by queue ID, so under interactive M-x ert a user's ESSAYS view is redrawn with test data and killed. Probe org-iw-cmd-test-fixture-spares-outside-views fails on pristine code. Batch runs unaffected.
+Fix: record views existing on entry and kill only new ones; refuse or warn when a same-queue view exists."""
+disposition = "fix-now"
+response = "Fixture records the views that exist on entry, kills only new ones, and refuses to start when a view of the same queue already exists. Add the probe as a test."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Fixture records the views that exist on entry, kills only new ones, and refuses to start when a view of the same queue already exists. Add the probe as a test."
+
+[[finding]]
+id = "F-4"
+status = "answered"
+severity = "minor"
+title = "Point-at-marker command test helpers should be one helper; there are five plus inline copies"
+detail = """
+Expected (POL-002 for tests, STD-001 item 7): one helper per test concept.
+Observed: test/org-iw-test.el --add-at (~42), --move-at (~2018), --move-chosen (~2025), --remove-at (~2380), --remove-chosen (~2391), inline at ~849, ~1053: each 'in MARKER's buffer at MARKER, call COMMAND (interactively)'. Only --remove-at stubs y-or-n-p/yes-or-no-p to fail on a confirmation prompt.
+Fix: one org-iw-cmd-test--call-at with the confirmation guard for all callers."""
+disposition = "fix-now"
+response = "One org-iw-cmd-test--call-at helper, with the confirmation-prompt guard for every caller, replaces the five helpers and the inline copies."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "One org-iw-cmd-test--call-at helper, with the confirmation-prompt guard for every caller, replaces the five helpers and the inline copies."
+
+[[finding]]
+id = "F-5"
+status = "answered"
+severity = "minor"
+title = "org-iw-list-queue on a non-empty queue should be pinned to return nil; reporting the empty text unconditionally survives"
+detail = """
+Expected: the documented behaviour (docstring; notes OQ-1/A1) is pinned.
+Observed: mutant reporting 'Queue NAME is empty' unconditionally at org-iw.el:984 survives; no non-empty view test checks the return value.
+Fix: probe org-iw-cmd-test-list-queue-non-empty-reports-nothing; it must follow the ruling on the view's scan-problem report (next finding)."""
+disposition = "fix-now"
+response = "Pin list-queue's return value on a non-empty queue, to match the F-6 ruling."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Pin list-queue's return value on a non-empty queue, to match the F-6 ruling."
+
+[[finding]]
+id = "F-6"
+status = "open"
+severity = "minor"
+title = "The view should report scan problems like every other command; list-queue and g on a non-empty queue say nothing"
+detail = """
+Expected (SL-001 Messages convention): every command message carries '[N source problems ignored]' when the scan has problems.
+Observed: corpus with A and two headings sharing ID b1 (2 problems): (org-iw-list-queue "q") returns nil, rows ("a1"); (revert-buffer) nil; (org-iw-visit-next "q") 'IW Q 1/1: A [2 source problems ignored]'. Entries vanish from the view unexplained. Design § 5.4 names only the empty-queue message (OQ-1 ruled literally): a design gap, not a defect.
+Fix: list-queue and g report through org-iw--report (e.g. 'Queue NAME: N entries'), or a header-line count. Touches design § 5.4 and list-queue's documented nil return."""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding]]
+id = "F-7"
+status = "answered"
+severity = "nit"
+title = "The view should read a row's title through one accessor; view-open reads it by column index and leaks its face into the refusal"
+detail = """
+Observed: org-iw.el:957 (aref (tabulated-list-get-entry) 1) couples to --view-row's layout; RET on a removed session row refuses #("A Link is no longer in queue Q" 0 6 (face bold)). PHASE-07's b/a needs the marked row's title, not at point.
+Fix: org-iw--view-title ID, properties stripped. No design change."""
+disposition = "fix-now"
+response = "Add org-iw--view-title ID, which strips text properties. view-open uses it and PHASE-07 b/a will too."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Add org-iw--view-title ID, which strips text properties. view-open uses it and PHASE-07 b/a will too."
+
+[[finding]]
+id = "F-8"
+status = "answered"
+severity = "nit"
+title = "Re-entering org-iw-view-mode should not orphan the view; it clears the queue and the next list-queue makes a second buffer"
+detail = """
+Observed: M-x org-iw-view-mode inside a view, then g: empty buffer, org-iw--view-queue nil, no refusal; next (org-iw-list-queue "q") creates *org-iw: Q*<2>. Design § 5.2 already notes the hazard.
+Fix: (put 'org-iw--view-queue 'permanent-local t) (and the mark in PHASE-07); optionally --view-revert refuses with no queue."""
+disposition = "fix-now"
+response = "Mark org-iw--view-queue permanent-local, so re-entering the mode keeps it. --view-revert refuses when no queue is set."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Mark org-iw--view-queue permanent-local, so re-entering the mode keeps it. --view-revert refuses when no queue is set."
+
+[[finding]]
+id = "F-9"
+status = "open"
+severity = "nit"
+title = "g should keep point near its row when that entry has left the queue; it jumps to row 1"
+detail = """
+Observed: point on row b1, b1 removed from source, g: point at row 1 (org-iw.el:911, --view-redraw). In a long queue the user loses their place; PHASE-07's D avoids it via GOTO-ID, plain g does not. Design silent.
+Fix: when the previous row's ID is gone, keep the same line, clamped to the last row. Touches § 5.2 redraw prose slightly."""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding]]
+id = "F-10"
+status = "answered"
+severity = "nit"
+title = "The OTHER-WINDOW visit test should pin 'not the selected window'; plain pop-to-buffer survives"
+detail = """
+Observed: mutant (pop-to-buffer buf) without t at org-iw.el:517 survives; in batch the default display splits anyway.
+Fix: probe org-iw-cmd-test-visit-other-window-not-same (same-window-buffer-names) kills it."""
+disposition = "fix-now"
+response = "Add the probe org-iw-cmd-test-visit-other-window-not-same."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Add the probe org-iw-cmd-test-visit-other-window-not-same."
+
+[[finding]]
+id = "F-11"
+status = "answered"
+severity = "nit"
+title = "org-iw-cmd-test-view-redraw-goto-id's docstring should be accurate; it says no command passes GOTO-ID, but view-open does"
+detail = """
+Observed: test docstring (~test/org-iw-test.el:2696) vs org-iw.el:963 (org-iw--view-redraw scan id). Mutant M05 dropping that id is equivalent (tabulated-list-print t already keeps the row by ID).
+Fix: correct the docstring; keep the argument (design § 5.2, PHASE-07 D uses GOTO-ID)."""
+disposition = "fix-now"
+response = "Correct the docstring and keep GOTO-ID (design § 5.2; PHASE-07 D uses it)."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Correct the docstring and keep GOTO-ID (design § 5.2; PHASE-07 D uses it)."
+
+[[finding]]
+id = "F-12"
+status = "answered"
+severity = "minor"
+title = "org-iw--scanned-entry-at should refuse 'excluded' when the entry's own IW_<Q> line was dropped; with another valid membership it says 'not in queue'"
+detail = """
+Expected (design § 5.5, duplicated key or IW_<Q>+): from the source, Remove refuses 'excluded', as Add does via --check-heading (org-iw.el:429-437, org-iw-discovery-queue-lines).
+Observed: heading with :IW_ARTICLES: 1, :IW_ARTICLES+: 2, :IW_ESSAYS: 5. (org-iw-remove "articles") and (org-iw-move "articles") refuse 'A is not in queue ARTICLES'; Add refuses 'excluded (duplicate-property)'. Interactively --queue-at-point picks ESSAYS without prompting, so the valid membership is removed unconfirmed. Without the ESSAYS line the refusal is correctly 'excluded'. Two implementations of 'excluded from Q at MARKER' (--check-heading; --scanned-entry-at QUEUE arm, org-iw.el:720-732) have drifted (POL-002). Probe: /tmp/claude-1000/-home-david-dev-org-incremental-writing/77e6c44f-2b3b-4602-85a1-4d95f9578322/scratchpad/rv007-arch/probe.el.
+Fix: QUEUE arm refuses 'excluded' when org-iw-discovery-queue-lines finds lines for QUEUE, via one helper shared with --check-heading. Must stay queue-scoped (F-13). No design or API change."""
+disposition = "fix-now"
+response = "Queue-scoped 'excluded' refusal in the QUEUE arm, sharing one helper with --check-heading. F-13's test guards against over-refusal."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Queue-scoped 'excluded' refusal in the QUEUE arm, sharing one helper with --check-heading. F-13's test guards against over-refusal."
+
+[[finding]]
+id = "F-13"
+status = "answered"
+severity = "minor"
+title = "org-iw--scanned-entry-at's 'excluded' guard should be pinned for a member whose ID has another problem; dropping (not entry) survives"
+detail = """
+Expected (design § 5.2, design.md:272-275): refuse 'excluded' only when --find-entry finds nothing.
+Observed: mutant dropping (not entry) at org-iw.el:720 survives; with it a member with a valid :IW_ESSAYS: 1 and a bad :IW_DRAFTS: x is refused by Move and Remove. PHASE-04 had no recorded red run.
+Fix: probe org-iw-cmd-test-move-command-member-with-other-problems (/tmp/claude-1000/-home-david-dev-org-incremental-writing/77e6c44f-2b3b-4602-85a1-4d95f9578322/scratchpad/rv007-test/). Also guards the queue-scoping of F-12's fix."""
+disposition = "fix-now"
+response = "Add the probe org-iw-cmd-test-move-command-member-with-other-problems."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Add the probe org-iw-cmd-test-move-command-member-with-other-problems."
+
+# Findings are append-only `[[finding]]` tables, added by `review raise`.
+# Empty here at creation — a fresh review is Active, awaiting the raiser.
