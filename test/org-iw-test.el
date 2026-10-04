@@ -72,42 +72,59 @@ sorting UI would show them."
     (funcall (or sort (lambda (list) (sort list #'string<))) all)))
 
 (defmacro org-iw-cmd-test--with-prompt (answer &rest body)
-  "Run BODY with `completing-read' stubbed to answer from ANSWER.
-ANSWER is a string, or a list of strings answering successive prompts.
-A prompt with no answer left fails the test, so ANSWER nil proves BODY
-never prompts, as does an answer that is not a candidate when
-REQUIRE-MATCH is t.  Each call is recorded, in order, in
-`org-iw-cmd-test--prompts' as a plist (:prompt :collection
-:require-match :default :order :annotate), :order being
-`org-iw-cmd-test--cycle-order'."
+  "Run BODY with `completing-read' and `y-or-n-p' stubbed to answer from ANSWER.
+ANSWER is one answer, or a list answering successive prompts of either
+kind.  A `completing-read' answer is a string; a `y-or-n-p' answer is
+:yes or :no, since nil would read as no answer left.  A prompt with no
+answer left fails the test, so ANSWER nil proves BODY never prompts,
+as does an answer of the wrong kind, or one that is not a candidate
+when REQUIRE-MATCH is t.  Each call is recorded, in order, in
+`org-iw-cmd-test--prompts' as a plist: (:prompt :collection
+:require-match :default :order :annotate) for `completing-read',
+:order being `org-iw-cmd-test--cycle-order', and (:prompt) for
+`y-or-n-p'."
   (declare (indent 1) (debug t))
-  (let ((answers (make-symbol "answers")))
+  (let ((answers (make-symbol "answers"))
+        (reply (make-symbol "reply")))
     `(let ((org-iw-cmd-test--prompts nil)
            (,answers (ensure-list ,answer)))
-       (cl-letf (((symbol-function 'completing-read)
-                  (lambda (prompt collection &optional predicate require-match
-                                  _initial _hist default &rest _)
-                    (setq org-iw-cmd-test--prompts
-                          (append
-                           org-iw-cmd-test--prompts
-                           (list
-                            (list :prompt prompt :collection collection
-                                  :require-match require-match
-                                  :default default
-                                  :order (org-iw-cmd-test--cycle-order
-                                          collection predicate)
-                                  :annotate (plist-get
-                                             completion-extra-properties
-                                             :annotation-function)))))
-                    (let ((reply
-                           (or (pop ,answers)
-                               (ert-fail (list "Unexpected prompt" prompt)))))
-                      (when (and (eq require-match t)
-                                 (not (test-completion reply collection
-                                                       predicate)))
-                        (ert-fail (list "Answer must match" prompt reply)))
-                      reply))))
-         ,@body))))
+       (cl-flet ((,reply (call valid-p)
+                   (setq org-iw-cmd-test--prompts
+                         (append org-iw-cmd-test--prompts (list call)))
+                   (let* ((prompt (plist-get call :prompt))
+                          (reply (or (pop ,answers)
+                                     (ert-fail (list "Unexpected prompt"
+                                                     prompt)))))
+                     (unless (funcall valid-p reply)
+                       (ert-fail (list "Answer of the wrong kind" prompt
+                                       reply)))
+                     reply)))
+         (cl-letf (((symbol-function 'completing-read)
+                    (lambda (prompt collection &optional predicate
+                                    require-match _initial _hist default
+                                    &rest _)
+                      (let ((reply
+                             (,reply
+                              (list :prompt prompt :collection collection
+                                    :require-match require-match
+                                    :default default
+                                    :order (org-iw-cmd-test--cycle-order
+                                            collection predicate)
+                                    :annotate (plist-get
+                                               completion-extra-properties
+                                               :annotation-function))
+                              #'stringp)))
+                        (when (and (eq require-match t)
+                                   (not (test-completion reply collection
+                                                         predicate)))
+                          (ert-fail (list "Answer must match" prompt reply)))
+                        reply)))
+                   ((symbol-function 'y-or-n-p)
+                    (lambda (prompt)
+                      (eq (,reply (list :prompt prompt)
+                                  (lambda (reply) (memq reply '(:yes :no))))
+                          :yes))))
+           ,@body)))))
 
 (defun org-iw-cmd-test--prompted (key)
   "Return the value of KEY in each recorded prompt, in order."
@@ -115,7 +132,8 @@ REQUIRE-MATCH is t.  Each call is recorded, in order, in
 
 (ert-deftest org-iw-cmd-test-with-prompt-self-test ()
   "The prompt recorder answers in turn, records, and fails when out.
-Under REQUIRE-MATCH t it fails an answer that is not a candidate."
+Under REQUIRE-MATCH t it fails an answer that is not a candidate.
+`y-or-n-p' takes :yes or :no, and `completing-read' only a string."
   (org-iw-cmd-test--with-prompt '("y" "b")
     (should (equal (completing-read "One: " '("y" "x") nil t nil nil "x") "y"))
     (should (equal (completing-read "Two: " '("z")) "b"))
@@ -132,6 +150,18 @@ Under REQUIRE-MATCH t it fails an answer that is not a candidate."
     (should-error (completing-read "Must: " '("w") nil t)
                   :type 'ert-test-failed)
     (should (equal (completing-read "Free: " '("w")) "new")))
+  (org-iw-cmd-test--with-prompt '("x" :yes :no)
+    (should (equal (completing-read "Pick: " '("x")) "x"))
+    (should (eq (y-or-n-p "Sure? ") t))
+    (should (eq (y-or-n-p "Really? ") nil))
+    (should (equal (org-iw-cmd-test--prompted :prompt)
+                   '("Pick: " "Sure? " "Really? "))))
+  (org-iw-cmd-test--with-prompt "y"
+    (should-error (y-or-n-p "Sure? ") :type 'ert-test-failed))
+  (org-iw-cmd-test--with-prompt :yes
+    (should-error (completing-read "Pick: " '("x")) :type 'ert-test-failed))
+  (org-iw-cmd-test--with-prompt nil
+    (should-error (y-or-n-p "Sure? ") :type 'ert-test-failed))
   (let ((table (lambda (string pred action)
                  (if (eq action 'metadata)
                      '(metadata (cycle-sort-function . identity))
@@ -154,7 +184,8 @@ WHERE carries its preposition, as in \"at the end\"."
   (should (equal (org-iw-cmd-test--no-room "at the end")
                  (concat "no room at the end in ESSAYS; redistribution is"
                          " not yet available")))
-  (dolist (where '("at the end" "at Second"))
+  (dolist (where '("at the end" "at Second" "at position 3/4" "before T"
+                  "after T"))
     (should (equal (org-iw-cmd-test--refusal
                     (lambda () (org-iw--refuse-no-room where "ESSAYS")))
                    (org-iw-cmd-test--no-room where)))))
@@ -1650,8 +1681,8 @@ Nothing is written or visited, and the session is unchanged."
 
 ;;;; Moving a member
 
-(defun org-iw-cmd-test--move (scan id placement where)
-  "Move entry ID of ESSAYS in SCAN to PLACEMENT, WHERE its text.
+(defun org-iw-cmd-test--move (scan id placement &optional where)
+  "Move entry ID of ESSAYS in SCAN to PLACEMENT, WHERE its text if given.
 Return the result of `org-iw--move'."
   (org-iw--move scan (org-iw--order scan "ESSAYS")
                 (org-iw-cmd-test--entry scan id) "ESSAYS" placement where))
@@ -1709,7 +1740,22 @@ The refusal names the queue by its configured name."
                         (org-iw-cmd-test--move scan "a1" '(after 1)
                                                "at Second")))
                      (concat "no room at Second in Essays; redistribution"
-                             " is not yet available"))))))
+                             " is not yet available")))
+      (should (equal (org-iw-cmd-test--should-refuse-cleanly
+                      "no room"
+                      (lambda ()
+                        (org-iw-cmd-test--move scan "a1" '(after 1))))
+                     (concat "no room at position 2/3 in Essays;"
+                             " redistribution is not yet available"))))))
+
+(ert-deftest org-iw-cmd-test-moved-text ()
+  "The move text gives the placement when WHERE is given, else only D/N."
+  (pcase-dolist (`(,result ,where ,text)
+                 '(((moved 1 saved) "Soon" "Moved T to Soon, 2/3 (saved)")
+                   ((unchanged 2) "Soon" "T already at Soon, 3/3")
+                   ((moved 1 saved) nil "Moved T to 2/3 (saved)")
+                   ((unchanged 2) nil "T already at 3/3")))
+    (should (equal (org-iw--moved-text result "T" where 3) text))))
 
 ;;;; Continue: placements
 
@@ -2754,11 +2800,18 @@ Refresh still shows the queue, and showing the queue reuses the view."
                    "no queue in this view; run org-iw-list-queue"))))
 
 (ert-deftest org-iw-cmd-test-view-mode-keys ()
-  "In the view, RET opens the entry and g refreshes."
+  "In the view, RET opens the entry, g refreshes, and the actions are bound."
   (org-iw-test-with-corpus org-iw-cmd-test--view-corpus
     (with-current-buffer (org-iw-cmd-test--view "essays")
-      (should (eq (key-binding (kbd "RET")) 'org-iw-view-open))
-      (should (eq (key-binding (kbd "g")) 'revert-buffer)))))
+      (pcase-dolist (`(,key . ,command)
+                     '(("RET" . org-iw-view-open) ("g" . revert-buffer)
+                       ("M-<up>" . org-iw-view-move-up)
+                       ("M-<down>" . org-iw-view-move-down)
+                       ("m" . org-iw-view-mark) ("u" . org-iw-view-unmark)
+                       ("b" . org-iw-view-place-before)
+                       ("a" . org-iw-view-place-after)
+                       ("D" . org-iw-view-remove)))
+        (should (eq (key-binding (kbd key)) command))))))
 
 ;;;; Queue view: open (EX-4, EX-5, VT-2)
 
@@ -2910,6 +2963,370 @@ With fewer rows than that line left, point goes to the last row."
                                 #'org-iw-remove "ESSAYS")
       (revert-buffer)
       (should (equal (tabulated-list-get-id) id)))))
+
+;;;; Queue view: move (EX-2, EX-6, VT-2)
+
+(defmacro org-iw-cmd-test--with-session (&rest body)
+  "Run BODY after starting a session on ESSAYS; assert BODY keeps it `eq'.
+Return BODY's value.  The session is set first, so that the check is
+not vacuous."
+  (declare (indent 0) (debug t))
+  (let ((session (make-symbol "session")))
+    `(progn
+       (org-iw-visit-next "ESSAYS")
+       (let ((,session org-iw--session))
+         (should ,session)
+         (prog1 (progn ,@body)
+           (should (eq org-iw--session ,session)))))))
+
+(defconst org-iw-cmd-test--tied
+  `(("a.org" . ,(org-iw-test-heading "A" "a1" ":IW_ESSAYS: 1"))
+    ("b.org" . ,(concat (org-iw-test-heading "B" "b1" ":IW_ESSAYS: 5")
+                        (org-iw-test-heading "C" "c1" ":IW_ESSAYS: 5")))
+    ("d.org" . ,(org-iw-test-heading "D" "d1" ":IW_ESSAYS: 9")))
+  "ESSAYS holds A, B, C and D, in that order; B and C are tied at 5.")
+
+(ert-deftest org-iw-cmd-test-view-move-down ()
+  "M-<down> moves the entry at point one row down, and point follows.
+At the end it is already there, and nothing is written."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (org-iw-cmd-test--open-all)
+    (org-iw-cmd-test--with-session
+      (let ((view (window-buffer (org-iw-cmd-test--view-on-row "ESSAYS" 1))))
+        (should (equal (org-iw-cmd-test--should-move
+                        #'org-iw-view-move-down "a.org" 1024 2560)
+                       "Moved A to 2/3 (saved)"))
+        (should (equal (org-iw-cmd-test--view-ids view) '("b1" "a1" "c1")))
+        (should (equal (tabulated-list-get-id) "a1"))
+        (forward-line 1)
+        (should (equal (org-iw-cmd-test--should-write-nothing
+                        #'org-iw-view-move-down)
+                       "C already at 3/3"))))))
+
+(ert-deftest org-iw-cmd-test-view-move-up ()
+  "M-<up> moves the entry at point one row up, and point follows.
+At the front it is already there, and nothing is written."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (org-iw-cmd-test--open-all)
+    (org-iw-cmd-test--with-session
+      (let ((view (window-buffer (org-iw-cmd-test--view-on-row "ESSAYS" 3))))
+        (should (equal (org-iw-cmd-test--should-move
+                        #'org-iw-view-move-up "b.org" 3072 1536)
+                       "Moved C to 2/3 (saved)"))
+        (should (equal (org-iw-cmd-test--view-ids view) '("a1" "c1" "b1")))
+        (should (equal (tabulated-list-get-id) "c1"))
+        (goto-char (point-min))
+        (should (equal (org-iw-cmd-test--should-write-nothing
+                        #'org-iw-view-move-up)
+                       "A already at 1/3"))))))
+
+(ert-deftest org-iw-cmd-test-view-move-ties ()
+  "Moving out of a tied pair succeeds; moving between it refuses."
+  (pcase-dolist (`(,row ,command ,to ,text)
+                 '((3 org-iw-view-move-up 3 "Moved C to 2/4 (saved)")
+                   (2 org-iw-view-move-down 7 "Moved B to 3/4 (saved)")))
+    (org-iw-test-with-corpus org-iw-cmd-test--tied
+      (org-iw-cmd-test--open-all)
+      (org-iw-cmd-test--with-session
+        (org-iw-cmd-test--view-on-row "ESSAYS" row)
+        (should (equal (org-iw-cmd-test--should-move command "b.org" 5 to)
+                       text)))))
+  (org-iw-test-with-corpus org-iw-cmd-test--tied
+    (org-iw-cmd-test--open-all)
+    (org-iw-cmd-test--view-on-row "ESSAYS" 4)
+    (should (equal (org-iw-cmd-test--should-refuse-cleanly
+                    "" #'org-iw-view-move-up)
+                   (org-iw-cmd-test--no-room "at position 3/4")))))
+
+;;;; Queue view: mark (EX-3, EX-4, VT-3)
+
+(defun org-iw-cmd-test--goto-row (id)
+  "Put point on the view row of the entry ID, in the current buffer."
+  (goto-char (point-min))
+  (while (not (equal (tabulated-list-get-id) id))
+    (when (eobp)
+      (ert-fail (list "No row" id)))
+    (forward-line 1)))
+
+(defun org-iw-cmd-test--view-tags (view)
+  "Return (ID . TAG) for each row of VIEW with a tag, in order.
+The tag is the row's first 2 columns, the padding, if not blank."
+  (with-current-buffer view
+    (save-excursion
+      (goto-char (point-min))
+      (let (tags)
+        (while (not (eobp))
+          (let ((id (tabulated-list-get-id))
+                (tag (string-trim (buffer-substring-no-properties
+                                   (point) (min (+ (point) 2)
+                                                (line-end-position))))))
+            (when (and id (not (string-empty-p tag)))
+              (push (cons id tag) tags)))
+          (forward-line 1))
+        (nreverse tags)))))
+
+(ert-deftest org-iw-cmd-test-view-mark ()
+  "Mark tags the entry at point, replacing any mark; unmark clears it.
+Neither rescans, and neither shows a message."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (let* ((view (window-buffer (org-iw-cmd-test--view-on-row "ESSAYS" 2)))
+           (rows tabulated-list-entries))
+      (should-not (org-iw-view-mark))
+      (should (equal (org-iw-cmd-test--view-tags view) '(("b1" . ">"))))
+      (org-iw-cmd-test--goto-row "c1")
+      (should-not (org-iw-view-mark))
+      (should (equal (org-iw-cmd-test--view-tags view) '(("c1" . ">"))))
+      (org-iw-cmd-test--goto-row "a1")
+      (should-not (org-iw-view-unmark))
+      (should-not (org-iw-cmd-test--view-tags view))
+      (should (eq tabulated-list-entries rows)))))
+
+(ert-deftest org-iw-cmd-test-view-mark-survives-refresh ()
+  "The mark survives `revert-buffer' and `org-iw-list-queue', tag shown.
+The tag is asserted before `org-iw--view-mark': a refresh that prints
+again after re-tagging erases the tag but keeps the variable."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (let ((view (window-buffer (org-iw-cmd-test--view-on-row "ESSAYS" 2))))
+      (org-iw-view-mark)
+      (revert-buffer)
+      (should (equal (org-iw-cmd-test--view-tags view) '(("b1" . ">"))))
+      (should (equal (buffer-local-value 'org-iw--view-mark view) "b1"))
+      (org-iw-cmd-test--goto-row "a1")
+      (should (equal (org-iw-cmd-test--should-move
+                      #'org-iw-view-place-before "b.org" 2048 0)
+                     "Moved B to 1/3 (saved)"))
+      (org-iw-cmd-test--goto-row "c1")
+      (org-iw-view-mark)
+      (org-iw-list-queue "ESSAYS")
+      (should (eq (current-buffer) view))
+      (should (equal (org-iw-cmd-test--view-tags view) '(("c1" . ">")))))))
+
+(ert-deftest org-iw-cmd-test-view-mark-cleared-when-entry-leaves ()
+  "A refresh clears the mark when its entry has left the queue."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (let ((view (window-buffer (org-iw-cmd-test--view-on-row "ESSAYS" 2))))
+      (org-iw-view-mark)
+      (org-iw-cmd-test--call-at (org-iw-test-marker "b.org" "B")
+                                #'org-iw-remove "ESSAYS")
+      (with-current-buffer view
+        (revert-buffer)
+        (should-not (org-iw-cmd-test--view-tags view))
+        (org-iw-cmd-test--goto-row "a1")
+        (should (equal (org-iw-cmd-test--refusal #'org-iw-view-place-before)
+                       "no marked entry; mark one with m"))))))
+
+;;;; Queue view: place (EX-3, EX-6, VT-2)
+
+(defun org-iw-cmd-test--mark-row (id)
+  "Mark the entry ID in the view in the current buffer."
+  (org-iw-cmd-test--goto-row id)
+  (org-iw-view-mark))
+
+(ert-deftest org-iw-cmd-test-view-place ()
+  "Place the marked entry before or after the entry at point.
+Point follows the marked entry, and the mark clears."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (org-iw-cmd-test--with-session
+      (let ((view (org-iw-cmd-test--view "ESSAYS")))
+        (org-iw-cmd-test--mark-row "c1")
+        (org-iw-cmd-test--goto-row "a1")
+        (should (equal (org-iw-cmd-test--should-move
+                        #'org-iw-view-place-before "b.org" 3072 0)
+                       "Moved C to 1/3 (saved)"))
+        (should (equal (org-iw-cmd-test--view-ids view) '("c1" "a1" "b1")))
+        (should (equal (tabulated-list-get-id) "c1"))
+        (should-not (org-iw-cmd-test--view-tags view))
+        (should-not (buffer-local-value 'org-iw--view-mark view)))))
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (org-iw-cmd-test--with-session
+      (org-iw-cmd-test--view "ESSAYS")
+      (org-iw-cmd-test--mark-row "a1")
+      (org-iw-cmd-test--goto-row "c1")
+      (should (equal (org-iw-cmd-test--should-move
+                      #'org-iw-view-place-after "a.org" 1024 4096)
+                     "Moved A to 3/3 (saved)")))))
+
+(ert-deftest org-iw-cmd-test-view-place-adjacent ()
+  "Placing the marked entry where it is writes nothing; the mark clears.
+That includes placing it beside itself."
+  (pcase-dolist (`(,marked ,anchor ,text) '(("a1" "b1" "A already at 1/3")
+                                            ("b1" "b1" "B already at 2/3")))
+    (org-iw-test-with-corpus org-iw-cmd-test--queue
+      (org-iw-cmd-test--open-all)
+      (let ((view (org-iw-cmd-test--view "ESSAYS")))
+        (org-iw-cmd-test--mark-row marked)
+        (org-iw-cmd-test--goto-row anchor)
+        (should (equal (org-iw-cmd-test--should-write-nothing
+                        #'org-iw-view-place-before)
+                       text))
+        (should-not (org-iw-cmd-test--view-tags view))))))
+
+(defun org-iw-cmd-test--should-refuse-keeping-mark (view text fn)
+  "Assert FN refuses with exactly TEXT, changing nothing; VIEW keeps its mark.
+The mark must be tagged before and after."
+  (let ((tags (org-iw-cmd-test--view-tags view)))
+    (should tags)
+    (should (equal (org-iw-cmd-test--should-refuse-cleanly "" fn) text))
+    (should (equal (org-iw-cmd-test--view-tags view) tags))))
+
+(ert-deftest org-iw-cmd-test-view-place-refusals ()
+  "A refused place writes nothing and keeps the mark.
+It refuses without a mark, without room, or when the marked entry or
+the entry at point has left the queue."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (org-iw-cmd-test--open-all)
+    (org-iw-cmd-test--view-on-row "ESSAYS" 1)
+    (should (equal (org-iw-cmd-test--should-refuse-cleanly
+                    "" #'org-iw-view-place-before)
+                   "no marked entry; mark one with m")))
+  (pcase-dolist (`(,anchor ,command ,where)
+                 '(("c1" org-iw-view-place-before "before C")
+                   ("b1" org-iw-view-place-after "after B")))
+    (org-iw-test-with-corpus org-iw-cmd-test--tied
+      (org-iw-cmd-test--open-all)
+      (let ((view (org-iw-cmd-test--view "ESSAYS")))
+        (org-iw-cmd-test--mark-row "d1")
+        (org-iw-cmd-test--goto-row anchor)
+        (org-iw-cmd-test--should-refuse-keeping-mark
+         view (org-iw-cmd-test--no-room where) command))))
+  (pcase-dolist (`(,marked ,anchor ,command)
+                 '(("a1" "c1" org-iw-view-place-after)
+                   ("c1" "a1" org-iw-view-place-before)))
+    (org-iw-test-with-corpus org-iw-cmd-test--queue
+      (org-iw-cmd-test--open-all)
+      (let ((view (org-iw-cmd-test--view "ESSAYS")))
+        (org-iw-cmd-test--mark-row marked)
+        (org-iw-cmd-test--goto-row anchor)
+        (org-iw-cmd-test--delete-in-a "^:IW_ESSAYS: 1024\n")
+        (org-iw-cmd-test--should-refuse-keeping-mark
+         view "A is no longer in queue ESSAYS" command)))))
+
+;;;; Queue view: remove (EX-3, EX-5, EX-6, VT-2)
+
+(ert-deftest org-iw-cmd-test-view-remove ()
+  "D confirms, then deletes the entry's rank from its file.
+Point goes to the next row, else to the previous one."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (org-iw-cmd-test--with-session
+      (let ((view (org-iw-cmd-test--view "ESSAYS")))
+        (org-iw-cmd-test--goto-row "b1")
+        (org-iw-cmd-test--with-prompt :yes
+          (should (equal (org-iw-cmd-test--should-delete
+                          #'org-iw-view-remove "b.org" ":IW_ESSAYS: 2048")
+                         "Removed B from ESSAYS (saved)"))
+          (should (equal (org-iw-cmd-test--prompted :prompt)
+                         '("Remove B from ESSAYS? "))))
+        (should (equal (org-iw-cmd-test--view-ids view) '("a1" "c1")))
+        (should (equal (tabulated-list-get-id) "c1"))
+        (let ((org-iw-queues '(("essays" :name "Essays"))))
+          (org-iw-cmd-test--with-prompt :yes
+            (should (equal (org-iw-cmd-test--should-delete
+                            #'org-iw-view-remove "b.org" ":IW_ESSAYS: 3072")
+                           "Removed C from Essays (saved)"))
+            (should (equal (org-iw-cmd-test--prompted :prompt)
+                           '("Remove C from Essays? ")))))
+        (should (equal (org-iw-cmd-test--view-ids view) '("a1")))
+        (should (equal (tabulated-list-get-id) "a1"))))))
+
+(ert-deftest org-iw-cmd-test-view-remove-declined ()
+  "D answered no changes nothing, shows no message and does not redraw.
+The prompt gives the scanned title, links and all, not the row's."
+  (org-iw-test-with-corpus org-iw-cmd-test--view-corpus
+    (org-iw-cmd-test--open-all)
+    (org-iw-cmd-test--view-on-row "ESSAYS" 2)
+    (let ((rows tabulated-list-entries))
+      (org-iw-cmd-test--with-prompt :no
+        (should-not (org-iw-cmd-test--should-change-nothing
+                     #'org-iw-view-remove))
+        (should (equal (org-iw-cmd-test--prompted :prompt)
+                       '("Remove Read [[https://x.org][the paper]] from ESSAYS? "))))
+      (should (eq tabulated-list-entries rows)))))
+
+(ert-deftest org-iw-cmd-test-view-remove-absent-before-prompt ()
+  "D on an entry that has left the queue refuses before confirming."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (org-iw-cmd-test--open-all)
+    (org-iw-cmd-test--view-on-row "ESSAYS" 1)
+    (org-iw-cmd-test--delete-in-a "^:IW_ESSAYS: 1024\n")
+    (org-iw-cmd-test--with-prompt nil
+      (should (equal (org-iw-cmd-test--should-refuse-cleanly
+                      "" #'org-iw-view-remove)
+                     "A is no longer in queue ESSAYS")))))
+
+(ert-deftest org-iw-cmd-test-view-remove-session-entry ()
+  "D on the session's entry keeps the session and gives the hint.
+The view no longer stars any row."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (org-iw-cmd-test--with-session
+      (org-iw-cmd-test--view-on-row "ESSAYS" 1)
+      (org-iw-cmd-test--with-prompt :yes
+        (should (equal (org-iw-view-remove)
+                       (concat "Removed A from ESSAYS (saved). "
+                               org-iw-cmd-test--hint))))
+      (should-not (seq-find (lambda (row)
+                              (string-suffix-p "*" (aref (cadr row) 0)))
+                            tabulated-list-entries)))))
+
+(ert-deftest org-iw-cmd-test-view-remove-marked-entry ()
+  "D on the marked entry clears the mark."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (let ((view (org-iw-cmd-test--view "ESSAYS")))
+      (org-iw-cmd-test--mark-row "b1")
+      (org-iw-cmd-test--with-prompt :yes
+        (org-iw-view-remove))
+      (should-not (org-iw-cmd-test--view-tags view))
+      (org-iw-cmd-test--goto-row "a1")
+      (should (equal (org-iw-cmd-test--refusal #'org-iw-view-place-before)
+                     "no marked entry; mark one with m")))))
+
+;;;; Queue view: stale rows and off-row actions (EX-5, EX-6)
+
+(defun org-iw-cmd-test--stale-view ()
+  "Show ESSAYS with A on row 3, then undo A's move to the end behind it.
+The rows are stale: A is first in truth.  Return the view."
+  (let ((view (org-iw-cmd-test--view "ESSAYS")))
+    (with-current-buffer (org-iw-test-visit "a.org")
+      (undo-boundary)
+      (org-iw-cmd-test--set-rank "a.org" 1024 4096)
+      (undo-boundary))
+    (revert-buffer)
+    (should (equal (org-iw-cmd-test--view-ids view) '("b1" "c1" "a1")))
+    (with-current-buffer (org-iw-test-visit "a.org")
+      (undo))
+    (org-iw-cmd-test--goto-row "a1")
+    view))
+
+(ert-deftest org-iw-cmd-test-view-acts-on-fresh-state ()
+  "An action on a stale row acts on a fresh scan, not on the row (I12)."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (org-iw-cmd-test--stale-view)
+    (should (equal (org-iw-cmd-test--should-write-nothing
+                    #'org-iw-view-move-up)
+                   "A already at 1/3")))
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (org-iw-cmd-test--stale-view)
+    (org-iw-cmd-test--with-prompt :yes
+      (should (equal (org-iw-cmd-test--should-delete
+                      #'org-iw-view-remove "a.org" ":IW_ESSAYS: 1024")
+                     "Removed A from ESSAYS (saved)")))))
+
+(ert-deftest org-iw-cmd-test-view-actions-refuse-off-row ()
+  "Each view action refuses off a row: in an empty view, or past the rows.
+Placing refuses so even with a mark set."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (org-iw-cmd-test--open-all)
+    (dolist (queue '("ideas" "ESSAYS"))
+      (org-iw-cmd-test--view-on-row queue 1)
+      (when (tabulated-list-get-id)
+        (org-iw-view-mark))
+      (goto-char (point-max))
+      (dolist (command '(org-iw-view-move-up org-iw-view-move-down
+                         org-iw-view-mark org-iw-view-unmark
+                         org-iw-view-place-before org-iw-view-place-after
+                         org-iw-view-remove))
+        (org-iw-cmd-test--with-prompt nil
+          (should (equal (org-iw-cmd-test--should-refuse-cleanly "" command)
+                         "no entry at point")))))))
 
 (provide 'org-iw-test)
 ;;; org-iw-test.el ends here

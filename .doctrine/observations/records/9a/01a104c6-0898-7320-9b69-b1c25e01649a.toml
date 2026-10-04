@@ -1,0 +1,18 @@
+schema = "doctrine.observation"
+schema_version = 1
+uid = "01a104c6-0898-7320-9b69-b1c25e01649a"
+recorded_at = "2026-10-04T02:37:29.62462476Z"
+kind = "friction"
+summary = "memory retrieve needs --query and returned nothing; slice phase has no sheet-writing verb"
+detail = "SL-003 PHASE-07 planner: 'doctrine memory retrieve' takes no positional query; with --query it returned nothing, while 'memory search --columns ...' worked. 'doctrine slice phase' only records status, so the planner wrote the runtime sheet file directly."
+
+[facets.execution]
+schema_version = 1
+interface = "cli"
+interface_origin = "automatic"
+product_surface = "doctrine"
+product_surface_origin = "automatic"
+command = "observation record"
+command_origin = "automatic"
+repository_context = "primary"
+repository_context_origin = "automatic"

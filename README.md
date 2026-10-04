@@ -7,8 +7,9 @@ back — soon, later, or at the end — and move on to the next.
 Queue state lives on each heading as an `IW_<QUEUE>` property holding an
 integer rank. There is no index file, and content never moves.
 
-Status: 0.1.0, pre-release. The feature set covers adding, visiting, and
-Continue with a choice of placement.
+Status: 0.1.0, pre-release. The feature set covers adding, visiting,
+Continue with a choice of placement, moving and removing entries, and a
+view of each queue in which to reorder it.
 
 ## Requirements
 
@@ -29,7 +30,8 @@ Or with `use-package`:
 ```elisp
 (use-package org-iw
   :load-path "/path/to/org-incremental-writing"
-  :commands (org-iw-add org-iw-visit-next org-iw-continue org-iw-end-session))
+  :commands (org-iw-add org-iw-visit-next org-iw-continue org-iw-end-session
+             org-iw-move org-iw-remove org-iw-list-queue))
 ```
 
 ## Configure
@@ -98,7 +100,8 @@ A queue with `:default` but no `:placements` uses the global labels.
 Labels are not written to your files, so renaming one changes nothing on
 disk. Bad configuration (an invalid placement, a duplicate label, a default
 that is not a label) is refused when a command uses it, naming the option
-at fault.
+at fault. The label "Remove", in any case, is reserved: Continue's
+chooser uses it, so a placement named so is refused as configuration.
 
 No keys are bound. Suggested bindings:
 
@@ -107,6 +110,9 @@ No keys are bound. Suggested bindings:
 (keymap-global-set "C-c i v" #'org-iw-visit-next)
 (keymap-global-set "C-c i c" #'org-iw-continue)
 (keymap-global-set "C-c i q" #'org-iw-end-session)
+(keymap-global-set "C-c i m" #'org-iw-move)
+(keymap-global-set "C-c i r" #'org-iw-remove)
+(keymap-global-set "C-c i l" #'org-iw-list-queue)
 ```
 
 ## Use
@@ -115,8 +121,11 @@ No keys are bound. Suggested bindings:
 |---|---|
 | `org-iw-add` | Add the heading at point to the end of a queue, whatever its default; with `C-u`, choose the placement, defaulting to the queue's default. |
 | `org-iw-visit-next` | Show the first entry of a queue and start a session on it. |
-| `org-iw-continue` | Put the session's entry back at the queue's default placement and visit the first entry; with `C-u`, choose the placement. |
+| `org-iw-continue` | Put the session's entry back at the queue's default placement and visit the first entry; with `C-u`, choose the placement, or Remove. |
 | `org-iw-end-session` | End the session and remove it from the mode line. |
+| `org-iw-move` | Move the entry at point to a placement in its queue. |
+| `org-iw-remove` | Remove the entry at point from a queue. |
+| `org-iw-list-queue` | Show a queue's entries in order, to reorder or remove them. |
 
 A typical round:
 
@@ -131,6 +140,8 @@ A typical round:
 4. Run `org-iw-continue`. The entry goes back at the default placement,
    which changes at most one `IW_` line, and the first entry is shown.
    Run `C-u M-x org-iw-continue` to pick Soon, Later or End instead.
+   Its last candidate, Remove, takes the entry out of the queue and
+   visits the next one.
 5. Repeat step 4, or run `org-iw-end-session` when done.
 
 With a session running, `org-iw-visit-next` reuses its queue; give it a
@@ -150,10 +161,78 @@ Bound to a key, a placement needs no prompt:
 (keymap-global-set "C-c i s" (lambda () (interactive) (org-iw-continue "Soon")))
 ```
 
+### Moving and removing an entry
+
+`org-iw-move` and `org-iw-remove` act on the heading at point, or on the
+file's document entry before its first heading. The queue is the
+entry's only queue; of several, the session's, if it is one of them;
+else you pick one. `org-iw-move` then asks for a placement label,
+defaulting to the queue's default. Neither visits anything, and the
+session is left as it is.
+
+`org-iw-remove` deletes the entry's `IW_<QUEUE>` line and asks no
+confirmation: undo in the file's buffer brings the line back. The
+heading, its ID and its other queues stay.
+
+An entry can leave a queue in three places:
+
+- `org-iw-remove` at the entry;
+- `D` in the queue view (below), which confirms first;
+- Remove, the last candidate of `C-u M-x org-iw-continue`, which then
+  visits the next entry.
+
+### Removing the session's entry
+
+Removing the entry the session is on, with `org-iw-remove` or `D`,
+leaves the session as it is. The mode line still names the entry, and
+the message says so: run `org-iw-visit-next` to go on, or
+`org-iw-end-session` to stop.
+
+This is on purpose. Undo in the file's buffer restores the entry, and
+the session then works again, Continue included. Ending the session
+would make undo restore the file but not the session.
+
+## Queue view
+
+`M-x org-iw-list-queue` shows a queue in the buffer `*org-iw: NAME*`. The
+queue is the session's; with `C-u`, or without a session, you pick one.
+
+| Column | Shows |
+|---|---|
+| # | the entry's position, 1 first |
+| Title | the heading, links shown as their descriptions |
+| Context | the headings above it, nearest last |
+| File | the file's name |
+
+The session's entry has a `*` after its position and a bold title. A
+marked entry has a `>` before its row.
+
+| Key | Does |
+|---|---|
+| `RET` | Show the entry in another window and start a session on it. |
+| `M-<up>` / `M-<down>` | Move the entry one row up or down. |
+| `m` / `u` | Mark the entry (replacing any mark) / clear the mark. |
+| `b` / `a` | Place the marked entry before / after the entry at point; the mark clears. |
+| `D` | Remove the entry from the queue, after a `y`/`n` confirmation. |
+| `g` | Refresh. |
+| `q` | Quit. |
+| `n` / `p` | Next / previous row. |
+
+`D` confirms because the view has no undo. The file's buffer has: undo
+there, then press `g`.
+
+Every action reads your files afresh, so it acts on what they hold now,
+not on what the rows show. The view itself never refreshes on its own:
+after an edit or an undo in a file, press `g` to see the new order.
+
+No other keys are bound, so your own search and jump commands reach the
+rows.
+
 ### What gets written, and when
 
-- Only `org-iw-add` and `org-iw-continue` write, and each changes at most
-  one `IW_` line. Add may also give the heading a property drawer and an ID.
+- Add, Continue, Move, Remove and the view's actions write. Each changes
+  at most one `IW_` line, and Remove deletes it. Add may also give the
+  heading a property drawer and an ID. Nothing else writes.
 - Writes go through the file's buffer, so undo works.
 - If that buffer was unmodified, it is saved; the message ends `(saved)`.
 - If it already had unsaved changes, it is left unsaved. The message
@@ -170,10 +249,12 @@ heading's ID is shared with another heading, the entry has left the queue,
 there is no session for Continue, or there is no room at the chosen
 placement.
 
-"No room" means the ranks around that placement are used up. Using one
-placement over and over, such as Soon, uses up its gap after about ten
-Continues. Choose another placement for now; the end always has room.
-Automatic rebalancing is planned.
+"No room" means the ranks around that placement are used up, and the
+message names where: at a label, at the end, before or after an entry,
+or at a position. Using one placement over and over, such as Soon, uses
+up its gap after about ten Continues; two entries with equal ranks
+leave no room between them. Placing an entry first, or at the end,
+always has room. Automatic redistribution of ranks is planned.
 
 Malformed or duplicated `IW_` properties and IDs are skipped, not fatal.
 Messages then end with `[N source problems ignored]`.
@@ -188,7 +269,8 @@ control:
 2. Point `org-iw-sources` at them and follow *A typical round* above,
    checking `git diff` after each Add and Continue.
 3. To undo everything, `git checkout` the files. To remove a heading from
-   a queue by hand, delete its `IW_<QUEUE>` line.
+   a queue, run `org-iw-remove` on it, or delete its `IW_<QUEUE>` line by
+   hand.
 
 ## Development
 

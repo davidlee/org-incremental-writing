@@ -592,30 +592,34 @@ The delete expects ENTRY's scanned rank.  Return the result of
   (org-iw-write-delete-rank (org-iw--entry-marker scan entry) queue
                             :expected (org-iw-core-rank entry queue)))
 
-(defun org-iw--move (scan order entry queue placement where)
+(defun org-iw--move (scan order entry queue placement &optional where)
   "Move ENTRY, an element of ORDER, to PLACEMENT in QUEUE.
 ORDER is QUEUE's members in SCAN, and QUEUE a canonical queue ID.
 Return (unchanged DEPTH), writing nothing, or (moved DEPTH STATUS)
 after writing ENTRY's new rank against its scanned rank; DEPTH is
 ENTRY's index in the new order and STATUS the result of
 `org-iw-write-put-rank'.  Refuse if there is no room at PLACEMENT,
-WHERE being its text, with its preposition."
+WHERE being its text, with its preposition; without WHERE, the text
+is the position ENTRY would take, as \"at position 2/3\"."
   (pcase (org-iw-core-place order entry queue placement)
-    (`(no-gap ,_) (org-iw--refuse-no-room where (org-iw--queue-name queue)))
+    (`(no-gap ,depth)
+     (org-iw--refuse-no-room
+      (or where (format "at position %d/%d" (1+ depth) (length order)))
+      (org-iw--queue-name queue)))
     (`(unchanged ,depth) (list 'unchanged depth))
     (`(moved ,depth ,rank)
      (list 'moved depth (org-iw--put-rank scan entry queue rank)))))
 
 (defun org-iw--moved-text (result title where total)
   "Return the text reporting RESULT of `org-iw--move' for the entry TITLE.
-WHERE names the placement, as \"Soon\" or \"Soon in ESSAYS\", and TOTAL
-is the number of the queue's members."
-  (pcase result
-    (`(unchanged ,depth)
-     (format "%s already at %s, %d/%d" title where (1+ depth) total))
-    (`(moved ,depth ,status)
-     (format "Moved %s to %s, %d/%d %s" title where (1+ depth) total
-             (org-iw--save-status status)))))
+WHERE names the placement, as \"Soon\" or \"Soon in ESSAYS\", or is nil
+to give only the position.  TOTAL is the number of the queue's members."
+  (pcase-let* ((`(,outcome ,depth ,status) result)
+               (at (format "%s%d/%d" (if where (concat where ", ") "")
+                           (1+ depth) total)))
+    (if (eq outcome 'moved)
+        (format "Moved %s to %s %s" title at (org-iw--save-status status))
+      (format "%s already at %s" title at))))
 
 (defun org-iw--continue-place (scan order entry queue choice)
   "Move ENTRY, of ORDER, to the placement CHOICE in QUEUE; visit the head.
@@ -872,17 +876,25 @@ too wide, its right end is kept, so that the nearest stay visible."
 (defvar-keymap org-iw-view-mode-map
   :doc "Keymap for `org-iw-view-mode'."
   :parent tabulated-list-mode-map
-  "RET" #'org-iw-view-open)
+  "RET" #'org-iw-view-open
+  "M-<up>" #'org-iw-view-move-up
+  "M-<down>" #'org-iw-view-move-down
+  "m" #'org-iw-view-mark
+  "u" #'org-iw-view-unmark
+  "b" #'org-iw-view-place-before
+  "a" #'org-iw-view-place-after
+  "D" #'org-iw-view-remove)
 
 (define-derived-mode org-iw-view-mode tabulated-list-mode "IW Queue"
   "Major mode for the view of one queue, its entries listed in order.
 Each row shows the entry's position, title, outline context and file;
-the session's entry is starred.
+the session's entry is starred, and the marked entry tagged \">\".
 
 \\{org-iw-view-mode-map}"
   (setq tabulated-list-format
         `[("#" 5 nil :right-align t) ("Title" 40 nil)
           ("Context" ,org-iw--view-context-width nil) ("File" 0 nil)])
+  (setq tabulated-list-padding 2)
   (setq-local revert-buffer-function #'org-iw--view-revert)
   (tabulated-list-init-header))
 
@@ -890,6 +902,10 @@ the session's entry is starred.
   "The canonical ID of the queue the view buffer shows.
 It survives turning the mode on again.")
 (put 'org-iw--view-queue 'permanent-local t)
+
+(defvar-local org-iw--view-mark nil
+  "The ID of the view's marked entry, or nil.
+It is display state, tagged on the entry's row.")
 
 (defun org-iw--view-buffer (queue)
   "Return the view buffer of QUEUE, a canonical queue ID, making it if need be.
@@ -923,14 +939,34 @@ its title bold.  The row is (ID [ORDINAL TITLE CONTEXT FILE]), as in
   "Return the title on the view row of the entry ID, as plain text."
   (substring-no-properties (aref (cadr (assoc id tabulated-list-entries)) 1)))
 
+(defun org-iw--view-row-position (id)
+  "Return the start of the view row of the entry ID, or nil if not listed."
+  (and id
+       (save-excursion
+         (goto-char (point-min))
+         (when-let* ((match (text-property-search-forward
+                             'tabulated-list-id id t)))
+           (prop-match-beginning match)))))
+
+(defun org-iw--view-set-mark (id)
+  "Mark the entry ID in the view, or clear the mark if ID is nil.
+The old mark's row is untagged and ID's row, if listed, tagged."
+  (dolist (tagging `((,org-iw--view-mark . "") (,id . ">")))
+    (when-let* ((position (org-iw--view-row-position (car tagging))))
+      (save-excursion
+        (goto-char position)
+        (tabulated-list-put-tag (cdr tagging)))))
+  (setq org-iw--view-mark id))
+
 (defun org-iw--view-redraw (scan &optional goto-id)
   "Show the members of the view's queue in SCAN in the current buffer.
 Point goes to the row of the entry GOTO-ID, if given and listed, else
 stays on the row it was on, found by ID.  If that entry is gone, point
 stays on the same line, or goes to the last row when fewer remain.
-Then every window showing the buffer is given the buffer's point:
-printing erases the buffer, which resets the point of a window that is
-not selected."
+The marked entry's row is tagged again, or the mark cleared if the
+entry is not listed.  Then every window showing the buffer is given
+the buffer's point: printing erases the buffer, which resets the point
+of a window that is not selected."
   (let ((id (tabulated-list-get-id))
         (line (line-number-at-pos)))
     (setq tabulated-list-entries
@@ -941,15 +977,13 @@ not selected."
                                 org-iw--view-queue (org-iw-entry-id entry))))
            (org-iw--order scan org-iw--view-queue)))
     (tabulated-list-print t)
-    (if-let* ((goto-id)
-              (match (save-excursion
-                       (goto-char (point-min))
-                       (text-property-search-forward 'tabulated-list-id
-                                                     goto-id t))))
-        (goto-char (prop-match-beginning match))
+    (if-let* ((position (org-iw--view-row-position goto-id)))
+        (goto-char position)
       (unless (equal (tabulated-list-get-id) id)
         (goto-char (point-min))
-        (forward-line (1- (min line (length tabulated-list-entries)))))))
+        (forward-line (1- (min line (length tabulated-list-entries))))))
+    (org-iw--view-set-mark
+     (car (assoc org-iw--view-mark tabulated-list-entries))))
   (dolist (window (get-buffer-window-list nil nil t))
     (set-window-point window (point))))
 
@@ -978,6 +1012,30 @@ shows no queue.  Return the message shown."
   (or (tabulated-list-get-id)
       (org-iw-core-refuse "no entry at point")))
 
+(defun org-iw--view-entry (scan order id)
+  "Return the entry ID of ORDER, the view's queue's members in SCAN.
+Refuse if it is not there, naming it by its title on the view row."
+  (or (org-iw--find-entry order id)
+      (org-iw--refuse-absent scan org-iw--view-queue id
+                             (org-iw--view-title id))))
+
+(defun org-iw--view-after-write (scan id text)
+  "Redraw the view from a fresh scan, point on the entry ID; report TEXT.
+TEXT reports an action taken against SCAN, whose problems it notes.
+Return the message shown."
+  (org-iw--view-redraw (org-iw--scan) id)
+  (org-iw--report scan "%s" text))
+
+(defun org-iw--view-move (scan order entry placement &optional where)
+  "Move ENTRY, of ORDER, to PLACEMENT in the view's queue; redraw on it.
+ORDER is the queue's members in SCAN.  WHERE is the placement's text
+for a refusal, as for `org-iw--move'.  Return the message shown."
+  (org-iw--view-after-write
+   scan (org-iw-entry-id entry)
+   (org-iw--moved-text (org-iw--move scan order entry org-iw--view-queue
+                                     placement where)
+                       (org-iw-entry-title entry) nil (length order))))
+
 (defun org-iw-view-open ()
   "Visit the entry at point in another window and make it the session's.
 The entry is found afresh, and its position counted, in a new scan,
@@ -991,13 +1049,124 @@ Return the message shown."
          (queue org-iw--view-queue)
          (scan (org-iw--scan))
          (order (org-iw--order scan queue))
-         (entry (or (org-iw--find-entry order id)
-                    (org-iw--refuse-absent
-                     scan queue id (org-iw--view-title id)))))
+         (entry (org-iw--view-entry scan order id)))
     (prog1 (org-iw--visit scan entry queue (1+ (cl-position entry order))
                           (length order) t)
       (with-current-buffer view
         (org-iw--view-redraw scan id)))))
+
+(defun org-iw--view-step (delta)
+  "Move the entry at point DELTA rows along the view's queue.
+The entry is found, and moved, in a fresh scan.  Return the message
+shown."
+  (let* ((id (org-iw--view-id-at-point))
+         (scan (org-iw--scan))
+         (order (org-iw--order scan org-iw--view-queue))
+         (entry (org-iw--view-entry scan order id)))
+    (org-iw--view-move scan order entry (org-iw-core-step order entry delta))))
+
+(defun org-iw-view-mark ()
+  "Mark the entry at point, replacing any mark; its row is tagged.
+The marked entry is what `org-iw-view-place-before' and
+`org-iw-view-place-after' place.  Nothing is scanned or written.
+Refuses off a row.  For interactive use only.
+
+Return nil: the tag is the feedback, and no message is shown."
+  (interactive)
+  (org-iw--view-set-mark (org-iw--view-id-at-point))
+  nil)
+
+(defun org-iw-view-unmark ()
+  "Clear the view's mark, whichever row holds it.
+Refuses off a row.  For interactive use only.
+
+Return nil: no message is shown."
+  (interactive)
+  (org-iw--view-id-at-point)
+  (org-iw--view-set-mark nil)
+  nil)
+
+(defun org-iw--view-place (side)
+  "Place the marked entry on SIDE of the entry at point.
+SIDE is `before' or `after'.  Both entries are found, and the marked
+one moved, in a fresh scan.  The mark clears unless this refuses.
+Return the message shown."
+  (let* ((id (org-iw--view-id-at-point))
+         (marked-id (or org-iw--view-mark
+                        (org-iw-core-refuse "no marked entry; mark one with m")))
+         (scan (org-iw--scan))
+         (order (org-iw--order scan org-iw--view-queue))
+         (marked (org-iw--view-entry scan order marked-id))
+         (anchor (org-iw--view-entry scan order id)))
+    (prog1 (org-iw--view-move scan order marked
+                              (org-iw-core-beside order marked anchor side)
+                              (format "%s %s" side (org-iw-entry-title anchor)))
+      (org-iw--view-set-mark nil))))
+
+(defun org-iw-view-place-before ()
+  "Place the marked entry just before the entry at point; clear the mark.
+Point follows the marked entry.  If it is there already, nothing is
+written.  Refuses off a row, without a mark, if either entry has left
+the queue, or if there is no room; a refusal keeps the mark.
+For interactive use only.
+
+Return the message shown."
+  (interactive)
+  (org-iw--view-place 'before))
+
+(defun org-iw-view-place-after ()
+  "Place the marked entry just after the entry at point; clear the mark.
+Point follows the marked entry.  If it is there already, nothing is
+written.  Refuses off a row, without a mark, if either entry has left
+the queue, or if there is no room; a refusal keeps the mark.
+For interactive use only.
+
+Return the message shown."
+  (interactive)
+  (org-iw--view-place 'after))
+
+(defun org-iw-view-remove ()
+  "Remove the entry at point from the view's queue, after confirming.
+The entry is found, and its IW line deleted, in a fresh scan; the
+view has no undo, but the entry's buffer has.  Point goes to the next
+row, else to the previous one.  Answered no, nothing changes.  Refuses
+off a row, or, before confirming, if the entry has left the queue.
+For interactive use only.
+
+Return the message shown, or nil if not confirmed."
+  (interactive)
+  (let* ((id (org-iw--view-id-at-point))
+         (queue org-iw--view-queue)
+         (scan (org-iw--scan))
+         (order (org-iw--order scan queue))
+         (entry (org-iw--view-entry scan order id)))
+    (when (y-or-n-p (format "Remove %s from %s? " (org-iw-entry-title entry)
+                            (org-iw--queue-name queue)))
+      (let ((ids (mapcar #'car tabulated-list-entries)))
+        (org-iw--view-after-write
+         scan (or (cadr (member id ids)) (cadr (member id (reverse ids))))
+         (org-iw--removed-text entry queue
+                               (org-iw--delete-rank scan entry queue)))))))
+
+(defun org-iw-view-move-up ()
+  "Move the entry at point up one row, writing its new rank.
+Point follows the entry.  At the front, nothing is written.  Refuses
+off a row, if the entry has left the queue, or if there is no room.
+For interactive use only.
+
+Return the message shown."
+  (interactive)
+  (org-iw--view-step -1))
+
+(defun org-iw-view-move-down ()
+  "Move the entry at point down one row, writing its new rank.
+Point follows the entry.  At the end, nothing is written.  Refuses off
+a row, if the entry has left the queue, or if there is no room.
+For interactive use only.
+
+Return the message shown."
+  (interactive)
+  (org-iw--view-step 1))
 
 ;;;###autoload
 (defun org-iw-list-queue (queue)
