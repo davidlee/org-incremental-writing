@@ -1,0 +1,187 @@
+id    = 9
+slug  = "code-review-of-sl-003-phase-07"
+title = "code-review of SL-003 PHASE-07"
+# no status — a review's status is DERIVED from its findings, so
+# it is never stored (the storage rule forbids derived data in authored files).
+
+[review]
+facet     = "code-review"     # scope|design|plan|phase-plan|implementation|code-review|reconciliation
+raiser    = "reviewer"
+responder = "seat"
+rounds_base = 0
+contests_base = 0
+concluded = true
+
+[[review.turn]]
+act = "conclude"
+role = "raiser"
+note = "Diff 7f86726..4f212ee (org-iw.el, tests, README): architecture review by execution, test review with a 36-mutant pass, sonnet verification of all seven candidates (one moved to IMP-007 as pre-existing); fixes reviewed in 409272b, gate re-run by the seat."
+
+[target]                   # the outbound `reviews` edge: RV-NNN ──reviews──▶ <ref>
+ref   = "SL-003"
+phase = "PHASE-07"
+
+[[finding]]
+id = "F-1"
+status = "verified"
+severity = "minor"
+title = "The mark's tag should show on every reprint; tabulated-list's inherited { and } erase it while b/a still act on the mark"
+detail = """
+Expected (design § 5.3, DEC-019): the mark is UI state shown as a tabulated-list tag; tag and org-iw--view-mark agree, so b/a never act on a mark the user cannot see.
+Observed: org-iw-view-mode-map inherits tabulated-list-mode-map, whose { and } (tabulated-list-narrow/widen-current-column) call (tabulated-list-print t). That reprint drops the padding tag; org-iw--view-mark is untouched. --view-set-mark (org-iw.el:951-959) writes the tag and only --view-redraw (org-iw.el:985-986) re-tags. Same failure as RV-005 F-2 via another reprint path.
+Proof (architecture reviewer, verifier re-ran): m on b1, call-interactively tabulated-list-widen-current-column -> tags ((("b1" . ">"))) -> nil, mark var "b1"; b on a1 -> "Moved B to 1/3 (saved)".
+Fix: a buffer-local tabulated-list-printer that prints the entry then draws ">" when the row ID equals org-iw--view-mark, so every reprint shows the tag; --view-redraw then only clears a mark whose entry is gone. Test: } then assert --view-tags. Columns are unsortable (nil), so S/header sort is not a second path."""
+disposition = "fix-now"
+response = "Fix now: draw the tag from a buffer-local tabulated-list-printer keyed on org-iw--view-mark; --view-redraw only clears a gone mark; test } keeps the tag."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Fix now: draw the tag from a buffer-local tabulated-list-printer keyed on org-iw--view-mark; --view-redraw only clears a gone mark; test } keeps the tag."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "409272b: tabulated-list-printer org-iw--view-print-row; org-iw--view-tag-row sole tag owner; view-mark-survives-reprint red on old code; EX-4 control re-run fails both tests with the printer reduced. Gate 329/329 on 31.1 and 30.2 (seat re-ran)."
+
+[[finding]]
+id = "F-2"
+status = "verified"
+severity = "minor"
+title = "A test should pin where D puts point when rows are stale; two mutants of the GOTO-ID survive"
+detail = """
+Expected (design § 5.4 Remove): redraw with GOTO-ID = the next row's ID (else the previous), taken from the rows before the redraw.
+Observed: org-iw-view-remove's (or (cadr (member id ids)) (cadr (member id (reverse ids)))) is untested where it matters: on fresh rows --view-redraw's same-line fallback lands on the same row. Mutants nil GOTO-ID and ids-from-scan-order both pass 326/326 (test reviewer; verifier confirmed).
+Fix: add org-iw-cmd-test-view-remove-stale-goes-to-next-row: stale view rows B C A, truth A B C; D on c1 answered yes -> rows (a1 b1), point on a1. Passes on real code, kills both mutants."""
+disposition = "fix-now"
+response = "Fix now: add the stale-row D probe test."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Fix now: add the stale-row D probe test."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = '409272b: view-remove-stale-goes-to-next-row; both GOTO-ID mutants fail with (equal "b1" "a1").'
+
+[[finding]]
+id = "F-3"
+status = "verified"
+severity = "minor"
+title = "A test should pin that the mark belongs to its view; making org-iw--view-mark global survives"
+detail = """
+Expected (design § 5.2: org-iw--view-mark is buffer-local UI state): a mark in one queue's view is unaffected by another view.
+Observed: every mark test uses one view; mutant defvar-local -> defvar passes 326/326. With a global mark, showing another queue's view clears this view's mark (its redraw finds no entry for the ID).
+Fix: add org-iw-cmd-test-view-mark-is-per-view: mark c1 in ESSAYS, show DRAFTS, restore ESSAYS to the window (set-window-buffer), assert tags (("c1" . ">")) and place-before on a1 -> "Moved C to 1/3 (saved)". Verifier: passes on real code, kills the mutant."""
+disposition = "fix-now"
+response = "Fix now: add the per-view mark probe test."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Fix now: add the per-view mark probe test."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "409272b: view-mark-is-per-view; defvar mutant fails with no-marked-entry refusal."
+
+[[finding]]
+id = "F-4"
+status = "verified"
+severity = "nit"
+title = "View commands should share one fresh-state helper; four repeat id/scan/order/entry bindings"
+detail = """
+Expected (POL-002, DRY): one owner for 'row ID, fresh scan, the queue's order, entry found or refused'.
+Observed: org-iw-view-open (org-iw.el:1047), --view-step (1058), --view-place (1094), org-iw-view-remove (1137) each bind id, scan, (org-iw--order scan queue) and (org-iw--view-entry ...); open and remove bind a local queue, step and place read org-iw--view-queue. --view-entry already owns find-or-refuse.
+Fix: one helper (e.g. returning (SCAN ORDER) for the view's queue) used via pcase-let; use the queue binding consistently."""
+disposition = "fix-now"
+response = "Fix now (POL-002): one fresh-state helper for the four view commands."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Fix now (POL-002): one fresh-state helper for the four view commands."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "409272b: org-iw--view-rescan replaces the prelude in all four commands and absorbs --view-entry; queue read from org-iw--view-queue throughout."
+
+[[finding]]
+id = "F-5"
+status = "verified"
+severity = "nit"
+title = "org-iw--view-after-write should be named for what it does; it also runs when nothing was written"
+detail = """
+Expected: the name states the behaviour.
+Observed: org-iw--view-after-write (org-iw.el:1022-1027) rescans, redraws and reports; --view-move calls it for unchanged as well as moved (up/down at an end, adjacent b/a), where nothing is written.
+Fix: rename, e.g. org-iw--view-redraw-and-report."""
+disposition = "fix-now"
+response = "Fix now: rename to describe rescan-redraw-report."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Fix now: rename to describe rescan-redraw-report."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "409272b: renamed org-iw--view-redraw-and-report."
+
+[[finding]]
+id = "F-6"
+status = "verified"
+severity = "nit"
+title = "README's Queue view section should match the shipped behaviour; two claims are too broad"
+detail = """
+Expected: README accurate against design § 5.4.
+Observed: README.md:224 'Every action reads your files afresh' - m and u do not scan (§ 5.4 'Neither rescans'). README.md:228 'No other keys are bound' - the view inherits tabulated-list/special-mode keys ({, }, S, <, >, h, ?).
+Fix: 'every action that moves or removes reads your files afresh'; 'org-iw binds no other keys'."""
+disposition = "fix-now"
+response = "Fix now: narrow both README claims."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Fix now: narrow both README claims."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "409272b: README narrowed; 'opens, moves or removes' (RET rescans too) and 'org-iw binds no other keys'."
+# Findings are append-only `[[finding]]` tables, added by `review raise`.
+# Empty here at creation — a fresh review is Active, awaiting the raiser.

@@ -310,3 +310,13 @@ User reply: "1. agreed 2. accept. go ahead."
 - All 13 RV-007 findings fixed in 136fe79 (309 tests); RV-007 done.
   F-3 deviation: the fixture fails a test at the moment it would reuse
   an outside view of the same queue, rather than refusing to start.
+
+## RV-009 (2026-10-04)
+
+Code review of PHASE-07: 6 findings (3 minor, 3 nit), all fixed in 409272b
+and verified. For reconciliation: § 5.2's `--view-redraw` comment says it
+"re-tags the mark"; since F-1 the tag is drawn by the view's
+`tabulated-list-printer` (`org-iw--view-print-row`) on every reprint, and
+`--view-redraw` only clears a mark whose entry is gone. Same behaviour,
+different owner. `--view-entry` was absorbed into `--view-rescan` (F-4).
+Out of scope: IMP-007 (prompt recorder ignores unused answers).
