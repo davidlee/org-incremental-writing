@@ -1,0 +1,18 @@
+schema = "doctrine.observation"
+schema_version = 1
+uid = "01a104dc-488a-7b03-a81b-3906b2349d85"
+recorded_at = "2026-10-04T03:01:47.786739072Z"
+kind = "friction"
+summary = 'Sheet R4 wrong: undo to saved state leaves buffer unmodified; ERT selector via --eval needs \\| for alternation'
+detail = "SL-003 PHASE-07 worker: the planner predicted a modified buffer after undo, but undo back to the saved state returns it unmodified, so the stale-row D test saves. A first ERT run with a single-backslash alternation in --eval silently selected 0 tests."
+
+[facets.execution]
+schema_version = 1
+interface = "cli"
+interface_origin = "automatic"
+product_surface = "doctrine"
+product_surface_origin = "automatic"
+command = "observation record"
+command_origin = "automatic"
+repository_context = "primary"
+repository_context_origin = "automatic"
