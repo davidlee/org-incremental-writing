@@ -221,12 +221,13 @@ marked entry has a `>` before its row.
 `D` confirms because the view has no undo. The file's buffer has: undo
 there, then press `g`.
 
-Every action reads your files afresh, so it acts on what they hold now,
-not on what the rows show. The view itself never refreshes on its own:
-after an edit or an undo in a file, press `g` to see the new order.
+Every action that opens, moves or removes an entry reads your files
+afresh, so it acts on what they hold now, not on what the rows show. The
+view itself never refreshes on its own: after an edit or an undo in a
+file, press `g` to see the new order.
 
-No other keys are bound, so your own search and jump commands reach the
-rows.
+org-iw binds no other keys, so your own search and jump commands reach
+the rows.
 
 ### What gets written, and when
 

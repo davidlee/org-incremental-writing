@@ -3101,6 +3101,15 @@ again after re-tagging erases the tag but keeps the variable."
       (should (eq (current-buffer) view))
       (should (equal (org-iw-cmd-test--view-tags view) '(("c1" . ">")))))))
 
+(ert-deftest org-iw-cmd-test-view-mark-survives-reprint ()
+  "The mark's tag survives tabulated-list's own reprints, as by }.
+So b and a act only on a mark the user can see."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (let ((view (org-iw-cmd-test--view "ESSAYS")))
+      (org-iw-cmd-test--mark-row "b1")
+      (call-interactively #'tabulated-list-widen-current-column)
+      (should (equal (org-iw-cmd-test--view-tags view) '(("b1" . ">")))))))
+
 (ert-deftest org-iw-cmd-test-view-mark-cleared-when-entry-leaves ()
   "A refresh clears the mark when its entry has left the queue."
   (org-iw-test-with-corpus org-iw-cmd-test--queue
@@ -3145,6 +3154,19 @@ Point follows the marked entry, and the mark clears."
       (should (equal (org-iw-cmd-test--should-move
                       #'org-iw-view-place-after "a.org" 1024 4096)
                      "Moved A to 3/3 (saved)")))))
+
+(ert-deftest org-iw-cmd-test-view-mark-is-per-view ()
+  "Each view keeps its own mark: showing another queue leaves it."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (let ((view (org-iw-cmd-test--view "ESSAYS")))
+      (org-iw-cmd-test--mark-row "c1")
+      (org-iw-cmd-test--view "DRAFTS")
+      (set-window-buffer (selected-window) view)
+      (with-current-buffer view
+        (should (equal (org-iw-cmd-test--view-tags view) '(("c1" . ">"))))
+        (org-iw-cmd-test--goto-row "a1")
+        (should (equal (org-iw-view-place-before)
+                       "Moved C to 1/3 (saved)"))))))
 
 (ert-deftest org-iw-cmd-test-view-place-adjacent ()
   "Placing the marked entry where it is writes nothing; the mark clears.
@@ -3309,6 +3331,18 @@ The rows are stale: A is first in truth.  Return the view."
       (should (equal (org-iw-cmd-test--should-delete
                       #'org-iw-view-remove "a.org" ":IW_ESSAYS: 1024")
                      "Removed A from ESSAYS (saved)")))))
+
+(ert-deftest org-iw-cmd-test-view-remove-stale-goes-to-next-row ()
+  "D on a stale row puts point on the next row shown, not the next scanned.
+The rows show B C A; in truth the order is A B C.  Removing C, point
+goes to A."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (let ((view (org-iw-cmd-test--stale-view)))
+      (org-iw-cmd-test--goto-row "c1")
+      (org-iw-cmd-test--with-prompt :yes
+        (org-iw-view-remove))
+      (should (equal (org-iw-cmd-test--view-ids view) '("a1" "b1")))
+      (should (equal (tabulated-list-get-id) "a1")))))
 
 (ert-deftest org-iw-cmd-test-view-actions-refuse-off-row ()
   "Each view action refuses off a row: in an empty view, or past the rows.
