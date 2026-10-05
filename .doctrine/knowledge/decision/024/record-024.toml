@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 24
+slug = "batch-add-selects-dired-marks-or-a-prompted-filedirectory"
+title = "Batch add selects dired marks or a prompted file/directory"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-05"
+updated = "2026-10-05"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "REQ-012: enrol a selected set of Org files at document level, in canonical path order."
+choice = "org-iw-add-files (QUEUE FILES). Interactively, in dired it takes dired-get-marked-files (dired's no-mark-means-file-at-point rule); elsewhere it reads a file or directory. Directories expand by the org-iw-sources rules and the whole set is put in canonical order by org-iw-discovery-files. A selected file outside org-iw-sources, or whose buffer would not be in Org mode, is a reported failure; the others proceed."
+alternatives = ["read-file-name with a wildcard", "completing-read-multiple over source files", "only dired"]
+rationale = "Dired is the natural multi-select surface; a directory prompt covers the journal case; reusing org-iw-discovery-files keeps one definition of file selection and order."
+consequences = ["Lisp callers pass a list of files and directories"]
+decided_by = "user"
+decided_on = "2026-10-05"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-004"

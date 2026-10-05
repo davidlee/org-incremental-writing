@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 22
+slug = "document-write-target-is-explicit-the-write-inserts-a-missing-file-level-drawer"
+title = "Document write target is explicit; the write inserts a missing file-level drawer"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-05"
+updated = "2026-10-05"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "research T2-2: when a file starts with a heading, point-min is that heading, so writing at point-min enrols the heading. A marker at point-min cannot say 'document'. Add's pre-write readers (ID, queue lines, drawer shape) read at point-min too."
+choice = "org-iw-write-put-rank takes :document t for a document target, whose marker must be the base buffer's widened point-min. When the file has no document slot (point-min is a heading), the preflight treats the document as having no IW_ lines and no unrecognised drawer, and the atomic edit inserts an empty :PROPERTIES:/:END: drawer at point-min without moving point, then the ID (at the document) and rank. One public discovery predicate, org-iw-discovery-document-slot-p, says whether point-min holds the document's entry; a slotless document has no file-level :ID: and no memberships, and its identity is its Denote filename identifier or none (DEC-021). org-iw-write-delete-rank lets a document's emptied drawer go with its last line; for headings the drawer must survive. Amended 2026-10-05 (RV-012 F-1, F-2, F-4, F-6, user 'yes')."
+alternatives = ["a target struct (kind + marker) threaded through discovery readers", "insert the drawer before the preflight (dirties the buffer on refusal and no-op)"]
+rationale = "Keeps the marker convention for every existing caller; the only ambiguous case is creation, which only Add performs."
+consequences = ["Add, add-document and batch add pass :document t for document targets", "Undo of a document add removes the inserted drawer with the line"]
+decided_by = "user"
+decided_on = "2026-10-05"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-004"

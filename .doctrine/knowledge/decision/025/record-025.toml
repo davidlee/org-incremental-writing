@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 25
+slug = "batch-add-appends-only"
+title = "Batch add appends only"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-05"
+updated = "2026-10-05"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "REQ-012: 'appended as a batch by default'."
+choice = "Batch add appends in canonical order: each file's rank comes from the core's end allocation over the queue's order extended by the files already added in this batch. No placement prompt."
+alternatives = ["a placement for the whole batch (contiguous block at a depth; can exhaust a gap N times faster)"]
+rationale = "Covers the journal use; the default is all REQ-012 requires."
+consequences = ["A later placement option can reuse the same per-file loop"]
+decided_by = "user"
+decided_on = "2026-10-05"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-004"

@@ -1,0 +1,39 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 23
+slug = "explicit-document-enrolment-is-org-iw-add-document"
+title = "Explicit document enrolment is org-iw-add-document"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-05"
+updated = "2026-10-05"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "REQ-011: an explicit command/prefix enrols the document from anywhere. DEC-011 gave Add's prefix argument to the placement prompt."
+choice = "A new command org-iw-add-document enrols the current buffer's document, sharing Add's implementation; its prefix argument reads a placement exactly as Add's does. org-iw-add before the first heading enrols the document; the 'document targets are not yet supported' refusal is deleted."
+alternatives = ["C-u C-u on org-iw-add", "a numeric prefix meaning document"]
+rationale = "One command per action (DEC-011); no overloaded prefix."
+consequences = ["README and docstrings name both commands"]
+decided_by = "user"
+decided_on = "2026-10-05"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "references"
+role = "concerns"
+descriptor = "Add-document reuses DEC-011's prefix surface"
+target = "DEC-011"
+
+[[relation]]
+label = "shapes"
+target = "SL-004"

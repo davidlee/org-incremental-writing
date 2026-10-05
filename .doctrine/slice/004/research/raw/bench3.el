@@ -1,0 +1,12 @@
+;;; -*- lexical-binding: t -*-
+(add-to-list 'load-path "/workspace/org-incremental-writing")
+(require 'org-iw-discovery)
+(defmacro tm (label &rest body)
+  `(let ((t0 (float-time)))
+     (prog1 (progn ,@body)
+       (princ (format "%-40s %.3fs\n" ,label (- (float-time) t0))))))
+(let ((files (org-iw-discovery-files (list "/tmp/iw/j") nil)))
+  (tm "file-attributes x3000" (dolist (f files) (file-attribute-modification-time (file-attributes f))))
+  (tm "find-buffer-visiting x3000" (dolist (f files) (find-buffer-visiting f)))
+  (let ((gc-cons-threshold (* 256 1024 1024)))
+    (tm "scan, all members, big gc threshold" (org-iw-discovery-scan files))))

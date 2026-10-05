@@ -5,17 +5,17 @@ id = 2
 slug = "should-denotes-identifier-serve-as-entry-identity-instead-of-an-org-id"
 title = "Should Denote's identifier serve as entry identity instead of an Org ID?"
 record_kind = "question"
-status = "open"
+status = "answered"
 created = "2026-10-02"
-updated = "2026-10-02"
+updated = "2026-10-05"
 tags = []
 
 [facet]                         # every field typed; seeded empty (captured later)
 question    = ""
 why_matters = ""
-answer      = ""
-answered_by = ""
-answered_on = ""
+answer = "DEC-021 (SL-004 design, 2026-10-05, amended per RV-012 F-3): a document's identity is its file-level :ID:, else, when Denote is available (soft-loaded) and denote-file-has-denoted-filename-p accepts the file name, denote-retrieve-filename-identifier; else Add inserts an :ID:. #+identifier: is never read. Headings keep :ID:."
+answered_by = "user"
+answered_on = "2026-10-05"
 
 [evidence]                      # free-text citations (supports / contradicts / notes)
 supports    = []

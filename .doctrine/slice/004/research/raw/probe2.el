@@ -1,0 +1,20 @@
+;;; -*- lexical-binding: t -*-
+(require 'org) (require 'org-id)
+(setq org-id-locations-file "/tmp/iw/ids")
+(let ((f (make-temp-file "iw" nil ".org" "* H1\nbody\n")))
+  (with-current-buffer (find-file-noselect f)
+    (goto-char (point-min))
+    (insert ":PROPERTIES:\n:END:\n")
+    (princ (format "before-first-heading at min: %s block: %S\n"
+                   (org-with-point-at (point-min) (org-before-first-heading-p))
+                   (org-with-point-at (point-min) (org-get-property-block))))
+    (org-with-point-at (point-min) (org-id-get-create))
+    (org-entry-put (point-min) "IW_J" "1024")
+    (princ (format "%s\nheading props: %S\n" (buffer-string)
+                   (save-excursion (goto-char (point-min)) (outline-next-heading)
+                                   (org-entry-get nil "ID"))))))
+(let ((f (make-temp-file "iw" nil ".org" "#+title: T\n:PROPERTIES:\n:ID: x\n:END:\n")))
+  (with-current-buffer (find-file-noselect f)
+    (princ (format "drawer after title: block %S id %S\n"
+                   (org-with-point-at (point-min) (org-get-property-block))
+                   (org-entry-get (point-min) "ID")))))

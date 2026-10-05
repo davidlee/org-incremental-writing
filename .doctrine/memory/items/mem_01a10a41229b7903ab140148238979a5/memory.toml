@@ -1,0 +1,42 @@
+memory_uid = "mem_01a10a41229b7903ab140148238979a5"
+memory_key = "mem.fact.emacs.denote-api-and-test-emacsen"
+schema_version = 1
+memory_type = "fact"
+status = "active"
+title = "Denote 4.x API sharp edges; test Emacsen differ on Denote"
+summary = "denote-filename-is-note-p is an obsolete alias; 31's -Q has Denote, 30's doesn't"
+created = "2026-10-05"
+updated = "2026-10-05"
+
+[scope]
+paths = []
+globs = []
+commands = []
+tags = ["emacs", "denote", "testing"]
+workspace = "default"
+repo = "github.com/davidlee/org-incremental-writing"
+repo_id_kind = "remote"
+repo_id_confidence = "high"
+
+[git]
+anchor_kind = "checkout_state"
+commit = ""
+tree = "d2ca4ce271b140edbdbf2e8c0e5eab1ef5f86442"
+ref_name = "refs/heads/main"
+checkout_state_id = "7c4b24dd51983c5351b742441039525bdb2fc3470ce870b7cef41a9edb6ac8f1"
+base_commit = "33fdff00e411374c133b1704d9bff2b9089fc4cb"
+verified_sha = ""
+normalizer = "forget.checkout.v1"
+
+[review]
+verification_state = "unverified"
+reviewed = ""
+review_by = ""
+
+[trust]
+trust_level = "medium"
+
+[ranking]
+severity = "none"
+weight = 0
+

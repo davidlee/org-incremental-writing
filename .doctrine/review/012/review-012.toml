@@ -1,0 +1,372 @@
+id    = 12
+slug  = "design-review-of-sl-004"
+title = "design review of SL-004"
+# no status — a review's status is DERIVED from its findings, so
+# it is never stored (the storage rule forbids derived data in authored files).
+
+[review]
+facet     = "design"     # scope|design|plan|phase-plan|implementation|code-review|reconciliation
+raiser    = "raiser"
+responder = "responder"
+rounds_base = 0
+contests_base = 0
+concluded = true
+
+[[review.turn]]
+act = "conclude"
+role = "raiser"
+note = "Adversarial pass by a fresh-context general-purpose subagent over design.md, research, code and Denote 4.2.3, with probes on Emacs 30/31; 13 findings, then a re-verification pass adding F-14; all 14 fixed or tolerated and verified."
+
+[target]                   # the outbound `reviews` edge: RV-NNN ──reviews──▶ <ref>
+ref   = "SL-004"
+
+[[finding]]
+id = "F-1"
+status = "verified"
+severity = "blocker"
+title = "F-1 Denote document can't leave its last queue"
+detail = "org-iw-write-delete-rank refuses when the deletion empties the drawer (org-iw-write.el:146-166); a Denote note's drawer holds only IW_ lines (I2), so Remove / Continue→Remove fail with 'IW_J not deleted alone'. Probe /tmp/p/f.el."
+disposition = "fix-now"
+route = "review"
+response = "Design § 5.2 delete-rank rule: a document's emptied drawer goes; headings keep the guard; I7; § 9 Remove/Continue→Remove and undo tests. DEC-022 amended (user 'yes')."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+route = "review"
+response = "Design § 5.2 delete-rank rule: a document's emptied drawer goes; headings keep the guard; I7; § 9 Remove/Continue→Remove and undo tests. DEC-022 amended (user 'yes')."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Re-verified by the adversarial reviewer against the revised design.md."
+
+[[finding]]
+id = "F-2"
+status = "verified"
+severity = "major"
+title = "F-2 Drawer insertion moves point; ensure-id lands on the first heading"
+detail = "Inserting :PROPERTIES:/:END: at point-min leaves point on the heading; org-id-get-create then IDs the heading (breaks I3) and the document gets IW_J with no ID → missing-id next scan. Probe /tmp/p/c.el on 30 and 31; save-excursion fixes it."
+disposition = "fix-now"
+route = "review"
+response = "§ 5.2 put-rank: drawer inserted under save-excursion, org-id-get-create with point at point-min; § 9 I3 test with ensure-id, heading with and without :ID:."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+route = "review"
+response = "§ 5.2 put-rank: drawer inserted under save-excursion, org-id-get-create with point at point-min; § 9 I3 test with ensure-id, heading with and without :ID:."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Re-verified by the adversarial reviewer against the revised design.md."
+
+[[finding]]
+id = "F-3"
+status = "verified"
+severity = "major"
+title = "F-3 denote-filename-is-note-p is an obsolete alias with another contract"
+detail = "Denote 4.2.3 denote.el:1229 aliases it (obsolete since 4.1.0) to denote-file-has-denoted-filename-p, which checks only the naming scheme, not denote-directory or extension; byte-compile with Denote loaded warns obsolete → lint error. denote-file-is-in-denote-directory-p calls make-directory."
+disposition = "fix-now"
+route = "review"
+response = "§ 5.2 --denote-identifier uses denote-file-has-denoted-filename-p (naming scheme); A1 dropped; § 8 test strategy no longer relies on denote-directory; lint with Denote loadable. DEC-021 amended (user 'yes')."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+route = "review"
+response = "§ 5.2 --denote-identifier uses denote-file-has-denoted-filename-p (naming scheme); A1 dropped; § 8 test strategy no longer relies on denote-directory; lint with Denote loadable. DEC-021 amended (user 'yes')."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Re-verified by the adversarial reviewer; residual lint claim corrected in § 8."
+
+[[finding]]
+id = "F-4"
+status = "verified"
+severity = "major"
+title = "F-4 Identity of a slotless document undefined; readers disagree; DEC-022 vs DEC-021"
+detail = "In a heading-first file entry-id at point-min reads the heading's :ID:, --id-positions counts point-min without a slot check, and --add-entry needs a Denote id no public reader returns (STD-004 §2). Add-document on a Denote note whose first heading has an :ID: refuses as shared. DEC-022 says no ID; DEC-021 says Denote identifier."
+disposition = "fix-now"
+route = "review"
+response = "New public org-iw-discovery-document-id, slot-gated for :ID:; entry-id, --id-positions, tally and --add-entry read through it; DEC-022 wording reconciled with DEC-021 (user 'yes'); § 9 heading-first Denote test."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+route = "review"
+response = "New public org-iw-discovery-document-id, slot-gated for :ID:; entry-id, --id-positions, tally and --add-entry read through it; DEC-022 wording reconciled with DEC-021 (user 'yes'); § 9 heading-first Denote test."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Re-verified; the --id-positions wording now excludes by position (§ 5.2)."
+
+[[finding]]
+id = "F-5"
+status = "verified"
+severity = "major"
+title = "F-5 Batch can't see duplicate identities among files it adds"
+detail = "shared-id-p consults only the pre-batch scan; two copies of a note with one identity are both added and the next scan excludes both (org-iw-discovery.el:451-462; §5.4 step 3.4)."
+disposition = "fix-now"
+route = "review"
+response = "§ 5.4 batch keeps added-ids; second selected copy fails 'same ID as a file added in this batch'; § 9 test."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+route = "review"
+response = "§ 5.4 batch keeps added-ids; second selected copy fails 'same ID as a file added in this batch'; § 9 test."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Re-verified by the adversarial reviewer against the revised design.md."
+
+[[finding]]
+id = "F-6"
+status = "verified"
+severity = "minor"
+title = "F-6 Unwidened point-min in narrowed buffers"
+detail = "A narrowed pre-existing or indirect buffer gives a mid-file marker; with :document t the drawer is inserted mid-file. Add-document also skips --target-at-point's source/Org checks."
+disposition = "fix-now"
+response = "org-iw--document-target widens and shares Add's preconditions; put-rank asserts the widened point-min; § 9 narrowed-buffer tests."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "org-iw--document-target widens and shares Add's preconditions; put-rank asserts the widened point-min; § 9 narrowed-buffer tests."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Re-verified by the adversarial reviewer against the revised design.md."
+
+[[finding]]
+id = "F-7"
+status = "verified"
+severity = "minor"
+title = "F-7 ENTRY construction and catch-all error are fragile"
+detail = "Catching every error hides programming errors and a failure after the write leaves order unextended (rank reuse, I4); C-g skips the summary (REQ-012 AC3)."
+disposition = "fix-now"
+response = "Fold catches only org-iw-refusal and file-error; ENTRY built after the write; unwind-protect keeps summary/report after C-g or a bug; § 9 test."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Fold catches only org-iw-refusal and file-error; ENTRY built after the write; unwind-protect keeps summary/report after C-g or a bug; § 9 test."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Re-verified; ENTRY title via the now-public org-iw-discovery-title."
+
+[[finding]]
+id = "F-8"
+status = "verified"
+severity = "minor"
+title = "F-8 I4 'scans once' false interactively"
+detail = "The queue prompt scans (org-iw--read-known-queue) and the body scans again; advice-count test passes only for Lisp calls."
+disposition = "fix-now"
+response = "I4 reworded: the body scans once; the prompt scan is IMP-002."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "I4 reworded: the body scans once; the prompt scan is IMP-002."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Re-verified by the adversarial reviewer against the revised design.md."
+
+[[finding]]
+id = "F-9"
+status = "verified"
+severity = "minor"
+title = "F-9 Excluded files misreported"
+detail = "org-iw-discovery-files FILES nil ignores org-iw-exclude-regexp; an excluded file is reported 'not under org-iw-sources'."
+disposition = "fix-now"
+response = "Non-source reason names both causes: outside org-iw-sources or excluded; § 9 test."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Non-source reason names both causes: outside org-iw-sources or excluded; § 9 test."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Re-verified by the adversarial reviewer against the revised design.md."
+
+[[finding]]
+id = "F-10"
+status = "verified"
+severity = "minor"
+title = "F-10 Kill rule exceeds DEC-026; fold called pure while it reports progress"
+detail = "Design kills opened buffers untouched after a refusal/existing too; DEC-026 says once saved. §5.2 'pure of display' vs §5.4 progress reporter."
+disposition = "fix-now"
+response = "DEC-026 amended (user 'yes') to the unmodified-when-done rule; fold takes a PROGRESS function, so it is display-free."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "DEC-026 amended (user 'yes') to the unmodified-when-done rule; fold takes a PROGRESS function, so it is display-free."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Re-verified by the adversarial reviewer against the revised design.md."
+
+[[finding]]
+id = "F-11"
+status = "verified"
+severity = "minor"
+title = "F-11 REQ-011 not in REV plan; Denote-less session consequence omitted"
+detail = "REQ-011 statement/AC3 ('receives one') conflict with I2; §5.5 omits that without Denote, Denote-identified members become missing-id."
+disposition = "fix-now"
+response = "REQ-011 added to the REV plan (slice-004.md, DEC-021 consequences); § 5.5 records the Denote-less session consequence."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "REQ-011 added to the REV plan (slice-004.md, DEC-021 consequences); § 5.5 records the Denote-less session consequence."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Re-verified by the adversarial reviewer against the revised design.md."
+
+[[finding]]
+id = "F-12"
+status = "verified"
+severity = "minor"
+title = "F-12 Soft-load can still raise"
+detail = "(require 'denote nil t) suppresses only a missing file; an error while loading propagates into every scan."
+disposition = "fix-now"
+response = "The tried flag (org-iw-discovery--denote-tried) is set first; require inside condition-case with one display-warning; § 9 test."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "The tried flag (org-iw-discovery--denote-tried) is set first; require inside condition-case with one display-warning; § 9 test."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Re-verified by the adversarial reviewer against the revised design.md."
+
+[[finding]]
+id = "F-13"
+status = "verified"
+severity = "minor"
+title = "F-13 Batch placement quadratic"
+detail = "append + core-place 'end per file: 3,000 placements 1.64 s (probe /tmp/p/e.el). Note under IMP-010."
+disposition = "tolerated"
+response = "Recorded in § 5.5 and under IMP-010; acceptable at current scale."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "tolerated"
+response = "Recorded in § 5.5 and under IMP-010; acceptable at current scale."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Re-verified by the adversarial reviewer against the revised design.md."
+
+[[finding]]
+id = "F-14"
+status = "verified"
+severity = "major"
+title = "F-14 Batch re-walks org-iw-sources per file via the shared source check"
+detail = "org-iw--document-target shares org-iw--source-file-p, which calls (org-iw--files) per call (org-iw.el:156-160); per file in a 3,000-file batch that is ~0.06 s each, ~3 min total, against DEC-027. Raised on re-verification of the revised design."
+disposition = "fix-now"
+route = "review"
+response = "§ 5.2 splits --require-source (Add, Add-document) from --document-marker (pure, widened); the batch checks FILE against its sources set once and calls require-org-mode itself; § 5.4 step 3.3 updated."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+route = "review"
+response = "§ 5.2 splits --require-source (Add, Add-document) from --document-marker (pure, widened); the batch checks FILE against its sources set once and calls require-org-mode itself; § 5.4 step 3.3 updated."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Checked in revised § 5.2/5.4: the batch never calls the per-call sources walk."
+
+# Findings are append-only `[[finding]]` tables, added by `review raise`.
+# Empty here at creation — a fresh review is Active, awaiting the raiser.

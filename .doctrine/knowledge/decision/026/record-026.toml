@@ -1,0 +1,39 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 26
+slug = "batch-add-kills-the-buffers-it-opened-once-saved"
+title = "Batch add kills the buffers it opened once saved"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-05"
+updated = "2026-10-05"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "PRD-001 OQ-2; DEC-004 kept buffers opened to write and said revisit for batch add, which may open thousands of files."
+choice = "Batch add kills each buffer it had to open if that buffer is unmodified once the file is done: saved after a write, or untouched after a refusal or an existing membership. A buffer it opened that stays modified (save failed, or an Org hook dirtied it) is kept and reported. Buffers that already existed are left as they were. Single-entry commands keep DEC-004. Amended 2026-10-05 (RV-012 F-10, user 'yes')."
+alternatives = ["leave all open (DEC-004 everywhere)", "kill opened buffers in every command"]
+rationale = "Avoids thousands of buffers; the opener is the batch loop itself, so the bookkeeping is local and synchronous, which removes DEC-004's 'user started using it meanwhile' objection for batch only."
+consequences = ["Refines DEC-004 for batch add; settles PRD-001 OQ-2", "SL-006 redistribution may reuse the same open-write-kill helper"]
+decided_by = "user"
+decided_on = "2026-10-05"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "references"
+role = "concerns"
+descriptor = "refines DEC-004 for batch add"
+target = "DEC-004"
+
+[[relation]]
+label = "shapes"
+target = "SL-004"

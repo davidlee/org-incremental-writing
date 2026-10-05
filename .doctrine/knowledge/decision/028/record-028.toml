@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 28
+slug = "batch-report-progress-echo-summary-report-buffer-on-trouble"
+title = "Batch report: progress, echo summary, report buffer on trouble"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-05"
+updated = "2026-10-05"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "REQ-012: report additions, existing memberships and failures; partial completion stated; not atomic. REQ-021: save policy per file."
+choice = "A progress reporter runs during the loop. At the end the echo area shows counts (added, already present, failed, unsaved) and says the operation is not atomic. When any file failed or was left unsaved, a *org-iw batch* buffer lists each such file with its reason and is displayed. The command returns the summary."
+alternatives = ["echo only", "always show the report buffer"]
+rationale = "The echo area can't hold per-file reasons at corpus scale; a clean run needs no buffer."
+consequences = ["Report data is built as plain data, so tests assert it without reading the echo area"]
+decided_by = "user"
+decided_on = "2026-10-05"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-004"

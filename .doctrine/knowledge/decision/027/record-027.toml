@@ -1,0 +1,39 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 27
+slug = "scans-stay-uncached-in-sl-004-but-cache-ready"
+title = "Scans stay uncached in SL-004 but cache-ready"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-05"
+updated = "2026-10-05"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "research T3: 3,000 member files scan in 2.1-2.5 s (Org mode activation dominates); the user has <200 files now (~0.15 s) and wants a few thousand acceptable later without decisions that make that hard. ADR-001 permits a disposable in-memory index the sources invalidate."
+choice = "No cache in SL-004. Constraints that keep one cheap to add: every read goes through org-iw-discovery-scan; each file's scan result is a function of that file's text and name only (cross-file checks stay in the post-pass); batch add scans once and derives every rank from that scan, never rescanning per file; document identity from the file name is computed per file. IMP-002 stays in the backlog, tagged as the cache's companion."
+alternatives = ["per-file cache keyed by (truename, mtime, size) / buffer tick now", "reuse one Org buffer across files", "accept and revisit never"]
+rationale = "Meets today's scale with no new state; keeps the per-file cache a local change in discovery later."
+consequences = ["Refines DEC-003; revisits PRD-001 OQ-1 at corpus scale: deferred with constraints", "Performance at thousands of files is a known open item (backlog)"]
+decided_by = "user"
+decided_on = "2026-10-05"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "references"
+role = "concerns"
+descriptor = "refines DEC-003: uncached but cache-ready"
+target = "DEC-003"
+
+[[relation]]
+label = "shapes"
+target = "SL-004"

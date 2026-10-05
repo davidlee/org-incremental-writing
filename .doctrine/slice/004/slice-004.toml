@@ -1,9 +1,9 @@
 id = 4
 slug = "documents-batch-add"
 title = "Documents and batch add"
-status = "proposed"
+status = "plan"
 created = "2026-09-30"
-updated = "2026-09-30"
+updated = "2026-10-05"
 tags = ["roadmap"]
 
 [relationships]
@@ -17,6 +17,46 @@ intent = "scope-relevant"
 [[selector]]
 selector = "test/**"
 intent = "scope-relevant"
+
+[[selector]]
+selector = "org-iw-discovery.el"
+intent = "design-target"
+
+[[selector]]
+selector = "org-iw-write.el"
+intent = "design-target"
+
+[[selector]]
+selector = "org-iw.el"
+intent = "design-target"
+
+[[selector]]
+selector = "test/org-iw-discovery-test.el"
+intent = "design-target"
+
+[[selector]]
+selector = "test/org-iw-write-test.el"
+intent = "design-target"
+
+[[selector]]
+selector = "test/org-iw-test.el"
+intent = "design-target"
+
+[[selector]]
+selector = "test/org-iw-test-helpers.el"
+intent = "design-target"
+
+[[selector]]
+selector = "justfile"
+intent = "design-target"
+
+[[selector]]
+selector = "flake.nix"
+intent = "design-target"
+
+[[selector]]
+selector = "README.md"
+intent = "design-target"
 
 [[relation]]
 label = "governed_by"

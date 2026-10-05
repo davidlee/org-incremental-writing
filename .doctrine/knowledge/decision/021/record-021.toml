@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 21
+slug = "document-identity-org-id-else-denotes-own-filename-identifier"
+title = "Document identity: Org ID, else Denote's own filename identifier"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-05"
+updated = "2026-10-05"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "REQ-002/REQ-007 say entries are identified by their Org ID. QUE-002 asked whether Denote's identifier may serve. The user's corpus: 114/129 files Denote-named, journal 0/74 with #+identifier:, 4 with file-level :ID:. Denote 4.2.3 treats the file name as the source of truth for the identifier; #+identifier: is a front-matter copy. Design goal: support Denote nicely without depending on it, and minimise property litter."
+choice = "A document entry's identity is its file-level :ID: when the document has a slot (text before the first heading) and the drawer has one; otherwise, when Denote is available (soft-loaded once with (require 'denote nil t), load errors caught and warned once) and denote-file-has-denoted-filename-p accepts the file name, denote-retrieve-filename-identifier; otherwise none, and Add inserts an :ID:. #+identifier: is never read. Headings keep needing :ID:. One public discovery reader, org-iw-discovery-document-id, owns document identity; every reader (scan, tally, id positions, resolve, Add) goes through it. Amended 2026-10-05 (RV-012 F-3, F-4, user 'yes'): the Denote predicate is the non-obsolete naming-scheme check, not denote-filename-is-note-p (an obsolete alias since Denote 4.1.0); denote-directory is not consulted."
+alternatives = ["Org ID only, always inserted (QUE-002 option 1)", "#+identifier: keyword as fallback (journal lacks it)", "reimplement Denote's filename regexps in org-iw", "use Denote only if already loaded (fboundp), making identity depend on load order"]
+rationale = "Uses Denote's own machinery, honouring the user's identifier scheme and component order, with no hard dependency; adds no :ID: to Denote notes, so batch add writes only the IW_ drawer line."
+consequences = ["REQ-002", " REQ-007 and REQ-011 need a REV: a document is identified by its Org ID or its Denote filename identifier; REQ-011's ensure-an-ID applies only when it has neither", "QUE-002 settles with this answer", "A file named by Denote's scheme outside denote-directory still gets Denote identity", "In a session without Denote", " Denote-identified members are missing-id and leave the queue until Denote is available", "If a Denote note later gains an :ID:", " its identity switches; membership survives; a live session naming the old identity reports it missing", "Duplicate Denote identifiers (copied notes) are duplicate-id problems", " excluded from writes"]
+decided_by = "user"
+decided_on = "2026-10-05"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-004"
