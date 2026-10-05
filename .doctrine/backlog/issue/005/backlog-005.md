@@ -43,3 +43,10 @@ mem.fact.nix.jail-store-mounts-and-staleness.
 Fix: no flake change. Rebuild and restart the jail from HEAD on the host.
 Then, inside it: `ls $ORG_IW_DENOTE_DIR/denote.el`, and `just gate` with
 no hand-set variable. Resolve this issue once that passes.
+
+## Resolution (2026-10-06)
+
+The jail was rebuilt from HEAD on the host. Inside it,
+`ORG_IW_DENOTE_DIR` (h1l2…) resolves to `denote.el`, and `just gate`
+passes 408/408 on emacs and emacs-30 with no hand-set variable. e14c071
+stands, unchanged.

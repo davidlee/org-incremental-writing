@@ -24,7 +24,7 @@ fresh-as-of: 2026-10-06 · close (reconciled → done) · edbaaaf+
 - mem.fact.nix.jail-store-mounts-and-staleness — extraPkgs closures mounted via add-pkg-deps; a running jail reflects its build-time flake (ISS-005)
 
 ### Open
-- ISS-005 — rebuild jail from HEAD on host, verify, resolve; until then set ORG_IW_DENOTE_DIR by hand
+- (ISS-005 resolved 2026-10-06: jail rebuilt, gate green unaided)
 - ISS-006, IMP-010 / IMP-002, IDE-002, ASM-001, ISS-004, CHR-004, CHR-005
 
 ## PHASE-01 (2026-10-05, execute)
