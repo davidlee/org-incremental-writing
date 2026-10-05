@@ -163,7 +163,7 @@ exit_criteria = [
 ]
 verification = [
   { id = "VT-1", expects = "add appends and changes only that heading's drawer (I2, I4); existing membership is a no-op; works from indirect and narrowed buffers (F-5)", test_file = "test/org-iw-test.el", keywords = ["org-iw-add", "org-iw-test-changed-lines", "make-indirect-buffer", "narrow-to-region"], waived = false },
-  { id = "VT-2", expects = "add refuses: outside sources, before first heading, invalid typed queue ID, excluded local property, shared ID same-file and cross-file with member rank unchanged (F-2), malformed drawer", test_file = "test/org-iw-test.el", keywords = ["not under org-iw-sources", "document targets are not yet supported", "ID shared with another heading", "property drawer Org doesn't recognise"], waived = false },
+  { id = "VT-2", expects = "add refuses: outside sources, before first heading, invalid typed queue ID, excluded local property, shared ID same-file and cross-file with member rank unchanged (F-2), malformed drawer", test_file = "test/org-iw-test.el", keywords = ["not under org-iw-sources", "document targets are not yet supported", "ID shared with another heading", "property drawer Org doesn't recognise"], waived = true, waived_reason = "SL-004 DEC-023 made Add enrol documents before the first heading, removing this refusal; replaced by org-iw-cmd-test-add-before-first-heading-enrols-document. The other keywords still pass." },
 ]
 specs        = []
 requirements = []
