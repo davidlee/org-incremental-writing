@@ -409,7 +409,7 @@ It requires a match, and keeps the order in both cycling and
       (should (equal (org-iw--read-placement "OTHER") "Later"))
       (pcase-let* ((`(,call) org-iw-cmd-test--prompts)
                    (table (plist-get call :collection)))
-        (should (equal (plist-get call :prompt) "Placement: "))
+        (should (equal (plist-get call :prompt) "Placement in OTHER: "))
         (should (equal (plist-get call :order) '("Soon" "Later" "End")))
         (should (equal (plist-get call :default) "End"))
         (should (eq (plist-get call :require-match) t))
@@ -420,8 +420,9 @@ It requires a match, and keeps the order in both cycling and
         (should (eq (try-completion "End" table) t))))
     (org-iw-cmd-test--with-prompt "Soon"
       (org-iw--read-placement "ARTICLES")
-      (should (equal (plist-get (car org-iw-cmd-test--prompts) :order)
-                     '("Soon" "End"))))))
+      (pcase-let ((`(,call) org-iw-cmd-test--prompts))
+        (should (equal (plist-get call :prompt) "Placement in Articles: "))
+        (should (equal (plist-get call :order) '("Soon" "End")))))))
 
 (ert-deftest org-iw-cmd-test-read-placement-with-remove ()
   "With Remove the chooser offers it last, never as the default.
@@ -1100,10 +1101,10 @@ The ID is copied after the scan, so resolve finds it ambiguous."
   `(("a.org" . ,org-iw-cmd-test--target) ,@org-iw-cmd-test--eight)
   "Target, not yet queued, and ESSAYS holding E1 to E8.")
 
-(defun org-iw-cmd-test--add-chosen (marker)
-  "Call `org-iw-add' interactively with a prefix argument at MARKER."
+(defun org-iw-cmd-test--call-prefixed (marker command)
+  "Call COMMAND interactively with a prefix argument at MARKER."
   (let ((current-prefix-arg '(4)))
-    (org-iw-cmd-test--call-at marker #'call-interactively #'org-iw-add)))
+    (org-iw-cmd-test--call-at marker #'call-interactively command)))
 
 (ert-deftest org-iw-cmd-test-add-at-placement ()
   "Add at Soon ranks the heading 3rd of 9, writing one line."
@@ -1122,12 +1123,12 @@ The placement prompt defaults to the queue's default, not to the end."
   (org-iw-test-with-corpus org-iw-cmd-test--target-and-eight
     (let ((org-iw-queues '(("essays" :default "Soon"))))
       (org-iw-cmd-test--with-prompt '("essays" "Later")
-        (should (equal (org-iw-cmd-test--add-chosen
-                        (org-iw-test-marker "a.org" "Target"))
+        (should (equal (org-iw-cmd-test--call-prefixed
+                        (org-iw-test-marker "a.org" "Target") #'org-iw-add)
                        "Added to ESSAYS at Later, 5/9 (saved)"))
         (pcase-let ((`(,queue ,placement) org-iw-cmd-test--prompts))
           (should (equal (plist-get queue :prompt) "Queue: "))
-          (should (equal (plist-get placement :prompt) "Placement: "))
+          (should (equal (plist-get placement :prompt) "Placement in ESSAYS: "))
           (should (equal (plist-get placement :order) '("Soon" "Later" "End")))
           (should (equal (plist-get placement :default) "Soon")))))))
 
@@ -1140,8 +1141,9 @@ The placement prompt defaults to the queue's default, not to the end."
         (should (equal (cadr (org-iw-cmd-test--should-write-nothing
                               (lambda ()
                                 (should-error
-                                 (org-iw-cmd-test--add-chosen
-                                  (org-iw-test-marker "a.org" "Target"))
+                                 (org-iw-cmd-test--call-prefixed
+                                  (org-iw-test-marker "a.org" "Target")
+                                  #'org-iw-add)
                                  :type 'org-iw-refusal))))
                        "queue ESSAYS :placements: no placements"))
         (should (= (length org-iw-cmd-test--prompts) 1))))))
@@ -1162,8 +1164,9 @@ The placement prompt defaults to the queue's default, not to the end."
       (should (equal (cadr (org-iw-cmd-test--should-write-nothing
                             (lambda ()
                               (should-error
-                               (org-iw-cmd-test--add-chosen
-                                (org-iw-test-marker "a.org" "Target"))
+                               (org-iw-cmd-test--call-prefixed
+                                (org-iw-test-marker "a.org" "Target")
+                                #'org-iw-add)
                                :type 'org-iw-refusal))))
                      "invalid queue ID \"ess_ays\""))
       (should (= (length org-iw-cmd-test--prompts) 1)))))
@@ -1803,7 +1806,7 @@ default, which plain Continue then uses."
         (should (equal (org-iw-cmd-test--continue-chosen)
                        "Moved E1 to Later, 4/8 (saved). Now 1/8: E2"))
         (pcase-let ((`(,call) org-iw-cmd-test--prompts))
-          (should (equal (plist-get call :prompt) "Placement: "))
+          (should (equal (plist-get call :prompt) "Placement in ESSAYS: "))
           (should (equal (plist-get call :order)
                          '("Later" "Again" "Soon" "Remove")))
           (should (equal (plist-get call :default) "Soon"))))
@@ -2288,7 +2291,7 @@ ESSAYS: only an entry the scan left out of a queue is excluded."
                         #'call-interactively #'org-iw-move)
                        "A already at Again in ESSAYS, 1/4"))
         (pcase-let ((`(,call) org-iw-cmd-test--prompts))
-          (should (equal (plist-get call :prompt) "Placement: "))
+          (should (equal (plist-get call :prompt) "Placement in ESSAYS: "))
           (should (equal (plist-get call :order) '("Again" "Back")))
           (should (equal (plist-get call :default) "Back")))))))
 
@@ -2302,7 +2305,7 @@ The queue prompt offers the entry's queues only."
                       #'call-interactively #'org-iw-move)
                      "M already at Soon in DRAFTS, 2/2"))
       (should (equal (org-iw-cmd-test--prompted :prompt)
-                     '("Queue: " "Placement: ")))
+                     '("Queue: " "Placement in DRAFTS: ")))
       (should (equal (plist-get (car org-iw-cmd-test--prompts) :order)
                      '("DRAFTS" "ESSAYS")))
       (should (eq (plist-get (car org-iw-cmd-test--prompts) :require-match) t)))))
@@ -2318,7 +2321,7 @@ The queue prompt offers the entry's queues only."
                   (org-iw-test-marker "m.org" "M")
                   #'call-interactively #'org-iw-move)))
         (should (equal (org-iw-cmd-test--prompted :prompt)
-                       '("Placement: ")))))))
+                       '("Placement in ESSAYS: ")))))))
 
 (ert-deftest org-iw-cmd-test-move-chosen-refuses-before-prompting ()
   "Interactively, nothing is prompted for an entry in no queue or bad config."
@@ -2336,6 +2339,42 @@ The queue prompt offers the entry's queues only."
        (lambda ()
          (org-iw-cmd-test--call-at (org-iw-cmd-test--at "a.org" nil)
                                    #'call-interactively #'org-iw-move))))))
+
+;; DEC-020: a prefix argument reads the queue.
+
+(defun org-iw-cmd-test--should-read-queue-prefixed (command &optional label)
+  "Call COMMAND with a prefix argument; assert it reads the queue first.
+The session is in ESSAYS.  For A, in ESSAYS alone, and M, in ESSAYS
+and DRAFTS, a must-match \"Queue: \" prompt offers exactly the entry's
+queues; it is answered ESSAYS for A and DRAFTS, not the session's, for
+M.  A non-nil LABEL answers a placement prompt that must follow,
+naming the queue.  Return the results, for A then M."
+  (org-iw-test-with-corpus org-iw-cmd-test--multi
+    (let ((org-iw--session (org-iw-cmd-test--session "ESSAYS" "S")))
+      (mapcar
+       (pcase-lambda (`(,name ,title ,queues ,queue))
+         (org-iw-cmd-test--with-prompt (cons queue (ensure-list label))
+           (prog1 (org-iw-cmd-test--call-prefixed
+                   (org-iw-test-marker name title) command)
+             (should (equal (org-iw-cmd-test--prompted :prompt)
+                            (cons "Queue: "
+                                  (and label (list (format "Placement in %s: "
+                                                           queue))))))
+             (let ((call (car org-iw-cmd-test--prompts)))
+               (should (equal (plist-get call :order) queues))
+               (should (eq (plist-get call :require-match) t))))))
+       '(("a.org" "A" ("ESSAYS") "ESSAYS")
+         ("m.org" "M" ("DRAFTS" "ESSAYS") "DRAFTS"))))))
+
+(ert-deftest org-iw-cmd-test-move-chosen-prefix-reads-queue ()
+  "With a prefix argument Move reads the queue, then a placement.
+It does so for one membership and with the session in one of them."
+  (should (equal (mapcar (lambda (result)
+                           (and (string-match " in \\([A-Z]+\\)" result)
+                                (match-string 1 result)))
+                         (org-iw-cmd-test--should-read-queue-prefixed
+                          #'org-iw-move "Soon"))
+                 '("ESSAYS" "DRAFTS"))))
 
 ;;;; Remove: helpers
 
@@ -2446,7 +2485,7 @@ is visited, not C, the second of the order."
       (should (equal (org-iw-cmd-test--continue-chosen)
                      "Removed A from ESSAYS (saved). Now 1/2: B"))
       (pcase-let ((`(,call) org-iw-cmd-test--prompts))
-        (should (equal (plist-get call :prompt) "Placement: "))
+        (should (equal (plist-get call :prompt) "Placement in ESSAYS: "))
         (should (equal (plist-get call :order)
                        '("Soon" "Later" "End" "Remove")))
         (should (equal (plist-get call :default) "End"))))))
@@ -2582,6 +2621,13 @@ The hint is for the session's entry in the session's queue (I13)."
                      "Removed M from DRAFTS (saved)"))
       (should (equal (org-iw-cmd-test--prompted :order)
                      '(("DRAFTS" "ESSAYS")))))))
+
+(ert-deftest org-iw-cmd-test-remove-chosen-prefix-reads-queue ()
+  "With a prefix argument Remove reads the queue among the entry's.
+It does so for one membership and with the session in one of them."
+  (should (equal (org-iw-cmd-test--should-read-queue-prefixed #'org-iw-remove)
+                 '("Removed A from ESSAYS (saved)"
+                   "Removed M from DRAFTS (saved)"))))
 
 (ert-deftest org-iw-cmd-test-remove-chosen-refuses-before-prompting ()
   "Interactively, an entry in no queue refuses unprompted."

@@ -123,8 +123,8 @@ No keys are bound. Suggested bindings:
 | `org-iw-visit-next` | Show the first entry of a queue and start a session on it. |
 | `org-iw-continue` | Put the session's entry back at the queue's default placement and visit the first entry; with `C-u`, choose the placement, or Remove. |
 | `org-iw-end-session` | End the session and remove it from the mode line. |
-| `org-iw-move` | Move the entry at point to a placement in its queue. |
-| `org-iw-remove` | Remove the entry at point from a queue. |
+| `org-iw-move` | Move the entry at point to a placement in its queue; with `C-u`, choose which of its queues. |
+| `org-iw-remove` | Remove the entry at point from a queue; with `C-u`, choose which of its queues. |
 | `org-iw-list-queue` | Show a queue's entries in order, to reorder or remove them. |
 
 A typical round:
@@ -166,8 +166,9 @@ Bound to a key, a placement needs no prompt:
 `org-iw-move` and `org-iw-remove` act on the heading at point, or on the
 file's document entry before its first heading. The queue is the
 entry's only queue; of several, the session's, if it is one of them;
-else you pick one. `org-iw-move` then asks for a placement label,
-defaulting to the queue's default. Neither visits anything, and the
+else you pick one. With `C-u`, you always pick one of the entry's
+queues. `org-iw-move` then asks for a placement label in that queue
+(the prompt names it), defaulting to the queue's default. Neither visits anything, and the
 session is left as it is.
 
 `org-iw-remove` deletes the entry's `IW_<QUEUE>` line and asks no

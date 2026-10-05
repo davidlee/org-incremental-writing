@@ -304,12 +304,12 @@ QUEUE is a canonical queue ID.  A nil LABEL means the default."
 QUEUE is a canonical queue ID.  The labels are offered in configured
 order, the default as the default.  WITH-REMOVE non-nil offers Remove
 after them, returned as the symbol `remove'.  Bad configuration
-refuses before the prompt."
+refuses before the prompt.  The prompt names the queue."
   (pcase-let* ((`(,default . ,placements) (org-iw--vocabulary queue))
                (candidates (append placements
                                    (and with-remove '(("Remove"))))))
     (pcase (completing-read
-            "Placement: "
+            (format "Placement in %s: " (org-iw--queue-name queue))
             (lambda (string predicate action)
               (if (eq action 'metadata)
                   '(metadata (display-sort-function . identity)
@@ -746,22 +746,24 @@ unless the entry is in it: as excluded if it has an IW_ line for QUEUE
                                  (org-iw--queue-name queue)))
             (t entry)))))
 
-(defun org-iw--membership-queue (entry)
+(defun org-iw--membership-queue (entry &optional ask)
   "Return the queue, a canonical ID, to act on for ENTRY.
-That is ENTRY's only queue; of several, the session's if it is one of
-them, else the one read from the user, who must choose among them."
+With ASK non-nil, it is read from the user, who must choose among
+ENTRY's queues, even if there is one.  Otherwise it is ENTRY's only
+queue; of several, the session's if it is one of them, else read."
   (let ((queues (mapcar #'car (org-iw-entry-memberships entry)))
         (session-queue (and org-iw--session
                             (org-iw--session-queue org-iw--session))))
-    (cond ((null (cdr queues)) (car queues))
-          ((member session-queue queues) session-queue)
-          (t (org-iw--read-queue queues t)))))
+    (or (unless ask
+          (if (cdr queues) (car (member session-queue queues)) (car queues)))
+        (org-iw--read-queue queues t))))
 
-(defun org-iw--queue-at-point ()
+(defun org-iw--queue-at-point (&optional ask)
   "Return the queue to act on for the entry at point, a canonical ID.
-See `org-iw--membership-queue'."
+See `org-iw--membership-queue' for ASK."
   (org-iw--membership-queue
-   (org-iw--scanned-entry-at (org-iw--target-at-point) (org-iw--scan))))
+   (org-iw--scanned-entry-at (org-iw--target-at-point) (org-iw--scan))
+   ask))
 
 ;;;###autoload
 (defun org-iw-move (queue &optional label)
@@ -770,7 +772,8 @@ QUEUE is a queue ID in any case, one the entry is in; LABEL names one
 of the queue's placements (see `org-iw-placements' and
 `org-iw-queues'), nil meaning the queue's default.  Interactively,
 QUEUE is the entry's only queue or, of several, the session's if it is
-one of them, else it is read; then LABEL is read, defaulting to the
+one of them, else it is read; with a prefix argument it is always
+read, among the entry's queues.  Then LABEL is read, defaulting to the
 queue's default.
 
 The entry is the heading at or above point, even outside a narrowing,
@@ -789,7 +792,7 @@ read-only, or the entry has a property drawer Org doesn't recognise).
 
 Return the message shown."
   (interactive
-   (let ((queue (org-iw--queue-at-point)))
+   (let ((queue (org-iw--queue-at-point current-prefix-arg)))
      (list queue (org-iw--read-placement queue))))
   (pcase-let* ((queue-id (org-iw--queue-id queue))
                (marker (org-iw--target-at-point))
@@ -826,7 +829,8 @@ ENTRY in QUEUE."
   "Remove the entry at point from QUEUE.
 QUEUE is a queue ID in any case, one the entry is in.  Interactively,
 it is the entry's only queue or, of several, the session's if it is
-one of them, else it is read.
+one of them, else it is read; with a prefix argument it is always
+read, among the entry's queues.
 
 The entry is the heading at or above point, even outside a narrowing,
 or the document before the first heading; indirect buffers work.  Its
@@ -842,7 +846,7 @@ refuses (the file changed on disk or is not writable, its buffer is
 read-only, or the entry has a property drawer Org doesn't recognise).
 
 Return the message shown."
-  (interactive (list (org-iw--queue-at-point)))
+  (interactive (list (org-iw--queue-at-point current-prefix-arg)))
   (let* ((queue-id (org-iw--queue-id queue))
          (marker (org-iw--target-at-point))
          (scan (org-iw--scan))
