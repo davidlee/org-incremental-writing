@@ -181,13 +181,14 @@ tests, 31.1 and 30.2), `just test-each` 236 alone green.
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: 2026-10-05 · audit (RV-011 concluded) · f714d4b
+fresh-as-of: 2026-10-05 · close · cca6b47
 
 ### Produced
 - PHASE-01..08 done — Move, Remove, Continue's Remove, queue view (commits 525c721..63ca35a)
 - per-phase reviews: RV-006 (PHASE-01..03), RV-007 (04..06), RV-009 (07); design amendments re-locked via RV-008, RV-010
 - audit RV-011 — 16 findings; fix-now delta f714d4b (327 tests, gate green on 31.1/30.2)
 - REV-004 — amends ADR-003 (post-edit invariant check) and ADR-004 item 5
+- REV-005 — qualifies REQ-013 AC2 to DEC-017's accepted gap (RV-011 F-3)
 - DEC-020 — C-u on Move/Remove picks the queue; placement prompt names it
 - minted: ISS-002, ISS-003, IMP-006..IMP-009, IDE-001, CHR-004 (SL-001 VT row keyed on a deleted symbol)
 - ISS-001 resolved (DEC-014; RV-011)
@@ -199,7 +200,6 @@ fresh-as-of: 2026-10-05 · audit (RV-011 concluded) · f714d4b
 - mem.fact.doctrine.conformance-registry-gaps — cross-check registry conformance with --against
 
 ### Open
-- reconcile: RV-011 Reconciliation Brief — F-1 selector + § 10, F-2 § 5.2/§ 5.4/§ 10, F-3 REV on REQ-013 AC2
 - ASM-001 — unique source file names
 - QUE-002 — Denote identity (shapes SL-004)
 - IMP-005 — uniform title rendering, incl. the double space
