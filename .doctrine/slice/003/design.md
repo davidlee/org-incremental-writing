@@ -213,8 +213,10 @@ how `place` measures depth.
 ```
 
 **`org-iw-discovery.el`.** `org-iw-discovery--read-entry` sets
-`:outline (org-get-outline-path)` on each entry it creates. Nothing else
-changes. Discovery stays the only reader of Org text.
+`:outline (mapcar #'string-clean-whitespace (org-get-outline-path))` on
+each entry it creates. The clean collapses the double space Org leaves
+where it strips a statistics cookie (RV-006 F-4). Nothing else changes.
+Discovery stays the only reader of Org text.
 
 **`org-iw-write.el`** (DEC-014)
 
@@ -269,11 +271,14 @@ changes. Discovery stays the only reader of Org text.
 ;;   one lookup by ID (POL-002): org-iw--check-heading (via cl-position on
 ;;   the result), org-iw--scanned-entry-at, Continue and the view use it.
 
-(org-iw--scanned-entry-at MARKER SCAN)
+(org-iw--scanned-entry-at MARKER SCAN &optional QUEUE)
 ;; → (org-iw--find-entry (org-iw-scan-entries SCAN) ID FILE), ID the entry
 ;;   ID at MARKER and FILE its file's truename.  Otherwise refuses:
 ;;   the ID has problems in SCAN → "entry at point is excluded (TYPES)";
 ;;   otherwise (including no ID) → "entry at point is not in any queue".
+;;   Given QUEUE, it also refuses unless the entry is in QUEUE: excluded,
+;;   as above, if the entry has an IW_ line for QUEUE, else "TITLE is not
+;;   in queue NAME".  The one owner of Move's and Remove's target checks.
 
 (org-iw--known-queues SCAN)
 ;; → the sorted, unique canonical IDs of configured and discovered
@@ -326,6 +331,25 @@ changes. Discovery stays the only reader of Org text.
 ;; OTHER-WINDOW non-nil shows the entry with (pop-to-buffer BUFFER t),
 ;; selecting another window; otherwise pop-to-buffer-same-window, as now.
 ```
+
+Helpers added during execution and audit, each the single owner of a
+concept that two or more callers share (POL-002):
+
+- **Targeting and lookup.** `--entry-marker` (resolve a scanned entry
+  afresh), `--queue-at-point` (Move's and Remove's interactive queue),
+  `--find-member` (`--find-entry` in an order, or `--refuse-absent`),
+  `--read-known-queue` (`--read-queue` over a fresh scan's known
+  queues), `--refuse-excluded` (the excluded-entry text, Add's
+  included), `--heading-or-refuse` (Add's document refusal, D1).
+- **Texts.** `--moved-text`, `--removed-text` (the Removed sentence and
+  the hint rule), `--now-text` ("Now 1/N: T"), `--empty-text`.
+- **Session.** `--session-entry-p` (is ID in QUEUE the session's entry).
+- **Continue.** It is split into `--continue-place` and
+  `--continue-remove`.
+
+`--refuse-absent`, `--find-member`, `--put-rank`, `--delete-rank`,
+`--move` and the texts live in a "Membership writes" section of
+`org-iw.el`, ahead of Continue.
 
 **Vocabulary** (DEC-016). `org-iw--check-placements` also refuses a label
 equal to "Remove", ignoring case, echoing the label as configured:
@@ -382,17 +406,29 @@ equal to "Remove", ignoring case, echoing the label as configured:
 ;; The one redraw.  Sets tabulated-list-entries from SCAN, prints, puts
 ;; point on GOTO-ID's row (else the row it was on, by ID; if that entry
 ;; is gone, the same line, or the last row when fewer remain; RV-007
-;; F-9), re-tags the mark or clears it if its entry is gone, and sets
-;; the point of every window showing the buffer to the buffer's point.
-;; The last step is
-;; needed because tabulated-list-print erases the buffer, which resets
-;; the point of a window that is not selected, as after RET.
+;; F-9), clears the mark if its entry is gone, and sets the point of
+;; every window showing the buffer to the buffer's point.  The last step
+;; is needed because tabulated-list-print erases the buffer, which
+;; resets the point of a window that is not selected, as after RET.
+
+(org-iw--view-print-row ID COLS)
+;; The view's tabulated-list-printer: prints the row, then tags it ">"
+;; if it holds the mark (via --view-tag-row, the one place the mark is
+;; drawn).  Every print draws the mark, tabulated-list's own included
+;; (RV-009 F-1).
 ```
 
-The mode sets a buffer-local `revert-buffer-function` that calls
-`(org-iw--view-redraw (org-iw--scan))`, so `g` is the same redraw.
-`tabulated-list-revert-hook` is not used: `tabulated-list-revert` prints
-again after the hook, which would erase the mark's tag.
+The other view helpers: `--view-row` (pure row), `--view-title`,
+`--view-row-position`, `--view-tag-row`, `--view-set-mark`,
+`--view-refresh` (redraw and report), `--view-revert`, `--view-id-at-point`,
+`--view-rescan` (fresh scan, entries by ID via `--find-member`),
+`--view-redraw-and-report`, `--view-move`, `--view-step` and
+`--view-place`.
+
+The mode sets a buffer-local `revert-buffer-function`, `--view-revert`.
+It calls `--view-refresh` on a fresh scan, so `g` is the same redraw
+plus `org-iw-list-queue`'s report. `tabulated-list-revert-hook` is not
+used: `tabulated-list-revert` prints again after the hook.
 
 | key | command | does |
 |---|---|---|
@@ -470,8 +506,9 @@ the new head. Nothing else in SL-003 sets or clears it.
 2. `org-iw--target-at-point` gives a marker. A document is allowed.
 3. `org-iw--placement QUEUE LABEL` gives the label and placement. Bad
    config or an unknown label refuses before the scan.
-4. Scan, then `org-iw--scanned-entry-at`. Refuse "TITLE is not in queue
-   NAME" unless the entry has QUEUE among its memberships.
+4. Scan, then `org-iw--scanned-entry-at` with QUEUE, which refuses
+   "TITLE is not in queue NAME" unless the entry has QUEUE among its
+   memberships.
 5. `org-iw--move` with WHERE "at LABEL". The session is unchanged and
    nothing is visited.
 
@@ -661,10 +698,9 @@ Edge cases:
 - **Configured label "remove"** in any case → configuration refusal, on
   use, naming the source.
 - **Same title, same parent, same file** → told apart only by ordinal
-  (DEC-017 accepted gap). This meets REQ-013 AC2 ("distinguishable by
-  file/outline context") only in part, and the two disagree; § 6 routes
-  the reconciliation. Same-named files in different directories look
-  alike (ASM-001).
+  (DEC-017 accepted gap). REQ-013 AC2 was qualified to match at
+  reconcile (REV-005, RV-011 F-3). Same-named files in different
+  directories look alike (ASM-001).
 - **A queue whose display name changes** → its view buffer keeps the old
   name until killed. It is still found by queue ID, and its rows are
   correct.
@@ -685,8 +721,7 @@ No blocking questions remain. These are carried, not settled here:
 - **REQ-013 AC2 vs DEC-017.** The requirement says same-title entries
   are distinguishable by context, without conditions. DEC-017 accepts
   same title, same parent and same file as told apart only by ordinal.
-  At reconcile, raise a revision (REV) qualifying AC2 to the accepted
-  gap.
+  Settled at reconcile: REV-005 qualified AC2 to the accepted gap.
 - The DEC-009 revisit (default End vs Soon) still waits for SL-006.
 
 <!-- doctrine:section sec-07-decisions -->
@@ -949,15 +984,16 @@ surviving mutant is justified, until CHR-001 lands a mutation recipe
 | `org-iw-core.el` | `org-iw-entry` gains `outline`; add `org-iw-core-beside`, `org-iw-core-step` |
 | `org-iw-discovery.el` | `--read-entry` sets `:outline` from `org-get-outline-path` |
 | `org-iw-write.el` | add `org-iw-write-delete-rank`; title line, commentary and put-rank docstring reworded for two operations; put-rank lists "buffer is read-only" (ISS-001) |
-| `org-iw.el` | `org-iw--add-target` → `org-iw--target-at-point` (Add keeps the document refusal); add `--find-entry` (also used by `--check-heading` and Continue), `--scanned-entry-at`, `--known-queues`, `--read-session-queue`, `--membership-queue`, `--move`, `--delete-rank`, `--outline-text`, `--session-hint`, `--view-buffer`, `--view-redraw`; generalise `--read-queue`, `--refuse-absent` (texts name no act), `--read-placement` (WITH-REMOVE); reword `--refuse-no-room`; reserve "Remove" in `--check-placements`; `--visit` gains OTHER-WINDOW; `--save-status` docstring covers both write verbs; Continue takes `remove` and uses `--move`; visit-next uses `--read-session-queue`; new `org-iw-move`, `org-iw-remove`, `org-iw-list-queue`, `org-iw-view-mode` and its commands and keymap; `--membership-queue` takes ASK and `--read-placement` names the queue (DEC-020) |
+| `org-iw.el` | `org-iw--add-target` → `org-iw--target-at-point` (Add keeps the document refusal); add `--find-entry` (also used by `--check-heading` and Continue), `--scanned-entry-at`, `--known-queues`, `--read-session-queue`, `--membership-queue`, `--move`, `--delete-rank`, `--outline-text`, `--session-hint`, `--view-buffer`, `--view-redraw`; generalise `--read-queue`, `--refuse-absent` (texts name no act), `--read-placement` (WITH-REMOVE); reword `--refuse-no-room`; reserve "Remove" in `--check-placements`; `--visit` gains OTHER-WINDOW; `--save-status` docstring covers both write verbs; Continue takes `remove` and uses `--move`; visit-next uses `--read-session-queue`; new `org-iw-move`, `org-iw-remove`, `org-iw-list-queue`, `org-iw-view-mode` and its commands and keymap; `--membership-queue` takes ASK and `--read-placement` names the queue (DEC-020); the § 5.2 helpers added in execution and audit, the "Membership writes" section, and the view helpers (RV-011 F-2) |
 | `test/org-iw-core-test.el` | beside/step tables and properties, with a checker self-test |
 | `test/org-iw-discovery-test.el` | outline cases |
 | `test/org-iw-write-test.el` | delete-rank cases |
+| `test/org-iw-test-helpers.el` | fixture: view buffers killed on release, corpus calls inside `save-window-excursion`, the outside-view guard (PHASE-06, RV-007 F-3; RV-011 F-1) |
 | `test/org-iw-test.el` | Move, Remove, Continue-Remove, reservation, no-room texts and view tests; the recorder also answers `y-or-n-p`; expectations change for the reworded no-room and absence refusals and the renamed target helper |
 | `README.md` | the queue view and its keys; Move; Remove (view, source, Continue's chooser); the reserved "Remove" label; why removing the session's entry leaves the session, and how to go on or stop (DEC-015) |
 
 Selectors (design-target): `org-iw-core.el`, `org-iw-discovery.el`,
 `org-iw-write.el`, `org-iw.el`, `test/org-iw-core-test.el`,
 `test/org-iw-discovery-test.el`, `test/org-iw-write-test.el`,
-`test/org-iw-test.el`, `README.md`.
+`test/org-iw-test-helpers.el`, `test/org-iw-test.el`, `README.md`.
 

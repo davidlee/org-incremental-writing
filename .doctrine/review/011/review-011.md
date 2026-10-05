@@ -205,3 +205,48 @@ Where to look:
   file/outline context". Entries with the same title, the same parent
   and the same file are told apart by ordinal only (DEC-017).
   Same-named files in different directories are ASM-001's.
+
+## Reconciliation Outcome
+
+User agreed to all brief items in session (2026-10-05, "agreed").
+
+### Direct edits applied
+- Selector registry: `test/org-iw-test-helpers.el` added to SL-003 as
+  `design-target`. `slice conformance 3 --against e7213f2..HEAD` lists all
+  10 code paths conformant, none undelivered (F-1).
+- design.md § 10: a row for `test/org-iw-test-helpers.el`, and the path
+  in the selector list (F-1). The org-iw.el row names the added helpers,
+  the "Membership writes" section and the view helpers (F-2).
+- design.md § 5.2 (F-2):
+  - discovery's `:outline` uses `string-clean-whitespace`;
+  - `--scanned-entry-at` takes an optional QUEUE and owns the
+    not-in-queue and excluded refusals;
+  - a list of the helpers added in execution and audit, each the owner
+    of one concept;
+  - `--view-redraw` only clears a gone mark, and
+    `--view-print-row` draws it;
+  - the other view helpers are listed;
+  - `g` goes through `--view-revert` → `--view-refresh`.
+- design.md § 5.4: Move step 4 refuses through `--scanned-entry-at` with
+  QUEUE (F-2).
+- design.md § 5.5 and § 6: the REQ-013 AC2 disagreement is marked
+  settled by REV-005 (F-3).
+- slice-003.md: no edit.
+- design.md was edited outside the design run, as at SL-001 and SL-002
+  reconcile. `design show` notes it is behind run revision 53. It was
+  deliberately not materialised: that would overwrite the reconciled
+  prose.
+
+### REVs completed
+- REV-005 (`reconcile-sl-003`): done. REQ-013 AC2 is qualified: entries
+  sharing a file and parent heading are told apart by ordinal (DEC-017),
+  and same-named files in other directories are ASM-001's (F-3). The
+  rationale is in revision-005.md.
+
+### Withdrawn / tolerated
+- F-13: tolerated. A view buffer whose major mode the user changed is
+  still found. Design § 5.2's wording ("the live org-iw-view-mode
+  buffer") is left as the intended contract. Rationale is in the
+  finding's disposition.
+
+Reconcile pass complete; handoff to /close.

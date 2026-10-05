@@ -15,7 +15,7 @@ description = "The user can choose a queue by completion and see its actual orde
 tags = []
 acceptance_criteria = [
   "Every configured queue and every encountered unconfigured queue is offered for completion.",
-  "Two entries with the same title are distinguishable by file/outline context.",
+  "Two entries with the same title are distinguishable by file/outline context, or by ordinal when they share a file and parent heading (DEC-017). Same-named files in different directories are not told apart (ASM-001).",
   "Refresh reflects source changes including undo.",
   "Opening an entry from the view establishes the same session context as Visit next.",
 ]

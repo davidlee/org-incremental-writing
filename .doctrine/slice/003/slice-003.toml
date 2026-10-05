@@ -54,6 +54,11 @@ intent = "design-target"
 selector = "README.md"
 intent = "design-target"
 
+[[selector]]
+selector = "test/org-iw-test-helpers.el"
+intent = "design-target"
+note = "RV-011 F-1"
+
 [[relation]]
 label = "governed_by"
 target = "ADR-001"
