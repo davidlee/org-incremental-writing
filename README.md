@@ -184,13 +184,20 @@ An entry can leave a queue in three places:
 ### Removing the session's entry
 
 Removing the entry the session is on, with `org-iw-remove` or `D`,
-leaves the session as it is. The mode line still names the entry, and
-the message says so: run `org-iw-visit-next` to go on, or
-`org-iw-end-session` to stop.
+leaves the session as it is:
 
-This is on purpose. Undo in the file's buffer restores the entry, and
-the session then works again, Continue included. Ending the session
-would make undo restore the file but not the session.
+- The mode line still names the removed entry, and the message says so.
+- `org-iw-continue` refuses ("T is no longer in queue NAME"), because
+  there is no entry to put back.
+- Run `org-iw-visit-next` to go on with the queue's first entry, or
+  `org-iw-end-session` to stop.
+
+This is on purpose: it makes Remove undoable. Undo in the file's buffer
+brings the entry back, and the session works again as if nothing
+happened, Continue included. If Remove ended the session, undo would
+restore the file but not the session.
+
+Deleting the entry's `IW_` line by hand has the same effect.
 
 ## Queue view
 
