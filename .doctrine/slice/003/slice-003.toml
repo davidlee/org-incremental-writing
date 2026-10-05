@@ -1,9 +1,9 @@
 id = 3
 slug = "queue-view"
 title = "Queue view and membership ops"
-status = "ready"
+status = "reconcile"
 created = "2026-09-30"
-updated = "2026-10-03"
+updated = "2026-10-05"
 tags = ["roadmap"]
 
 [relationships]
