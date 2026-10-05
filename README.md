@@ -166,10 +166,10 @@ Bound to a key, a placement needs no prompt:
 `org-iw-move` and `org-iw-remove` act on the heading at point, or on the
 file's document entry before its first heading. The queue is the entry's
 only queue; of several, the session's, if it is one of them; else you
-pick one. With `C-u`, you always pick one of the entry's queues. `org-
-iw-move` then asks for a placement label in that queue (the prompt names
-it), defaulting to the queue's default. Neither visits anything, and the
-session is left as it is.
+pick one. With `C-u`, you always pick one of the entry's queues.
+`org-iw-move` then asks for a placement label in that queue (the prompt
+names it), defaulting to the queue's default. Neither visits anything,
+and the session is left as it is.
 
 `org-iw-remove` deletes the entry's `IW_<QUEUE>` line and asks no
 confirmation: undo in the file's buffer brings the line back. The
