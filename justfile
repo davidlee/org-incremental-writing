@@ -7,6 +7,11 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 emacs := env("EMACS", "emacs")
 emacs30 := env("EMACS30", "emacs-30")
 
+# Denote on the test load path (SL-004 design § 8): -L DIR when ORG_IW_DENOTE_DIR
+# is set and non-empty, else nothing. Used by the recipes that load the suite.
+denote_dir := env("ORG_IW_DENOTE_DIR", "")
+denote_load := if denote_dir == "" { "" } else { "-L " + quote(denote_dir) }
+
 sources := "org-iw*.el"
 elisp := "org-iw*.el test/*.el tools/*.el"
 
@@ -64,7 +69,7 @@ test bin=emacs:
     shopt -s nullglob
     loads=()
     for f in test/*-test.el; do loads+=(-l "$f"); done
-    {{bin}} -Q --batch -L . -L test --eval "(setq load-prefer-newer t)" \
+    {{bin}} -Q --batch {{denote_load}} -L . -L test --eval "(setq load-prefer-newer t)" \
       "${loads[@]}" -f ert-run-tests-batch-and-exit
 
 # Run the suite on Emacs 31 and Emacs 30.
@@ -77,13 +82,13 @@ test-each bin=emacs:
     shopt -s nullglob
     loads=()
     for f in test/*-test.el; do loads+=(-l "$f"); done
-    names=$({{bin}} -Q --batch -L . -L test "${loads[@]}" \
+    names=$({{bin}} -Q --batch {{denote_load}} -L . -L test "${loads[@]}" \
       --eval '(dolist (test (ert-select-tests t t)) (princ (format "%s\n" (ert-test-name test))))' 2>/dev/null)
     fail=0
     count=0
     while read -r name; do
       count=$((count + 1))
-      {{bin}} -Q --batch -L . -L test --eval "(setq load-prefer-newer t)" "${loads[@]}" \
+      {{bin}} -Q --batch {{denote_load}} -L . -L test --eval "(setq load-prefer-newer t)" "${loads[@]}" \
         --eval "(ert-run-tests-batch-and-exit '(member $name))" >/dev/null 2>&1 \
         || { echo "FAIL alone: $name"; fail=1; }
     done <<<"$names"
@@ -103,7 +108,7 @@ coverage:
     shopt -s nullglob
     loads=()
     for f in test/*-test.el; do loads+=(-l "$f"); done
-    {{emacs}} -Q --batch -L . -L test \
+    {{emacs}} -Q --batch {{denote_load}} -L . -L test \
       --eval "(progn (require 'undercover) (setq undercover-force-coverage t) \
                 (undercover \"{{sources}}\" (:report-format 'text) (:send-report nil)))" \
       "${loads[@]}" -f ert-run-tests-batch-and-exit

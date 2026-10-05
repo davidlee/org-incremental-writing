@@ -38,6 +38,15 @@
           exec ${emacs30}/bin/emacs "$@"
         '';
 
+        # Denote on the test load path (SL-004): the directory holding denote.el,
+        # found in the package rather than assumed from its version.
+        denoteDir = pkgs.runCommand "org-iw-denote-dir" {} ''
+          f=$(find ${pkgs.emacsPackages.elpaPackages.denote}/share/emacs/site-lisp \
+            -name denote.el -print -quit)
+          test -n "$f"
+          ln -s "$(dirname "$f")" "$out"
+        '';
+
         # jail.nix is Linux-only (bubblewrap). Darwin gets a plain devshell.
         jailLib =
           if isLinux
@@ -95,7 +104,11 @@
           (set-env "DOCTRINE_RESERVATION_FALLBACK" "1")
         ];
 
-        jailEnvOptions = apiKeyJailOptions ++ doctrineJailOptions;
+        orgIwJailOptions = with jailLib.combinators; [
+          (set-env "ORG_IW_DENOTE_DIR" "${denoteDir}")
+        ];
+
+        jailEnvOptions = apiKeyJailOptions ++ doctrineJailOptions ++ orgIwJailOptions;
 
         # -- Agents --
         #
@@ -138,6 +151,13 @@
         packages = jailPkgs;
 
         devshells.default = {
+          env = [
+            {
+              name = "ORG_IW_DENOTE_DIR";
+              value = "${denoteDir}";
+            }
+          ];
+
           packages =
             projectPkgs
             ++ lib.optionals isLinux (lib.attrValues jailPkgs);
