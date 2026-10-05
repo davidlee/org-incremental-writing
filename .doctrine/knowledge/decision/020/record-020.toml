@@ -1,0 +1,38 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 20
+slug = "c-u-on-move-and-remove-chooses-the-queue-the-placement-prompt-names-it"
+title = "C-u on Move and Remove chooses the queue; the placement prompt names it"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-05"
+updated = "2026-10-05"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "PHASE-08 trial: on a heading in DO and LEARN with a session in DO, org-iw-move prompted only 'Placement: '. DEC-012 picks the session's queue silently; the only way to act on the other queue was to end the session; the prompt did not show which queue was chosen."
+choice = "With a prefix argument (C-u) org-iw-move and org-iw-remove always read the queue, over the entry's queues only (require-match), even with one membership or the session in one of them; without it DEC-012's rule stands. The placement prompt names the queue: 'Placement in NAME: ' (NAME the queue's display name), for every caller of org-iw--read-placement."
+alternatives = ["document 'end the session first'", "prompt for the queue whenever there are several memberships", "name the queue only in Move's prompt"]
+rationale = "Matches org-iw-visit-next and org-iw-list-queue where C-u picks another queue than the session's. Keeps the common case prompt-free. Naming the queue in the one placement prompt makes the silent choice visible everywhere (POL-002: one prompt owner)."
+consequences = ["Refines DEC-012's queue-resolution clause; amends SL-003 design § 5.2/§ 5.4", "README documents C-u for Move and Remove", "Add and Continue's placement prompt text changes too"]
+decided_by = "user"
+decided_on = "2026-10-05"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "references"
+role = "concerns"
+target = "DEC-012"
+
+[[relation]]
+label = "shapes"
+target = "SL-003"

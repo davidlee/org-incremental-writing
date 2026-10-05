@@ -289,11 +289,13 @@ changes. Discovery stays the only reader of Org text.
 ;; prefix argument or no session, then org-iw--read-queue over the known
 ;; queues.  Used by org-iw-visit-next and org-iw-list-queue.
 
-(org-iw--membership-queue ENTRY)
-;; DEC-012's rule, used interactively by Move and Remove.
-;; → ENTRY's only queue; with several, the session's queue if it is one of
-;;   them; otherwise read with org-iw--read-queue over ENTRY's queues,
-;;   REQUIRE-MATCH t.
+(org-iw--membership-queue ENTRY &optional ASK)
+;; DEC-012's rule, refined by DEC-020; used interactively by Move and
+;; Remove, which pass the prefix argument as ASK.
+;; → with ASK, read with org-iw--read-queue over ENTRY's queues,
+;;   REQUIRE-MATCH t, even when there is one.  Otherwise ENTRY's only
+;;   queue; with several, the session's queue if it is one of them; else
+;;   read as with ASK.
 
 (org-iw--move SCAN ORDER ENTRY QUEUE PLACEMENT &optional WHERE)
 ;; ENTRY: an element of ORDER, QUEUE's members in SCAN.
@@ -334,7 +336,8 @@ equal to "Remove", ignoring case, echoing the label as configured:
 (org-iw--read-placement QUEUE &optional WITH-REMOVE)
 ;; WITH-REMOVE non-nil appends the candidate "Remove" after the labels.
 ;; It is never the default.  → a label, or the symbol remove when
-;; "Remove" was chosen.
+;; "Remove" was chosen.  The prompt names the queue: "Placement in
+;; NAME: ", NAME the queue's display name (DEC-020).
 ```
 
 **Commands** (public)
@@ -343,13 +346,14 @@ equal to "Remove", ignoring case, echoing the label as configured:
 ;;;###autoload
 (org-iw-move QUEUE &optional LABEL)
 ;; Move the entry at point to placement LABEL (nil: the default) of QUEUE.
-;; Interactively: QUEUE by org-iw--membership-queue, then LABEL by
-;; org-iw--read-placement (always prompts; DEC-012).
+;; Interactively: QUEUE by org-iw--membership-queue, always read with
+;; C-u (DEC-020), then LABEL by org-iw--read-placement (always prompts;
+;; DEC-012).
 
 ;;;###autoload
 (org-iw-remove QUEUE)
 ;; Remove the entry at point from QUEUE.  Interactively: QUEUE by
-;; org-iw--membership-queue.  No confirmation: the source buffer has undo.
+;; org-iw--membership-queue, always read with C-u (DEC-020).  No confirmation: the source buffer has undo.
 
 (org-iw-continue &optional LABEL)
 ;; LABEL may also be the symbol remove.  The prefix chooser passes
@@ -479,11 +483,14 @@ scan is the same as Add's (IMP-002).
 flowchart TD
   A[entry at point] --> B{memberships}
   B -- none / excluded --> R[refuse]
-  B -- one --> Q[that queue]
-  B -- several --> S{session queue among them?}
+  B -- some --> U{C-u?}
+  U -- yes --> P[prompt over the entry's queues only]
+  U -- no --> N{how many?}
+  N -- one --> Q[that queue]
+  N -- several --> S{session queue among them?}
   S -- yes --> Q2[session queue]
-  S -- no --> P[prompt over those queues only]
-  Q & Q2 & P --> L[read placement, default label]
+  S -- no --> P
+  Q & Q2 & P --> L["read placement: 'Placement in NAME: ', default label"]
   L --> M[org-iw--move]
 ```
 
@@ -702,6 +709,9 @@ Durable (read with `doctrine show DEC-0NN`):
   documents.
 - DEC-019: the view's surface: `org-iw-list-queue`, mark-then-place,
   open in another window, minimal keys.
+- DEC-020: with `C-u`, Move and Remove always ask for the queue, among
+  the entry's queues; the placement prompt names the queue. It refines
+  DEC-012 (user ruling from the PHASE-08 trial).
 
 Recorded on the design run, not as records:
 
@@ -842,6 +852,9 @@ surviving mutant is justified, until CHR-001 lands a mutation recipe
   - two memberships, no session → prompts over exactly those two
     (REQ-017 AC1);
   - two memberships with the session in one of them → no queue prompt;
+  - with `C-u`, the queue prompt offers exactly the entry's queues, with
+    one membership, and with the session in one of them (DEC-020);
+  - the placement prompt reads "Placement in NAME: " (DEC-020);
   - moved writes one line and only that membership changes (REQ-017
     AC2); unchanged writes nothing; no gap → "no room at Soon in NAME;
     …", nothing changed;
@@ -853,8 +866,9 @@ surviving mutant is justified, until CHR-001 lands a mutation recipe
 - Remove (source): deletes one line; the session is unchanged (`eq`);
   the hint appears only for the session's entry in the session's queue,
   with the exact literals of § 5.4 (DEC-015); no prompt is reached for a
-  single membership; a member document is removed; from Lisp with a
-  queue the entry isn't in → refusal.
+  single membership, and `C-u` prompts over the entry's queues
+  (DEC-020); a member document is removed; from Lisp with a queue the
+  entry isn't in → refusal.
 - Continue:
   - the chooser lists the labels then "Remove", last, and not the
     default (the recorder's `:order` and `:default`);
@@ -935,7 +949,7 @@ surviving mutant is justified, until CHR-001 lands a mutation recipe
 | `org-iw-core.el` | `org-iw-entry` gains `outline`; add `org-iw-core-beside`, `org-iw-core-step` |
 | `org-iw-discovery.el` | `--read-entry` sets `:outline` from `org-get-outline-path` |
 | `org-iw-write.el` | add `org-iw-write-delete-rank`; title line, commentary and put-rank docstring reworded for two operations; put-rank lists "buffer is read-only" (ISS-001) |
-| `org-iw.el` | `org-iw--add-target` → `org-iw--target-at-point` (Add keeps the document refusal); add `--find-entry` (also used by `--check-heading` and Continue), `--scanned-entry-at`, `--known-queues`, `--read-session-queue`, `--membership-queue`, `--move`, `--delete-rank`, `--outline-text`, `--session-hint`, `--view-buffer`, `--view-redraw`; generalise `--read-queue`, `--refuse-absent` (texts name no act), `--read-placement` (WITH-REMOVE); reword `--refuse-no-room`; reserve "Remove" in `--check-placements`; `--visit` gains OTHER-WINDOW; `--save-status` docstring covers both write verbs; Continue takes `remove` and uses `--move`; visit-next uses `--read-session-queue`; new `org-iw-move`, `org-iw-remove`, `org-iw-list-queue`, `org-iw-view-mode` and its commands and keymap |
+| `org-iw.el` | `org-iw--add-target` → `org-iw--target-at-point` (Add keeps the document refusal); add `--find-entry` (also used by `--check-heading` and Continue), `--scanned-entry-at`, `--known-queues`, `--read-session-queue`, `--membership-queue`, `--move`, `--delete-rank`, `--outline-text`, `--session-hint`, `--view-buffer`, `--view-redraw`; generalise `--read-queue`, `--refuse-absent` (texts name no act), `--read-placement` (WITH-REMOVE); reword `--refuse-no-room`; reserve "Remove" in `--check-placements`; `--visit` gains OTHER-WINDOW; `--save-status` docstring covers both write verbs; Continue takes `remove` and uses `--move`; visit-next uses `--read-session-queue`; new `org-iw-move`, `org-iw-remove`, `org-iw-list-queue`, `org-iw-view-mode` and its commands and keymap; `--membership-queue` takes ASK and `--read-placement` names the queue (DEC-020) |
 | `test/org-iw-core-test.el` | beside/step tables and properties, with a checker self-test |
 | `test/org-iw-discovery-test.el` | outline cases |
 | `test/org-iw-write-test.el` | delete-rank cases |
