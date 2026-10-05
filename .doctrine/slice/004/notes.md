@@ -6,26 +6,30 @@ disposable phase sheet (`.doctrine/state/.../phase-NN.md`) that must survive
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: 2026-10-05 · design locked → plan · f5bd251
+fresh-as-of: 2026-10-05 · PHASE-07 (phases complete → audit) · 20b9a16
 
 ### Produced
-- design locked (run dr-01a10a0a…, rev 40); design.md 14 sections, human-attested
-- DEC-021..DEC-028 (DEC-021/022/026 amended per RV-012, user "yes")
-- RV-012 — design review, 14 findings verified (F-13 tolerated → IMP-010), concluded
-- research/research.md — Org document-level probes; 3,000-file scale benchmarks
-- QUE-002 answered (DEC-021); minted IDE-002, IMP-010
-- 10 design-target selectors (section 10)
-- no code changed; gate not run this stage
+- plan: 7 phases (4558e2a, 931c551, 69117cf); research restamped
+- PHASE-01..06 implemented via capsule-driver (f8d72bf, 39b7b82, 3b32937, a9f0235, 3126674, 13b1348; friction ea521b8, d63cae9); gate + test-each green on 31/30, ORG_IW_DENOTE_DIR set and unset; verify-vt 4 clean; 327 → 397 tests
+- e14c071 — flake: denoteDir in projectPkgs so jails mount it (PHASE-01 defect found at jail restart; unverified until next restart)
+- PHASE-07 VH-1 passed (user trial on Git copy of ~/notes; batch effectively instant); 20b9a16
+- SL-001 PHASE-06 VT-2 waived per DEC-023 (user "fine"), 20b9a16
+- minted: ISS-004 — uncaught refusal shown as quoted string
+- adaptations to reconcile into design § 5.2: S1 public `org-iw-discovery-entry` (notes § PHASE-04); O1 PROGRESS takes (FILE . OUTCOME), command owns summary (notes § PHASE-05)
+- gate not re-run since e14c071 (flake only; no elisp change)
 
 ### Learned
 - mem.fact.emacs.denote-api-and-test-emacsen — obsolete Denote predicate; 31 has Denote under -Q, 30 not
+- mem.fact.emacs.features-not-special-lexical-let — lexical let of features doesn't hide Denote; use cl-progv
 
 ### Open
-- REV pending at reconcile: REQ-002, REQ-007, REQ-011 identity wording (DEC-021 consequences)
-- IMP-010 / IMP-002 — scan cost at thousands of members (DEC-027 constraints bind the plan)
+- REV at reconcile: REQ-002, REQ-007, REQ-011 identity wording (DEC-021; RV-012 F-11)
+- design § 5.2 reconcile: S1, O1 (above); plan PHASE-01/EX-1 "Denote 4.x" should read ≥ 4.1.0
+- IMP-010 / IMP-002 — scan cost at thousands of members
 - IDE-002 — CUSTOM_ID heading identity
 - ASM-001 — unique source file names (still held)
-- CHR-003 — README per slice (design § 10 includes README.md)
+- ISS-004 — refusal display
+- SL-001 PHASE-07 VT-2 (`already at end`) — pre-existing stale keyword, untouched
 
 ## PHASE-01 (2026-10-05, execute)
 
