@@ -109,15 +109,22 @@ to load warns once.")
 (declare-function denote-file-has-denoted-filename-p "denote" (file))
 (declare-function denote-retrieve-filename-identifier "denote" (file))
 
+(defun org-iw-discovery-document-marker ()
+  "Return a marker at the current buffer's document entry.
+That is the start of the base buffer, widened, whatever the current
+buffer, its narrowing and point.  Text inserted there goes after the
+marker, so a drawer inserted for the document leaves it at the
+drawer.  This is the one owner of where a document starts."
+  (with-current-buffer (org-iw-discovery-base-buffer)
+    (org-with-wide-buffer
+     (copy-marker (point-min)))))
+
 (defmacro org-iw-discovery--at-document-start (&rest body)
-  "Run BODY at the start of the current buffer's base buffer, widened.
-That is where the document's entry is, if it has one.  The current
-buffer, point and the narrowing are restored afterwards."
+  "Run BODY at `org-iw-discovery-document-marker'.
+The current buffer, point and the narrowing are restored afterwards."
   (declare (indent 0) (debug t))
-  `(with-current-buffer (org-iw-discovery-base-buffer)
-     (org-with-wide-buffer
-      (goto-char (point-min))
-      ,@body)))
+  `(org-with-point-at (org-iw-discovery-document-marker)
+     ,@body))
 
 (defun org-iw-discovery--denote-available-p ()
   "Return non-nil if Denote is loaded, trying to load it once if not.
@@ -259,7 +266,7 @@ other invalid name are an `invalid-property'; a bad rank is an
       (cons (nreverse memberships)
             (append (nreverse invalid) (nreverse problems))))))
 
-(defun org-iw-discovery-title (file)
+(defun org-iw-discovery--title (file)
   "Return the title of the entry at point in FILE.
 A heading's title is its text; the document's is its #+title, else
 the base name of FILE."
@@ -304,7 +311,7 @@ MEMBERSHIPS is the alist of `org-iw-discovery--classify-lines'; nil
 gives nil.  This is the one constructor of scanned entries."
   (and memberships
        (org-iw-entry-create
-        :id id :title (org-iw-discovery-title file)
+        :id id :title (org-iw-discovery--title file)
         :file file :memberships memberships
         :outline (mapcar #'string-clean-whitespace (org-get-outline-path)))))
 

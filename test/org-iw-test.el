@@ -566,7 +566,7 @@ the document."
                      (point-marker))
                    nil 2 '(("OTHER" . 5) ("ESSAYS" . 3072))))
           (document (org-iw-cmd-test--should-add-entry
-                     (org-iw-cmd-test--at "a.org" nil) t 3
+                     (org-iw-test-marker "a.org" nil) t 3
                      '(("ESSAYS" . 4096)))))
       (should (org-iw-entry-id new))
       (should (equal (org-iw-entry-outline nested) '("New")))
@@ -608,14 +608,6 @@ the document."
 
 ;;;; Add: refusals (VT-2, I7)
 
-(defun org-iw-cmd-test--at (name title)
-  "Return a marker at heading TITLE of corpus file NAME.
-TITLE nil means the start of the file, before any heading."
-  (if title
-      (org-iw-test-marker name title)
-    (with-current-buffer (org-iw-test-visit name)
-      (copy-marker (point-min)))))
-
 (defun org-iw-cmd-test--should-refuse (marker queue substring
                                               &optional command)
   "Assert COMMAND at MARKER to QUEUE refuses with SUBSTRING, changing nothing.
@@ -627,12 +619,12 @@ COMMAND defaults to `org-iw-add'.  See
                                          queue))))
 
 (defun org-iw-cmd-test--refuses (text queue substring
-                                        &optional title command)
+                                      &optional title command)
   "Assert COMMAND refuses with SUBSTRING in a corpus holding a.org as TEXT.
 COMMAND, by default `org-iw-add', is called at heading TITLE of a.org,
 or its start if TITLE is nil, to QUEUE.  Return the refusal message."
   (org-iw-test-with-corpus `(("a.org" . ,text))
-    (org-iw-cmd-test--should-refuse (org-iw-cmd-test--at "a.org" title)
+    (org-iw-cmd-test--should-refuse (org-iw-test-marker "a.org" title)
                                     queue substring command)))
 
 (defconst org-iw-cmd-test--intro
@@ -644,12 +636,12 @@ or its start if TITLE is nil, to QUEUE.  Return the refusal message."
   (org-iw-test-with-corpus '(("a.org" . "* A\n") ("b.org" . "* B\n"))
     (let ((org-iw-sources (list (org-iw-test-path "a.org"))))
       (org-iw-cmd-test--should-refuse (org-iw-test-marker "b.org" "B")
-                                      "ESSAYS" "not under org-iw-sources"))
+                                      "ESSAYS" "not a source file"))
     (with-temp-buffer
       (insert "* H\n")
       (org-mode)
       (org-iw-cmd-test--should-refuse (copy-marker (point-min))
-                                      "ESSAYS" "not under org-iw-sources"))))
+                                      "ESSAYS" "not a source file"))))
 
 
 (ert-deftest org-iw-cmd-test-add-refuses-invalid-queue ()
@@ -732,8 +724,8 @@ Nothing changes and no Org parsing runs, so no warnings appear."
   (org-iw-test-with-corpus `(("a.org" . "* A\n")
                              ("b.org" . ,org-iw-cmd-test--intro))
     (let ((org-iw-sources (list (org-iw-test-path "a.org"))))
-      (org-iw-cmd-test--should-refuse (org-iw-cmd-test--at "b.org" nil)
-                                      "ESSAYS" "not under org-iw-sources")))
+      (org-iw-cmd-test--should-refuse (org-iw-test-marker "b.org" nil)
+                                      "ESSAYS" "not a source file")))
   (org-iw-cmd-test--refuses org-iw-cmd-test--intro "ess_ays"
                             "invalid queue ID")
   (org-iw-cmd-test--refuses org-iw-cmd-test--malformed "ess_ays"
@@ -756,7 +748,7 @@ It replaces org-iw-cmd-test-add-refuses-document-target: Add no longer
 refuses there.  The heading is untouched, and a fresh scan has the
 document as a member, titled by its file."
   (org-iw-test-with-corpus `(("a.org" . ,org-iw-cmd-test--intro))
-    (let ((marker (org-iw-cmd-test--at "a.org" nil)))
+    (let ((marker (org-iw-test-marker "a.org" nil)))
       (should (equal (org-iw-cmd-test--call-at marker #'org-iw-add "ESSAYS")
                      "Added to ESSAYS at 1/1 (saved)"))
       (org-iw-test-should-add-drawer org-iw-cmd-test--intro marker nil)
@@ -826,7 +818,7 @@ That is one with no source file, and a source file not in Org mode."
     (with-temp-buffer
       (insert "Intro.\n")
       (org-mode)
-      (should (string-search "not under org-iw-sources"
+      (should (string-search "not a source file"
                              (cadr (should-error
                                     (call-interactively #'org-iw-add-document)
                                     :type 'org-iw-refusal)))))
@@ -845,19 +837,16 @@ That is one with no source file, and a source file not in Org mode."
   (org-iw-test-with-corpus `(("a.org" . "* A\n")
                              ("b.org" . ,org-iw-cmd-test--intro))
     (let ((org-iw-sources (list (org-iw-test-path "a.org"))))
-      (org-iw-cmd-test--should-refuse (org-iw-cmd-test--at "b.org" nil)
-                                      "ESSAYS" "not under org-iw-sources"
+      (org-iw-cmd-test--should-refuse (org-iw-test-marker "b.org" nil)
+                                      "ESSAYS" "not a source file"
                                       #'org-iw-add-document))))
 
 ;;;; Add-document: identity (EX-4)
 
-(defconst org-iw-cmd-test--denote-id "20260512T000000"
-  "A Denote identifier, for files named in Denote's scheme.")
-
 (defun org-iw-cmd-test--add-document-at-start (name)
   "Call `org-iw-add-document' to ESSAYS at the start of corpus file NAME.
 Return the message."
-  (org-iw-cmd-test--call-at (org-iw-cmd-test--at name nil)
+  (org-iw-cmd-test--call-at (org-iw-test-marker name nil)
                             #'org-iw-add-document "ESSAYS"))
 
 (ert-deftest org-iw-cmd-test-add-denote-note-no-id ()
@@ -868,34 +857,35 @@ ID is the Denote identifier."
   (pcase-dolist (`(,text ,command)
                  `((,(org-iw-test-org "#+title: T" "Text." "* H") org-iw-add)
                    (,(org-iw-test-heading "H" "h1") org-iw-add-document)))
-    (let ((note (org-iw-test-denote-file org-iw-cmd-test--denote-id text)))
+    (let ((note (org-iw-test-denote-file org-iw-test-denote-id text)))
       (org-iw-test-with-corpus (list note)
         (should (equal (org-iw-cmd-test--call-at
-                        (org-iw-cmd-test--at (car note) nil) command "ESSAYS")
+                        (org-iw-test-marker (car note) nil) command "ESSAYS")
                        "Added to ESSAYS at 1/1 (saved)"))
         (should (equal (org-iw-test-changed-lines
                         text (org-iw-test-file-string (car note)))
                        '(nil ":PROPERTIES:" ":IW_ESSAYS: 1024" ":END:")))
         (should (equal (org-iw-cmd-test--order "ESSAYS")
-                       (list org-iw-cmd-test--denote-id)))))))
+                       (list org-iw-test-denote-id)))))))
 
 (ert-deftest org-iw-cmd-test-add-document-inserts-id ()
   "A document with neither an ID nor a Denote name is given an ID."
   (let ((text (org-iw-test-org "#+title: T" "Text." "* H")))
     (org-iw-test-with-corpus `(("a.org" . ,text))
       (org-iw-cmd-test--add-document-at-start "a.org")
-      (org-iw-test-should-add-drawer text (org-iw-cmd-test--at "a.org" nil)
+      (org-iw-test-should-add-drawer text (org-iw-test-marker "a.org" nil)
                                      nil))))
 
 (ert-deftest org-iw-cmd-test-add-denote-name-without-denote-gets-id ()
-  "Without Denote, a file named in its scheme is a plain file: it gains an ID."
-  (let* ((text (org-iw-test-org "Text." "* H"))
-         (note (org-iw-test-denote-file org-iw-cmd-test--denote-id text)))
+  "Without Denote, a file named in its scheme is a plain file: it gains an ID.
+It needs no Denote, so it runs where Denote is not installed."
+  (let ((text (org-iw-test-org "Text." "* H"))
+        (name (org-iw-test-denote-name org-iw-test-denote-id)))
     (org-iw-test-without-denote
-      (org-iw-test-with-corpus (list note)
-        (org-iw-cmd-test--add-document-at-start (car note))
+      (org-iw-test-with-corpus `((,name . ,text))
+        (org-iw-cmd-test--add-document-at-start name)
         (org-iw-test-should-add-drawer
-         text (org-iw-cmd-test--at (car note) nil) nil)))))
+         text (org-iw-test-marker name nil) nil)))))
 
 (ert-deftest org-iw-cmd-test-add-document-heading-first-file ()
   "A file starting with a heading gains a drawer above the heading.
@@ -956,26 +946,38 @@ already in the queue, with an ID, is not taken for the document."
   "A heading whose :ID: is the note's Denote identifier blocks the note."
   (org-iw-test-with-corpus
       (list (org-iw-test-denote-file
-             org-iw-cmd-test--denote-id
+             org-iw-test-denote-id
              (concat (org-iw-test-org "Intro.")
-                     (org-iw-test-heading "H" org-iw-cmd-test--denote-id))))
+                     (org-iw-test-heading "H" org-iw-test-denote-id))))
     (org-iw-cmd-test--should-refuse
-     (org-iw-cmd-test--at (format "%s--note.org" org-iw-cmd-test--denote-id)
-                          nil)
-     "ESSAYS" "ID shared with another heading" #'org-iw-add-document)))
+     (org-iw-test-marker (org-iw-test-denote-name org-iw-test-denote-id)
+                         nil)
+     "ESSAYS" "ID shared with another entry" #'org-iw-add-document)))
 
 (ert-deftest org-iw-cmd-test-add-denote-refuses-identifier-shared-across-files ()
   "A member file with the same Denote identifier blocks the note."
-  (let ((note (org-iw-test-denote-file org-iw-cmd-test--denote-id
+  (let ((note (org-iw-test-denote-file org-iw-test-denote-id
                                        (org-iw-test-org "Intro.") "one"))
         (other (org-iw-test-denote-file
-                org-iw-cmd-test--denote-id
+                org-iw-test-denote-id
                 (org-iw-test-org ":PROPERTIES:" ":IW_OTHER: 5" ":END:")
                 "two")))
     (org-iw-test-with-corpus (list note other)
-      (org-iw-cmd-test--should-refuse (org-iw-cmd-test--at (car note) nil)
-                                      "ESSAYS" "ID shared with another heading"
+      (org-iw-cmd-test--should-refuse (org-iw-test-marker (car note) nil)
+                                      "ESSAYS" "ID shared with another entry"
                                       #'org-iw-add-document))))
+
+(ert-deftest org-iw-cmd-test-add-document-refuses-shared-file-level-id ()
+  "A document whose file-level :ID: a member heading elsewhere has is refused.
+Without Denote: the shared-ID check covers documents, not only Denote
+identifiers."
+  (org-iw-test-with-corpus
+      `(("doc.org" . ,(org-iw-test-org ":PROPERTIES:" ":ID: d1" ":END:"
+                                       "#+title: D"))
+        ("other.org" . ,(org-iw-test-heading "O" "d1" ":IW_NOTES: 1")))
+    (org-iw-cmd-test--should-refuse (org-iw-test-marker "doc.org" nil)
+                                    "ESSAYS" "ID shared with another entry"
+                                    #'org-iw-add-document)))
 
 (ert-deftest org-iw-cmd-test-add-document-refuses-at-rank-limit ()
   "Add-document refuses when the last rank leaves no room below the limit."
@@ -983,7 +985,7 @@ already in the queue, with an ID, is not taken for the document."
       `(("a.org" . ,org-iw-cmd-test--intro)
         ("b.org" . ,(org-iw-test-heading "Last" "l1"
                                          ":IW_ESSAYS: 9007199254740991")))
-    (org-iw-cmd-test--should-refuse (org-iw-cmd-test--at "a.org" nil) "ESSAYS"
+    (org-iw-cmd-test--should-refuse (org-iw-test-marker "a.org" nil) "ESSAYS"
                                     (org-iw-cmd-test--no-room "at the end")
                                     #'org-iw-add-document)))
 
@@ -1010,28 +1012,44 @@ A file of FILES replaces the corpus file of the same NAME."
 (defun org-iw-cmd-test--relative (outcomes)
   "Return batch OUTCOMES with each file relative to the corpus."
   (mapcar (lambda (outcome)
-            (cons (file-relative-name (car outcome) org-iw-test-dir)
+            (cons (org-iw-test-relative (car outcome))
                   (cdr outcome)))
           outcomes))
 
-(defun org-iw-cmd-test--batch (queue names &optional progress)
+(defun org-iw-cmd-test--batch (queue names &optional on-outcome)
   "Return the outcomes of `org-iw--batch-add' of corpus NAMES to QUEUE.
 NAMES are files and directories.  The selection, sources and scan are
-computed as `org-iw-add-files' computes them; PROGRESS defaults to
-`ignore'.  Files in the outcomes are relative to the corpus."
-  (let ((sources (org-iw--files)))
-    (org-iw-cmd-test--relative
-     (org-iw--batch-add (org-iw-discovery-scan sources) queue
-                        (org-iw-discovery-files
-                         (mapcar #'org-iw-test-path names) nil)
-                        sources (or progress #'ignore)))))
+computed as `org-iw-add-files' computes them.  The outcomes are those
+the batch passes to its ON-OUTCOME, in order; ON-OUTCOME, if given,
+is called with each too.  Files in the outcomes are relative to the
+corpus."
+  (let ((sources (org-iw--files))
+        (outcomes nil))
+    (org-iw--batch-add (org-iw-discovery-scan sources) queue
+                       (org-iw-discovery-files
+                        (mapcar #'org-iw-test-path names) nil)
+                       sources
+                       (lambda (outcome)
+                         (push outcome outcomes)
+                         (when on-outcome
+                           (funcall on-outcome outcome))))
+    (org-iw-cmd-test--relative (nreverse outcomes))))
+
+(defun org-iw-cmd-test--report-lines ()
+  "Return the lines of the shown batch report after its heading.
+A corpus file at the start of a line is made relative to the corpus.
+Fail unless the report is shown."
+  (let ((report (get-buffer "*org-iw batch*")))
+    (should (get-buffer-window report))
+    (mapcar (lambda (line) (string-remove-prefix org-iw-test-dir line))
+            (cdr (split-string (with-current-buffer report (buffer-string))
+                               "\n" t)))))
 
 (defun org-iw-cmd-test--ranks (queue)
   "Return QUEUE's members, scanned afresh, as (FILE . RANK) in order.
 FILE is relative to the corpus."
   (mapcar (lambda (entry)
-            (cons (file-relative-name (org-iw-entry-file entry)
-                                      org-iw-test-dir)
+            (cons (org-iw-test-relative (org-iw-entry-file entry))
                   (org-iw-core-rank entry queue)))
           (org-iw--order (org-iw--scan) queue)))
 
@@ -1047,11 +1065,6 @@ Under --batch `current-message' is always nil, so the log is read."
       (goto-char (point-max))
       (skip-chars-backward "\n")
       (buffer-substring-no-properties (line-beginning-position) (point)))))
-
-(defun org-iw-cmd-test--kill-report ()
-  "Kill the batch report buffer, if any; no fixture owns it."
-  (when-let* ((report (get-buffer "*org-iw batch*")))
-    (kill-buffer report)))
 
 (defun org-iw-cmd-test--counting (fns body-fn)
   "Call BODY-FN, counting the calls to each of FNS; return the counts.
@@ -1114,12 +1127,45 @@ as if FAILING had not been selected.  Return the outcomes."
                                     collect (cons name rank)))))
     outcomes))
 
+(ert-deftest org-iw-cmd-test-should-fail-self-test ()
+  "The batch-failure oracle fails on each wrong outcome it claims to catch.
+That is a wrong reason, a failing file that was added, another file
+that failed, and a failing file changed on disk."
+  (org-iw-test-with-corpus org-iw-cmd-test--batch-corpus
+    (let ((org-iw-exclude-regexp "/b\\.org\\'"))
+      (org-iw-cmd-test--should-fail '("b.org") "not a source" '("a.org" "b.org"))
+      (should-error (org-iw-cmd-test--should-fail
+                     '("sub/c.org") "not a source" '("sub"))
+                    :type 'ert-test-failed)))
+  (org-iw-test-with-corpus org-iw-cmd-test--batch-corpus
+    (let ((org-iw-exclude-regexp "/b\\.org\\'"))
+      (should-error (org-iw-cmd-test--should-fail
+                     '("b.org") "no such reason" '("a.org" "b.org"))
+                    :type 'ert-test-failed)))
+  (org-iw-test-with-corpus org-iw-cmd-test--batch-corpus
+    (let ((org-iw-exclude-regexp "/[ab]\\.org\\'"))
+      (should-error (org-iw-cmd-test--should-fail
+                     '("b.org") "not a source" '("a.org" "b.org" "sub"))
+                    :type 'ert-test-failed)))
+  (org-iw-test-with-corpus org-iw-cmd-test--batch-corpus
+    (org-iw-cmd-test--diverting
+     'org-iw--add-entry (org-iw-cmd-test--named-p "b.org")
+     (lambda (&rest _)
+       (write-region "#+title: Changed\n" nil (org-iw-test-path "b.org"))
+       (org-iw-core-refuse "boom"))
+     (lambda ()
+       (should-error (org-iw-cmd-test--should-fail
+                      '("b.org") "boom" '("a.org" "b.org"))
+                     :type 'ert-test-failed)))))
+
 ;;;; Batch add: summary and report (EX-5, VT-2)
 
 (ert-deftest org-iw-cmd-test-batch-summary-counts ()
   "`org-iw--batch-summary' counts each outcome kind and says not atomic.
-Unsaved counts the added files left unsaved, save failures included.
-Only a failed or unsaved file sends the reader to the report."
+Unsaved counts the added files left unsaved, save failures included,
+and the buffers left open modified, once each.  A batch that stopped
+says after how many of its files.  Only a failed, unsaved or stopped
+file sends the reader to the report."
   (let ((org-iw-queues '(("essays" :name "Essays"))))
     (should (equal (org-iw--batch-summary
                     "ESSAYS" '(("/a" added saved) ("/b" existing)
@@ -1136,49 +1182,69 @@ Only a failed or unsaved file sends the reader to the report."
     (should (equal (org-iw--batch-summary "ESSAYS" nil)
                    (concat "Added 0 to Essays, 0 already present, 0 failed,"
                            " 0 unsaved (not atomic)")))
+    (should (equal (org-iw--batch-summary
+                    "ESSAYS" '(("/a" added (save-failed error "x") left-open)
+                               ("/b" existing left-open)
+                               ("/c" failed "no" left-open)
+                               ("/d" added saved)))
+                   (concat "Added 2 to Essays, 1 already present, 1 failed,"
+                           " 3 unsaved (not atomic; see *org-iw batch*)")))
+    (should (equal (org-iw--batch-summary
+                    "ESSAYS" '(("/a" added saved) ("/b" stopped)
+                               ("/c" stopped)))
+                   (concat "Added 1 to Essays, 0 already present, 0 failed,"
+                           " 0 unsaved, stopped after 1 of 3 files"
+                           " (not atomic; see *org-iw batch*)")))
     (dolist (trouble '(("/e" failed "no") ("/h" added unsaved)
-                       ("/c" added (save-failed error "x"))))
+                       ("/c" added (save-failed error "x"))
+                       ("/b" existing left-open) ("/s" stopped)))
       (should (string-suffix-p "(not atomic; see *org-iw batch*)"
                                (org-iw--batch-summary "ESSAYS"
                                                       (list trouble)))))))
 
 (ert-deftest org-iw-cmd-test-batch-report-lists-trouble-only ()
-  "`org-iw--batch-report' lists failed and unsaved files, else makes nothing.
-The report is a read-only `special-mode' buffer, shown, rewritten in
-full each time.  Added and saved, and existing, files are not listed."
-  (org-iw-cmd-test--kill-report)
-  (unwind-protect
-      (save-window-excursion
-        (let ((org-iw-queues '(("essays" :name "Essays"))))
-          (should-not (org-iw--batch-report
-                       "ESSAYS" '(("/n/a.org" added saved)
-                                  ("/n/b.org" existing))))
-          (should-not (get-buffer "*org-iw batch*"))
-          (org-iw--batch-report "ESSAYS" '(("/n/old.org" failed "stale")))
-          (let ((report (org-iw--batch-report
-                         "ESSAYS"
-                         '(("/n/a.org" added saved) ("/n/b.org" existing)
-                           ("/n/c.org" failed "no room")
-                           ("/n/d.org" added unsaved)
-                           ("/n/e.org" added
-                            (save-failed error "Disk full"))))))
-            (should (eq report (get-buffer "*org-iw batch*")))
-            (should (get-buffer-window report))
-            (with-current-buffer report
-              (should (derived-mode-p 'special-mode))
-              (should buffer-read-only)
-              (should (equal (buffer-string)
-                             (org-iw-test-org
-                              "Batch add to Essays: files failed or not saved"
-                              ""
-                              "/n/c.org: no room"
-                              (concat "/n/d.org: (buffer has unsaved changes"
-                                      " — queue change not saved)")
-                              (concat "/n/e.org: (queue change applied but"
-                                      " not saved: Disk full)"))))))))
-    (org-iw-cmd-test--kill-report)))
+  "`org-iw--batch-report' lists the files needing attention, else nothing.
+Those are the failed, unsaved and stopped files, and those whose
+buffer was left open.  The report is a read-only `special-mode'
+buffer, shown, rewritten in full each time.  Added and saved, and
+existing, files are not listed."
+  (org-iw-test-with-corpus nil
+    (let ((org-iw-queues '(("essays" :name "Essays"))))
+      (should-not (org-iw--batch-report
+                   "ESSAYS" '(("/n/a.org" added saved)
+                              ("/n/b.org" existing))))
+      (should-not (get-buffer "*org-iw batch*"))
+      (org-iw--batch-report "ESSAYS" '(("/n/old.org" failed "stale")))
+      (let ((report (org-iw--batch-report
+                     "ESSAYS"
+                     '(("/n/a.org" added saved) ("/n/b.org" existing)
+                       ("/n/c.org" failed "no room")
+                       ("/n/d.org" added unsaved)
+                       ("/n/e.org" added
+                        (save-failed error "Disk full"))
+                       ("/n/f.org" existing left-open)
+                       ("/n/g.org" failed "stale" left-open)
+                       ("/n/h.org" stopped)))))
+        (should (eq report (get-buffer "*org-iw batch*")))
+        (should (get-buffer-window report))
+        (with-current-buffer report
+          (should (derived-mode-p 'special-mode))
+          (should buffer-read-only)
+          (should (equal (buffer-string)
+                         (org-iw-test-org
+                          "Batch add to Essays: files needing attention"
+                          ""
+                          "/n/c.org: no room"
+                          (concat "/n/d.org: (buffer has unsaved changes"
+                                  " — queue change not saved)")
+                          (concat "/n/e.org: (queue change applied but"
+                                  " not saved: Disk full)")
+                          (concat "/n/f.org: already present; buffer left"
+                                  " open, modified")
+                          "/n/g.org: stale; buffer left open, modified"
+                          "/n/h.org: not added: the batch stopped"))))))))
 
-;;;; Batch add: order, rerun and progress (EX-2, EX-5, VT-1)
+;;;; Batch add: order, rerun and outcomes (EX-2, EX-5, VT-1)
 
 (ert-deftest org-iw-cmd-test-batch-canonical-order ()
   "`org-iw--batch-add' appends in canonical order, whatever the selection.
@@ -1208,28 +1274,41 @@ No buffer is left open after either run."
                    '(("a.org" existing) ("sub/c.org" existing))))
     (should-not (seq-some #'org-iw-cmd-test--visited '("a.org" "sub/c.org")))))
 
-(ert-deftest org-iw-cmd-test-batch-progress-once-per-file ()
-  "PROGRESS is called once per file, after it, with the file and outcome.
+(ert-deftest org-iw-cmd-test-batch-on-outcome-once-per-file ()
+  "ON-OUTCOME gets each file's (FILE . OUTCOME) once, after the file is done.
 A failed file counts too.  The calls come in canonical order."
   (org-iw-test-with-corpus (org-iw-cmd-test--batch-files
                             '("x.org" . "#+title: X\n"))
     (let ((org-iw-exclude-regexp "/x\\.org\\'")
-          (calls nil))
-      (let ((outcomes (org-iw-cmd-test--batch
-                       "ESSAYS" '("x.org" "b.org" "a.org")
-                       (lambda (done)
-                         (push (cons done (org-iw-cmd-test--ranks "ESSAYS"))
-                               calls)))))
-        (should (equal (mapcar #'cadr outcomes) '(added added failed)))
-        (should (equal (mapcar (lambda (call)
-                                 (car (org-iw-cmd-test--relative
-                                       (list (car call)))))
-                               (reverse calls))
-                       outcomes))
-        ;; Each call comes once its file is written.
-        (should (equal (mapcar (lambda (call) (length (cdr call)))
-                               (reverse calls))
-                       '(2 3 3)))))))
+          (members nil))
+      (should (equal (mapcar (lambda (outcome) (take 2 outcome))
+                             (org-iw-cmd-test--batch
+                              "ESSAYS" '("x.org" "b.org" "a.org")
+                              (lambda (_)
+                                (push (length (org-iw-cmd-test--ranks "ESSAYS"))
+                                      members))))
+                     '(("a.org" added) ("b.org" added) ("x.org" failed))))
+      ;; Each call comes once its file is written.
+      (should (equal (reverse members) '(2 3 3))))))
+
+(ert-deftest org-iw-cmd-test-batch-unsaved-add-claims-rank-and-id ()
+  "A file added but left unsaved still takes its rank and claims its ID.
+The next file is appended after it, and a copy with its ID fails (I4,
+RV-012 F-5): an unsaved outcome is an added one."
+  (let ((copy (org-iw-test-org ":PROPERTIES:" ":ID: same" ":END:"
+                               "#+title: Copy")))
+    (org-iw-test-with-corpus (org-iw-cmd-test--batch-files
+                              `("a.org" . ,copy) `("c.org" . ,copy))
+      (with-current-buffer (org-iw-test-visit "a.org")
+        (goto-char (point-max))
+        (insert "Edit.\n"))
+      (should (equal (org-iw-cmd-test--batch "ESSAYS"
+                                             '("a.org" "b.org" "c.org"))
+                     '(("a.org" added unsaved) ("b.org" added saved)
+                       ("c.org" failed
+                        "same ID as a file added in this batch"))))
+      (should (equal (org-iw-cmd-test--ranks "ESSAYS")
+                     '(("m.org" . 1024) ("a.org" . 2048) ("b.org" . 3072)))))))
 
 ;;;; Batch add: failures (EX-3, I6, VT-1)
 
@@ -1270,14 +1349,17 @@ The rest are added as if they had not been selected (RV-012 F-9)."
     (should-not (org-iw-cmd-test--visited "b.org"))))
 
 (ert-deftest org-iw-cmd-test-batch-fails-not-writable ()
-  "A file that is not writable fails.
+  "A file that is not writable fails, the reason not naming it again.
 The file's writability is stubbed, so the test holds as root too."
   (org-iw-test-with-corpus org-iw-cmd-test--batch-corpus
     (org-iw-cmd-test--diverting
      'file-writable-p (org-iw-cmd-test--named-p "b.org") #'ignore
      (lambda ()
-       (org-iw-cmd-test--should-fail '("b.org") "not writable"
-                                     '("a.org" "b.org" "sub"))))))
+       (should (equal (cdr (assoc "b.org"
+                                  (org-iw-cmd-test--should-fail
+                                   '("b.org") "not writable"
+                                   '("a.org" "b.org" "sub"))))
+                      '(failed "not writable")))))))
 
 (ert-deftest org-iw-cmd-test-batch-fails-file-error ()
   "A file error opening a file fails that file; the batch goes on."
@@ -1323,13 +1405,13 @@ document's, not the heading's (RV-012 F-5)."
   (let ((text (org-iw-test-org "* H")))
     (org-iw-test-with-corpus
         (org-iw-cmd-test--batch-files
-         (org-iw-test-denote-file org-iw-cmd-test--denote-id text "one")
-         (org-iw-test-denote-file org-iw-cmd-test--denote-id text "two"))
+         (org-iw-test-denote-file org-iw-test-denote-id text "one")
+         (org-iw-test-denote-file org-iw-test-denote-id text "two"))
       (org-iw-cmd-test--should-fail
-       (list (format "%s--two.org" org-iw-cmd-test--denote-id))
+       (list (org-iw-test-denote-name org-iw-test-denote-id "two"))
        "same ID as a file added in this batch"
-       (list (format "%s--one.org" org-iw-cmd-test--denote-id)
-             (format "%s--two.org" org-iw-cmd-test--denote-id)
+       (list (org-iw-test-denote-name org-iw-test-denote-id "one")
+             (org-iw-test-denote-name org-iw-test-denote-id "two")
              "a.org")))))
 
 ;;;; Batch add: buffers and session (EX-4, DEC-026, I5, VT-1)
@@ -1365,26 +1447,72 @@ edits: kept, added but unsaved."
       (should (eq (org-iw-cmd-test--visited "d.org") dirty))
       (should (buffer-modified-p dirty)))))
 
+(ert-deftest org-iw-cmd-test-batch-keeps-buffer-visiting-via-symlink ()
+  "A buffer visiting a selected file through a symlink is the user's: kept.
+The batch finds it by file, not by name (I5)."
+  (org-iw-test-with-corpus org-iw-cmd-test--batch-corpus
+    (let* ((link (org-iw-test-make-symlink (org-iw-test-path "a.org")
+                                           "link.org"))
+           (buffer (let ((find-file-visit-truename nil))
+                     (find-file-noselect link))))
+      (should (equal (buffer-file-name buffer) link))
+      (should (equal (org-iw-cmd-test--batch "ESSAYS" '("a.org"))
+                     '(("a.org" added saved))))
+      (should (buffer-live-p buffer)))))
+
+(defun org-iw-cmd-test--dirtying-org-mode-hook ()
+  "Edit the buffer, as an Org mode hook might when it sets one up."
+  (save-excursion
+    (goto-char (point-max))
+    (insert " ")))
+
+(ert-deftest org-iw-cmd-test-batch-reports-buffer-left-open ()
+  "A buffer the batch opened and left modified is reported, whatever its outcome.
+An Org mode hook that edits each buffer it sets up leaves every opened
+buffer modified, so the batch keeps it.  The outcome says so, it
+counts as unsaved, and the report lists it (DEC-026)."
+  (org-iw-test-with-corpus
+      (org-iw-cmd-test--batch-files
+       `("e.org" . ,(org-iw-test-org ":PROPERTIES:" ":ID: e1"
+                                     ":IW_ESSAYS: 512" ":END:"
+                                     "#+title: E"))
+       `("r.org" . ,org-iw-cmd-test--stray-drawer))
+    (let ((org-mode-hook (list #'org-iw-cmd-test--dirtying-org-mode-hook)))
+      (should (equal (org-iw-cmd-test--batch "ESSAYS"
+                                             '("a.org" "e.org" "r.org"))
+                     '(("a.org" added unsaved left-open)
+                       ("e.org" existing left-open)
+                       ("r.org" failed
+                        "entry has a property drawer Org doesn't recognise"
+                        left-open))))
+      (dolist (name '("a.org" "e.org" "r.org"))
+        (should (buffer-modified-p (org-iw-cmd-test--visited name)))
+        (kill-buffer (org-iw-cmd-test--visited name)))
+      (should (equal (org-iw-add-files "ESSAYS"
+                                       (list (org-iw-test-path "e.org")))
+                     (concat "Added 0 to ESSAYS, 1 already present,"
+                             " 0 failed, 1 unsaved (not atomic; see"
+                             " *org-iw batch*)")))
+      (should (equal (org-iw-cmd-test--report-lines)
+                     '("e.org: already present; buffer left open, modified"))))))
+
 (ert-deftest org-iw-cmd-test-batch-keeps-save-failed-buffer ()
   "A buffer the batch opened whose save failed is kept and reported.
 The edit stands in the buffer; the file is unchanged (REQ-021 AC4)."
   (org-iw-test-with-corpus org-iw-cmd-test--batch-corpus
-    (org-iw-cmd-test--kill-report)
-    (unwind-protect
-        (let ((write-file-functions (list (lambda () (error "Disk full")))))
-          (should (equal (org-iw-add-files "ESSAYS"
-                                           (list (org-iw-test-path "a.org")))
-                         (concat "Added 1 to ESSAYS, 0 already present,"
-                                 " 0 failed, 1 unsaved (not atomic; see"
-                                 " *org-iw batch*)")))
-          (should (buffer-modified-p (org-iw-cmd-test--visited "a.org")))
-          (should (equal (org-iw-test-file-string "a.org")
-                         (cdr (assoc "a.org" org-iw-cmd-test--batch-corpus))))
-          (should (string-search
-                   (concat (org-iw-test-path "a.org")
-                           ": (queue change applied but not saved: Disk full)")
-                   (with-current-buffer "*org-iw batch*" (buffer-string)))))
-      (org-iw-cmd-test--kill-report))))
+    (let ((write-file-functions (list (lambda () (error "Disk full")))))
+      (should (equal (org-iw-add-files "ESSAYS"
+                                       (list (org-iw-test-path "a.org")))
+                     (concat "Added 1 to ESSAYS, 0 already present,"
+                             " 0 failed, 1 unsaved (not atomic; see"
+                             " *org-iw batch*)")))
+      (should (buffer-modified-p (org-iw-cmd-test--visited "a.org")))
+      (should (equal (org-iw-test-file-string "a.org")
+                     (cdr (assoc "a.org" org-iw-cmd-test--batch-corpus))))
+      (should (string-search
+               (concat (org-iw-test-path "a.org")
+                       ": (queue change applied but not saved: Disk full)")
+               (with-current-buffer "*org-iw batch*" (buffer-string)))))))
 
 (ert-deftest org-iw-cmd-test-batch-narrowed-buffer-drawer-at-top ()
   "A narrowed buffer gets its drawer at the file's start; it stays narrowed.
@@ -1397,7 +1525,7 @@ The file starts with a heading, which is byte-identical (RV-012 F-6)."
                      '(("n.org" added saved))))
       (with-current-buffer (org-iw-cmd-test--visited "n.org")
         (should (equal (buffer-string) "Body.")))
-      (org-iw-test-should-add-drawer text (org-iw-cmd-test--at "n.org" nil)
+      (org-iw-test-should-add-drawer text (org-iw-test-marker "n.org" nil)
                                      nil 2048))))
 
 (ert-deftest org-iw-cmd-test-batch-leaves-session ()
@@ -1453,7 +1581,6 @@ Every Org file under a directory read is added."
   "Assert adding NAMES to QUEUE refuses with SUBSTRING before any scan.
 NAMES are corpus names.  Nothing changes, the sources are not walked,
 nothing is scanned and no report is made."
-  (org-iw-cmd-test--kill-report)
   (should (equal (org-iw-cmd-test--counting
                   '(org-iw-discovery-scan org-iw--files)
                   (lambda ()
@@ -1471,7 +1598,7 @@ That is no selection, a directory with no Org file, and a missing file."
   (org-iw-test-with-corpus (org-iw-cmd-test--batch-files
                             '("notes/x.txt" . "Text.\n"))
     (dolist (names '(() ("notes") ("gone.org")))
-      (org-iw-cmd-test--should-refuse-unscanned "no Org files selected"
+      (org-iw-cmd-test--should-refuse-unscanned "no existing file selected"
                                                 "ESSAYS" names))))
 
 (ert-deftest org-iw-cmd-test-batch-invalid-queue-refuses ()
@@ -1482,9 +1609,10 @@ That is no selection, a directory with no Org file, and a missing file."
 
 (ert-deftest org-iw-cmd-test-batch-summary-after-error ()
   "An error other than a refusal or file error stops the batch, as quit does.
-The summary of the files done is shown, then the error or quit
-propagates.  The file being added and the rest are unchanged, and
-none of their buffers is left open (RV-012 F-7)."
+The summary says the batch stopped after the files done, the report
+lists the files not added, then the error or quit propagates.  The
+file being added and the rest are unchanged, and none of their
+buffers is left open (RV-012 F-7)."
   (dolist (condition '((error "Boom") (quit)))
     (org-iw-test-with-corpus org-iw-cmd-test--batch-corpus
       (should (equal (org-iw-cmd-test--diverting
@@ -1500,7 +1628,11 @@ none of their buffers is left open (RV-012 F-7)."
                      condition))
       (should (equal (org-iw-cmd-test--last-message)
                      (concat "Added 1 to ESSAYS, 0 already present, 0 failed,"
-                             " 0 unsaved (not atomic)")))
+                             " 0 unsaved, stopped after 1 of 3 files"
+                             " (not atomic; see *org-iw batch*)")))
+      (should (equal (org-iw-cmd-test--report-lines)
+                     '("b.org: not added: the batch stopped"
+                       "sub/c.org: not added: the batch stopped")))
       (should (equal (org-iw-cmd-test--ranks "ESSAYS")
                      '(("m.org" . 1024) ("a.org" . 2048))))
       (dolist (name '("b.org" "sub/c.org"))
@@ -1515,46 +1647,40 @@ in canonical order; a clean run makes no report."
   (org-iw-test-with-corpus (org-iw-cmd-test--batch-files
                             `("b.org" . ,org-iw-cmd-test--stray-drawer)
                             `("sub/c.org" . ,org-iw-cmd-test--stray-drawer))
-    (org-iw-cmd-test--kill-report)
-    (unwind-protect
-        (save-window-excursion
-          (let ((clean (org-iw-add-files "ESSAYS"
-                                         (list (org-iw-test-path "a.org")))))
-            (should (equal clean (concat "Added 1 to ESSAYS, 0 already"
-                                         " present, 0 failed, 0 unsaved"
-                                         " (not atomic)")))
-            (should (equal (org-iw-cmd-test--last-message) clean)))
-          (should-not (get-buffer "*org-iw batch*"))
-          (should (equal (org-iw-add-files "ESSAYS"
-                                           (mapcar #'org-iw-test-path
-                                                   '("sub" "a.org" "b.org")))
-                         (concat "Added 0 to ESSAYS, 1 already present,"
-                                 " 2 failed, 0 unsaved (not atomic; see"
-                                 " *org-iw batch*)")))
-          (let ((report (get-buffer "*org-iw batch*")))
-            (should (get-buffer-window report))
-            (should (equal (mapcar (lambda (line)
-                                     (car (split-string line ": ")))
-                                   (cdr (split-string
-                                         (with-current-buffer report
-                                           (buffer-string))
-                                         "\n" t)))
-                           (mapcar #'org-iw-test-path
-                                   '("b.org" "sub/c.org"))))))
-      (org-iw-cmd-test--kill-report))))
+    (let ((clean (org-iw-add-files "ESSAYS"
+                                   (list (org-iw-test-path "a.org")))))
+      (should (equal clean (concat "Added 1 to ESSAYS, 0 already"
+                                   " present, 0 failed, 0 unsaved"
+                                   " (not atomic)")))
+      (should (equal (org-iw-cmd-test--last-message) clean)))
+    (should-not (get-buffer "*org-iw batch*"))
+    (should (equal (org-iw-add-files "ESSAYS"
+                                     (mapcar #'org-iw-test-path
+                                             '("sub" "a.org" "b.org")))
+                   (concat "Added 0 to ESSAYS, 1 already present,"
+                           " 2 failed, 0 unsaved (not atomic; see"
+                           " *org-iw batch*)")))
+    (let ((report (get-buffer "*org-iw batch*")))
+      (should (get-buffer-window report))
+      (should (equal (mapcar (lambda (line)
+                               (car (split-string line ": ")))
+                             (cdr (split-string
+                                   (with-current-buffer report
+                                     (buffer-string))
+                                   "\n" t)))
+                     (mapcar #'org-iw-test-path
+                             '("b.org" "sub/c.org")))))))
 
 (ert-deftest org-iw-cmd-test-batch-add-files-excluded-fails ()
   "An excluded file in the selection is kept, to fail, not dropped (F-9)."
   (org-iw-test-with-corpus org-iw-cmd-test--batch-corpus
     (let ((org-iw-exclude-regexp "/b\\.org\\'"))
-      (unwind-protect
-          (should (equal (org-iw-add-files "ESSAYS"
-                                           (mapcar #'org-iw-test-path
-                                                   '("a.org" "b.org")))
-                         (concat "Added 1 to ESSAYS, 0 already present,"
-                                 " 1 failed, 0 unsaved (not atomic; see"
-                                 " *org-iw batch*)")))
-        (org-iw-cmd-test--kill-report)))))
+      (should (equal (org-iw-add-files "ESSAYS"
+                                       (mapcar #'org-iw-test-path
+                                               '("a.org" "b.org")))
+                     (concat "Added 1 to ESSAYS, 0 already present,"
+                             " 1 failed, 0 unsaved (not atomic; see"
+                             " *org-iw batch*)"))))))
 
 (ert-deftest org-iw-cmd-test-batch-summary-counts-source-problems ()
   "The summary notes the scan's problems, as every command's message does."
@@ -1595,7 +1721,7 @@ A note with a title and one starting with a heading that has an :ID:;
 the heading is byte-identical.  Their IDs are their Denote identifiers."
   (let* ((titled (org-iw-test-org "#+title: T" "Text."))
          (headed (org-iw-test-heading "H" "h1"))
-         (one (org-iw-test-denote-file "20260512T000000" titled "one"))
+         (one (org-iw-test-denote-file org-iw-test-denote-id titled "one"))
          (two (org-iw-test-denote-file "20260513T000000" headed "two")))
     (org-iw-test-with-corpus (list one two)
       (should (equal (mapcar #'cdr (org-iw-cmd-test--batch
@@ -1608,7 +1734,7 @@ the heading is byte-identical.  Their IDs are their Denote identifiers."
                        `(nil ":PROPERTIES:" ,(concat ":IW_ESSAYS: " rank)
                              ":END:"))))
       (should (equal (org-iw-cmd-test--order "ESSAYS")
-                     '("20260512T000000" "20260513T000000"))))))
+                     (list org-iw-test-denote-id "20260513T000000"))))))
 
 ;;;; Target at point
 
@@ -1626,11 +1752,11 @@ bypasses it.  A plain or indirect source buffer passes."
     (let ((org-iw-sources (list (org-iw-test-path "a.org"))))
       (with-current-buffer (org-iw-test-visit "b.org")
         (org-iw-cmd-test--should-refuse-cleanly
-         "not under org-iw-sources" #'org-iw--require-source))
+         "not a source file" #'org-iw--require-source))
       (with-temp-buffer
         (org-mode)
         (org-iw-cmd-test--should-refuse-cleanly
-         "not under org-iw-sources" #'org-iw--require-source))
+         "not a source file" #'org-iw--require-source))
       (with-current-buffer (org-iw-test-visit "a.org")
         (org-iw--require-source)
         (fundamental-mode)
@@ -1641,53 +1767,27 @@ bypasses it.  A plain or indirect source buffer passes."
        (org-iw-test-marker "a.org" "A")
        (lambda (_) (org-iw--require-source))))))
 
-(ert-deftest org-iw-cmd-test-document-marker-widened-base ()
-  "The document marker is at the start of the widened base buffer.
-Narrowing, and an indirect buffer narrowed past the preamble, do not
-move it, and text inserted at the start leaves it before that text,
-so a drawer put-rank inserts there holds the rank."
-  (let ((text (org-iw-test-org "#+title: T" "Intro." "* H" "Body.")))
-    (org-iw-test-with-corpus `(("a.org" . ,text))
-      (let ((base (org-iw-test-visit "a.org")))
-        (with-current-buffer base
-          (save-restriction
-            (org-iw-cmd-test--narrow-to-line "Intro.")
-            (let ((marker (org-iw--document-marker)))
-              (should (eq (marker-buffer marker) base))
-              (should (= marker 1)))))
-        (org-iw-test-call-with-indirect
-         (org-iw-test-marker "a.org" "H")
-         (lambda (_)
-           (org-iw-cmd-test--narrow-to-line "Body.")
-           (let ((marker (org-iw--document-marker)))
-             (should (eq (marker-buffer marker) base))
-             (should (= marker 1))
-             (with-current-buffer base
-               (org-with-wide-buffer
-                (goto-char 1)
-                (insert "X")))
-             (should (= marker 1)))))))))
-
 (ert-deftest org-iw-cmd-test-target-at-point-document ()
-  "Before the first heading the target is the document: the wide start.
+  "Before the first heading the target is the document, at the wide start.
 Narrowing to the second line of the preamble does not move it."
   (org-iw-test-with-corpus
       `(("a.org" . ,(org-iw-test-org "#+title: T" "Intro." "* H")))
     (with-current-buffer (org-iw-test-visit "a.org")
       (org-iw-cmd-test--narrow-to-line "Intro.")
-      (let ((target (org-iw--target-at-point)))
+      (pcase-let ((`(,target . ,document) (org-iw--target-at-point)))
+        (should document)
         (should (eq (marker-buffer target) (current-buffer)))
-        (should (= target 1))
-        (should (org-with-point-at target (org-before-first-heading-p)))))))
+        (should (= target 1))))))
 
 (ert-deftest org-iw-cmd-test-target-at-point-heading ()
-  "In a heading's body the target is the heading's start, even narrowed.
-The write layer reads the entry's drawer from there."
+  "In a heading's body the target is the heading, not the document.
+It is at the heading's start, even narrowed.  The write layer reads the entry's drawer from there."
   (org-iw-test-with-corpus
       `(("a.org" . ,(org-iw-test-org "Intro." "* A" "** B" "Body of B.")))
     (with-current-buffer (org-iw-test-visit "a.org")
       (org-iw-cmd-test--narrow-to-line "Body of B.")
-      (let ((target (org-iw--target-at-point)))
+      (pcase-let ((`(,target . ,document) (org-iw--target-at-point)))
+        (should-not document)
         (should (eq (marker-buffer target) (current-buffer)))
         (should (equal (org-with-point-at target
                          (buffer-substring-no-properties
@@ -1705,6 +1805,17 @@ Point is in its body, narrowed to that line."
       (org-iw-test-should-add-drawer text (org-iw-test-marker "a.org" "H")
                                      "* H"))))
 
+(ert-deftest org-iw-cmd-test-add-heading-below-preamble ()
+  "Add at a heading of a file with text before its first heading.
+The heading is enrolled, not the document: the file has a document
+slot, but the target is not in it."
+  (let ((text (org-iw-test-org "#+title: Note" "Intro." "* New" "Body.")))
+    (org-iw-test-with-corpus `(("a.org" . ,text))
+      (let ((marker (org-iw-test-marker "a.org" "New")))
+        (should (equal (org-iw-cmd-test--call-at marker #'org-iw-add "ESSAYS")
+                       "Added to ESSAYS at 1/1 (saved)"))
+        (org-iw-test-should-add-drawer text marker "* New")))))
+
 ;;;; Add: shared IDs (EX-3, RV-001 F-2)
 
 (defun org-iw-cmd-test--copy (&rest lines)
@@ -1718,7 +1829,7 @@ The scan must be the same before and after.  Return the scan."
     (let ((scan (org-iw--scan)))
       (org-iw-cmd-test--should-refuse (org-iw-test-marker "a.org" "Copy")
                                       "ESSAYS"
-                                      "ID shared with another heading")
+                                      "ID shared with another entry")
       (should (equal (org-iw--scan) scan))
       scan)))
 
@@ -1738,7 +1849,7 @@ third, and Member's line is untouched."
                             (org-iw-test-heading "Two" "x1"))))
     (org-iw-cmd-test--should-refuse (org-iw-test-marker "a.org" "One")
                                     "ESSAYS"
-                                    "ID shared with another heading")))
+                                    "ID shared with another entry")))
 
 (ert-deftest org-iw-cmd-test-add-refuses-id-shared-across-files ()
   "Add refuses a heading whose ID a member in another file has.
@@ -1942,7 +2053,7 @@ point is not at a heading."
     (save-excursion
       (goto-char (window-point))
       (list (if buffer-file-name
-                (file-relative-name buffer-file-name org-iw-test-dir)
+                (org-iw-test-relative buffer-file-name)
               (buffer-name))
             (and (derived-mode-p 'org-mode)
                  (org-at-heading-p)
@@ -2439,7 +2550,7 @@ The string is kept as a one-element list; repeated cycles add one item."
 (defun org-iw-cmd-test--disks ()
   "Return an alist (NAME . CONTENTS) of the corpus files on disk."
   (mapcar (lambda (file)
-            (cons (file-relative-name file org-iw-test-dir)
+            (cons (org-iw-test-relative file)
                   (org-iw-test-file-string file)))
           (org-iw--files)))
 
@@ -3015,7 +3126,7 @@ Without an ID the scan's own missing-id problem is not shown as exclusion."
     (org-iw-test-with-corpus
         `(("a.org" . ,(if title text (concat (org-iw-test-org "Intro.") text))))
       (should (equal (org-iw-cmd-test--scanned-refusal
-                      (org-iw-cmd-test--at "a.org" title))
+                      (org-iw-test-marker "a.org" title))
                      "entry at point is not in any queue")))))
 
 (ert-deftest org-iw-cmd-test-scanned-entry-at-document ()
@@ -3024,23 +3135,23 @@ Without an ID the scan's own missing-id problem is not shown as exclusion."
                              ("b.org" . ,org-iw-cmd-test--intro))
     (should (equal (org-iw-entry-id
                     (org-iw-cmd-test--scanned-at
-                     (org-iw-cmd-test--at "a.org" nil)))
+                     (org-iw-test-marker "a.org" nil)))
                    "doc1"))
     (should (equal (org-iw-cmd-test--scanned-refusal
-                    (org-iw-cmd-test--at "b.org" nil))
+                    (org-iw-test-marker "b.org" nil))
                    "entry at point is not in any queue"))))
 
 (ert-deftest org-iw-cmd-test-scanned-entry-at-denote-document ()
   "A member document identified by its Denote name is found at its start."
   (let ((note (org-iw-test-denote-file
-               "20260512T000000"
+               org-iw-test-denote-id
                (org-iw-test-org ":PROPERTIES:" ":IW_ESSAYS: 1024" ":END:"
                                 "Intro."))))
     (org-iw-test-with-corpus (list note)
       (should (equal (org-iw-entry-id
                       (org-iw-cmd-test--scanned-at
-                       (org-iw-cmd-test--at (car note) nil)))
-                     "20260512T000000")))))
+                       (org-iw-test-marker (car note) nil)))
+                     org-iw-test-denote-id)))))
 
 (ert-deftest org-iw-cmd-test-scanned-entry-at-narrowed-and-indirect ()
   "A marker in a narrowed buffer or an indirect buffer finds its entry."
@@ -3136,7 +3247,7 @@ COMMAND is called at the entry with the queue, and must change nothing."
   (pcase-dolist (`(,text ,queue ,title ,message)
                  org-iw-cmd-test--source-refusals)
     (org-iw-test-with-corpus `(("a.org" . ,text))
-      (let ((marker (org-iw-cmd-test--at "a.org" title)))
+      (let ((marker (org-iw-test-marker "a.org" title)))
         (should (equal (org-iw-cmd-test--should-refuse-cleanly
                         "" (lambda ()
                              (org-iw-cmd-test--call-at marker command queue)))
@@ -3271,7 +3382,7 @@ ESSAYS: only an entry the scan left out of a queue is excluded."
     (let ((org-iw-sources (list (org-iw-test-path "a.org")))
           (marker (org-iw-test-marker "b.org" "B")))
       (org-iw-cmd-test--should-refuse-cleanly
-       "not under org-iw-sources"
+       "not a source file"
        (lambda () (org-iw-cmd-test--call-at marker #'org-iw-move "ESSAYS")))))
   (org-iw-test-with-corpus `(("a.txt" . ,org-iw-cmd-test--member))
     (let ((org-iw-sources (list (org-iw-test-path "a.txt"))))
@@ -3360,7 +3471,7 @@ The queue prompt offers the entry's queues only."
       (org-iw-cmd-test--should-refuse-cleanly
        "entry at point is not in any queue"
        (lambda ()
-         (org-iw-cmd-test--call-at (org-iw-cmd-test--at "a.org" nil)
+         (org-iw-cmd-test--call-at (org-iw-test-marker "a.org" nil)
                                    #'call-interactively #'org-iw-move))))))
 
 ;; DEC-020: a prefix argument reads the queue.
@@ -3614,14 +3725,14 @@ by Continue with Remove; the heading stays."
   (let* ((before (org-iw-test-org "#+title: Tuesday" "Intro." "* H"))
          (drawer '(":PROPERTIES:" ":IW_ESSAYS: 1024" ":END:"))
          (note (org-iw-test-denote-file
-                "20260512T000000" (concat (apply #'org-iw-test-org drawer)
-                                          before)
+                org-iw-test-denote-id (concat (apply #'org-iw-test-org drawer)
+                                              before)
                 "tuesday"))
          (name (car note)))
     (pcase-dolist (`(,fn ,message)
                    `((,(lambda ()
                          (org-iw-cmd-test--call-at
-                          (org-iw-cmd-test--at name nil)
+                          (org-iw-test-marker name nil)
                           #'org-iw-remove "ESSAYS"))
                       "Removed Tuesday from ESSAYS (saved)")
                      (,(lambda ()
@@ -3688,7 +3799,7 @@ It does so for one membership and with the session in one of them."
       (org-iw-cmd-test--should-refuse-cleanly
        "entry at point is not in any queue"
        (lambda ()
-         (org-iw-cmd-test--call-at (org-iw-cmd-test--at "a.org" nil)
+         (org-iw-cmd-test--call-at (org-iw-test-marker "a.org" nil)
                                    #'call-interactively #'org-iw-remove))))))
 
 ;;;; Queue view: context text (EX-2, VT-1)
@@ -4466,9 +4577,9 @@ Placing refuses so even with a mark set."
         (org-iw-view-mark))
       (goto-char (point-max))
       (dolist (command '(org-iw-view-move-up org-iw-view-move-down
-                         org-iw-view-mark org-iw-view-unmark
-                         org-iw-view-place-before org-iw-view-place-after
-                         org-iw-view-remove))
+                                             org-iw-view-mark org-iw-view-unmark
+                                             org-iw-view-place-before org-iw-view-place-after
+                                             org-iw-view-remove))
         (org-iw-cmd-test--with-prompt nil
           (should (equal (org-iw-cmd-test--should-refuse-cleanly "" command)
                          "no entry at point")))))))

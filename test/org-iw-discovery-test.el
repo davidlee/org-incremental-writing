@@ -35,13 +35,9 @@
 
 ;;;; Helpers
 
-(defun org-iw-discovery-test--relative (file)
-  "Return FILE relative to the corpus."
-  (file-relative-name file org-iw-test-dir))
-
 (defun org-iw-discovery-test--files ()
   "Return the corpus-relative files selected by the user options."
-  (mapcar #'org-iw-discovery-test--relative
+  (mapcar #'org-iw-test-relative
           (org-iw-discovery-files org-iw-sources org-iw-exclude-regexp)))
 
 (defun org-iw-discovery-test--scan ()
@@ -59,7 +55,7 @@
   "Return the problems of SCAN as (TYPE RELATIVE-FILE ID)."
   (mapcar (lambda (problem)
             (list (org-iw-problem-type problem)
-                  (org-iw-discovery-test--relative
+                  (org-iw-test-relative
                    (org-iw-problem-file problem))
                   (org-iw-problem-id problem)))
           (org-iw-scan-problems scan)))
@@ -647,9 +643,6 @@ Copies differing in case, or quoted in a block, do not count."
 
 ;;;; Document identity
 
-(defconst org-iw-discovery-test--denote-id "20260512T000000"
-  "A Denote identifier, for files named in Denote's scheme.")
-
 (defun org-iw-discovery-test--everywhere (name title fn)
   "Return FN's values in corpus file NAME, called from four places.
 FN takes no arguments.  It is called at `point-min', at the heading
@@ -675,6 +668,35 @@ See `org-iw-discovery-test--everywhere'."
    name title (lambda ()
                 (org-iw-discovery-document-id (org-iw-test-path name)))))
 
+(ert-deftest org-iw-discovery-test-document-marker ()
+  "The document marker is at the start of the widened base buffer.
+Narrowing, and an indirect buffer narrowed past the preamble, do not
+move it.  Text inserted at the start goes after it, so a drawer
+inserted there for the document leaves the marker at the drawer."
+  (let ((text (org-iw-test-org "#+title: T" "Intro." "* H" "Body.")))
+    (org-iw-test-with-corpus `(("a.org" . ,text))
+      (let ((base (org-iw-test-visit "a.org"))
+            (heading (org-iw-test-marker "a.org" "H")))
+        (with-current-buffer base
+          (save-restriction
+            (narrow-to-region heading (point-max))
+            (let ((marker (org-iw-discovery-document-marker)))
+              (should (eq (marker-buffer marker) base))
+              (should (= marker 1)))))
+        (org-iw-test-call-with-indirect
+         heading
+         (lambda (indirect-heading)
+           (narrow-to-region indirect-heading (point-max))
+           (let ((marker (org-iw-discovery-document-marker)))
+             (should (eq (marker-buffer marker) base))
+             (should (= marker 1))
+             (should-not (marker-insertion-type marker))
+             (with-current-buffer base
+               (org-with-wide-buffer
+                (goto-char 1)
+                (insert "X")))
+             (should (= marker 1)))))))))
+
 (ert-deftest org-iw-discovery-test-document-slot-p ()
   "A buffer has a document slot if text precedes its first heading.
 The answer is the widened base buffer's, wherever it is asked from."
@@ -694,35 +716,58 @@ The answer is the widened base buffer's, wherever it is asked from."
 
 (ert-deftest org-iw-discovery-test-document-id ()
   "A document's ID is its file-level :ID:, else its Denote identifier.
-Denote's identifier counts only for a name in Denote's scheme.  The
-answer is the same wherever it is asked from."
+The answer is the same wherever it is asked from."
   (let ((with-id (org-iw-test-denote-file
-                  org-iw-discovery-test--denote-id
+                  org-iw-test-denote-id
                   (org-iw-test-org ":PROPERTIES:" ":ID: d1" ":END:" "* K")
                   "with-id"))
         (named (org-iw-test-denote-file
-                org-iw-discovery-test--denote-id
+                org-iw-test-denote-id
                 (org-iw-test-org "Intro." "* K") "named")))
-    (org-iw-test-with-corpus
-        `(,with-id ,named
-          ("20260512T000000 copy.org" . ,(org-iw-test-org "Intro." "* K"))
-          ("a.org" . ,(org-iw-test-org "Intro." "* K")))
+    (org-iw-test-with-corpus (list with-id named)
       (should (equal (org-iw-discovery-test--document-id-everywhere
                       (car with-id) "K")
                      '("d1" "d1" "d1" "d1")))
       (should (equal (org-iw-discovery-test--document-id-everywhere
                       (car named) "K")
-                     (make-list 4 org-iw-discovery-test--denote-id)))
-      (should (equal (org-iw-discovery-test--document-id-everywhere
-                      "20260512T000000 copy.org" "K")
-                     '(nil nil nil nil)))
+                     (make-list 4 org-iw-test-denote-id))))))
+
+(ert-deftest org-iw-discovery-test-document-id-none ()
+  "Without a file-level :ID: or a name in Denote's scheme, a document has none.
+A Denote identifier in a name outside the scheme does not count.
+This holds with Denote or without, so it needs no Denote."
+  (let ((copy (concat org-iw-test-denote-id " copy.org")))
+    (org-iw-test-with-corpus
+        `((,copy . ,(org-iw-test-org "Intro." "* K"))
+          ("a.org" . ,(org-iw-test-org "Intro." "* K")))
+      (dolist (name (list copy "a.org"))
+        (should (equal (org-iw-discovery-test--document-id-everywhere name "K")
+                       '(nil nil nil nil)))))))
+
+(ert-deftest org-iw-discovery-test-document-id-file-level-everywhere ()
+  "A file-level :ID: is the document's ID wherever it is asked from.
+The file has no Denote name, so this needs no Denote."
+  (org-iw-test-with-corpus
+      `(("doc.org" . ,(org-iw-test-org ":PROPERTIES:" ":ID: d1" ":END:"
+                                       "* K")))
+    (should (equal (org-iw-discovery-test--document-id-everywhere "doc.org" "K")
+                   '("d1" "d1" "d1" "d1")))))
+
+(ert-deftest org-iw-discovery-test-document-id-empty-file-level-id ()
+  "An empty file-level :ID: is no ID; the member document is missing-id."
+  (let ((text (org-iw-test-org ":PROPERTIES:" ":ID:" ":IW_ESSAYS: 1"
+                               ":END:" "* K")))
+    (org-iw-test-with-corpus `(("a.org" . ,text))
       (should (equal (org-iw-discovery-test--document-id-everywhere "a.org" "K")
-                     '(nil nil nil nil))))))
+                     '(nil nil nil nil)))
+      (should (equal (org-iw-discovery-test--problems
+                      (org-iw-discovery-test--scan))
+                     '((missing-id "a.org" nil)))))))
 
 (ert-deftest org-iw-discovery-test-document-id-heading-first-denote ()
   "In a file that starts with a heading, its :ID: is not the document's."
   (let ((note (org-iw-test-denote-file
-               org-iw-discovery-test--denote-id
+               org-iw-test-denote-id
                (concat (org-iw-test-heading "H" "h1")
                        (org-iw-test-org "* K")))))
     (org-iw-test-with-corpus
@@ -731,7 +776,7 @@ answer is the same wherever it is asked from."
                               (org-iw-test-org "* K"))))
       (should (equal (org-iw-discovery-test--document-id-everywhere
                       (car note) "K")
-                     (make-list 4 org-iw-discovery-test--denote-id)))
+                     (make-list 4 org-iw-test-denote-id)))
       (should (equal (org-iw-discovery-test--document-id-everywhere "a.org" "K")
                      '(nil nil nil nil))))))
 
@@ -740,8 +785,8 @@ answer is the same wherever it is asked from."
 Denote is loaded first where it can be, so its functions stay
 defined while it is absent from `features'."
   (require 'denote nil t)
-  (let ((plain (concat org-iw-discovery-test--denote-id "--plain.org"))
-        (with-id (concat org-iw-discovery-test--denote-id "--with-id.org")))
+  (let ((plain (org-iw-test-denote-name org-iw-test-denote-id "plain"))
+        (with-id (org-iw-test-denote-name org-iw-test-denote-id "with-id")))
     (org-iw-test-with-corpus
         `((,plain . ,(org-iw-test-org "Intro."))
           (,with-id . ,(org-iw-test-org ":PROPERTIES:" ":ID: d1" ":END:")))
@@ -755,7 +800,8 @@ defined while it is absent from `features'."
 (ert-deftest org-iw-discovery-test-denote-load-error-warns-once ()
   "A Denote that fails to load warns once, and gives no ID, without signalling."
   (let ((dir (make-temp-file "org-iw-fake-denote-" t))
-        (file (concat "/notes/" org-iw-discovery-test--denote-id "--note.org"))
+        (file (concat "/notes/"
+                      (org-iw-test-denote-name org-iw-test-denote-id)))
         (warnings nil))
     (unwind-protect
         (org-iw-test-without-feature 'denote
@@ -775,9 +821,41 @@ defined while it is absent from `features'."
             (should org-iw-discovery--denote-tried)))
       (delete-directory dir t))))
 
+(ert-deftest org-iw-discovery-test-denote-not-installed-is-silent ()
+  "Without Denote installed, a lookup gives no ID and shows no warning.
+Only a Denote that fails to load warns; a missing one is the common
+case of a user who does not use Denote."
+  (let ((file (concat "/notes/"
+                      (org-iw-test-denote-name org-iw-test-denote-id)))
+        (warnings nil))
+    (org-iw-test-without-feature 'denote
+      (let ((load-path (seq-remove (lambda (dir)
+                                     (locate-file "denote" (list dir)
+                                                  (get-load-suffixes)))
+                                   load-path))
+            (org-iw-discovery--denote-tried nil))
+        (cl-letf (((symbol-function 'display-warning)
+                   (lambda (type &rest _) (push type warnings))))
+          (with-temp-buffer
+            (org-mode)
+            (insert "Intro.\n")
+            (should-not (org-iw-discovery-document-id file))))
+        (should org-iw-discovery--denote-tried)))
+    (should-not warnings)))
+
+(ert-deftest org-iw-discovery-test-denote-dir-loads ()
+  "ORG_IW_DENOTE_DIR, when set, names a directory Denote loads from.
+Else the tests needing Denote would skip silently on an Emacs without
+a Denote of its own."
+  (let ((dir (getenv "ORG_IW_DENOTE_DIR")))
+    (skip-unless (org-string-nw-p dir))
+    (should (file-directory-p dir))
+    (should (require 'denote nil t))
+    (should (file-in-directory-p (locate-library "denote") dir))))
+
 (ert-deftest org-iw-discovery-test-denote-required-later ()
   "Denote loaded after a lookup without it is used by the next lookup."
-  (let ((note (org-iw-test-denote-file org-iw-discovery-test--denote-id
+  (let ((note (org-iw-test-denote-file org-iw-test-denote-id
                                        (org-iw-test-org "Intro."))))
     (org-iw-test-with-corpus (list note)
       (with-current-buffer (org-iw-test-visit (car note))
@@ -787,7 +865,7 @@ defined while it is absent from `features'."
           (require 'denote)
           (should (equal (org-iw-discovery-document-id
                           (org-iw-test-path (car note)))
-                         org-iw-discovery-test--denote-id)))))))
+                         org-iw-test-denote-id)))))))
 
 ;;;; ID resolution (`org-iw-discovery-buffer', `-id-count', `-resolve')
 
@@ -914,22 +992,22 @@ own, so its :ID: counts as a heading's."
 (ert-deftest org-iw-discovery-test-id-count-denote-identity ()
   "A Denote identifier counts once and resolves to `point-min'.
 In a file starting with a heading, the heading's :ID: counts apart."
-  (let ((named (org-iw-test-denote-file org-iw-discovery-test--denote-id
+  (let ((named (org-iw-test-denote-file org-iw-test-denote-id
                                         (org-iw-test-org "Intro." "* K")
                                         "named"))
-        (first (org-iw-test-denote-file org-iw-discovery-test--denote-id
+        (first (org-iw-test-denote-file org-iw-test-denote-id
                                         (org-iw-test-heading "H" "h1")
                                         "first")))
     (org-iw-test-with-corpus (list named first)
       (should (= (org-iw-discovery-test--id-count
-                  (car named) org-iw-discovery-test--denote-id)
+                  (car named) org-iw-test-denote-id)
                  1))
       (should (= (org-iw-discovery-test--id-count
-                  (car first) org-iw-discovery-test--denote-id)
+                  (car first) org-iw-test-denote-id)
                  1))
       (should (= (org-iw-discovery-test--id-count (car first) "h1") 1))
       (should (= (org-iw-discovery-resolve
-                  (org-iw-discovery-test--scan) org-iw-discovery-test--denote-id
+                  (org-iw-discovery-test--scan) org-iw-test-denote-id
                   (org-iw-test-path (car named)))
                  1)))))
 
@@ -937,41 +1015,41 @@ In a file starting with a heading, the heading's :ID: counts apart."
   "A heading whose :ID: is its file's Denote identifier is a duplicate-id.
 Neither the document nor the heading is an entry."
   (let ((note (org-iw-test-denote-file
-               org-iw-discovery-test--denote-id
+               org-iw-test-denote-id
                (concat (org-iw-test-org ":PROPERTIES:" ":IW_ESSAYS: 1" ":END:")
-                       (org-iw-test-heading "K" org-iw-discovery-test--denote-id
+                       (org-iw-test-heading "K" org-iw-test-denote-id
                                             ":IW_NOTES: 2")))))
     (org-iw-discovery-test--check
      (list note)
      nil
      (make-list 2 (list 'duplicate-id (car note)
-                        org-iw-discovery-test--denote-id)))))
+                        org-iw-test-denote-id)))))
 
 (ert-deftest org-iw-discovery-test-scan-denote-document ()
   "A member document named in Denote's scheme, without an :ID:, is an entry.
 Its ID is the Denote identifier, its title its #+title, it resolves to
 `point-min', and no other heading shares its ID.  Its heading is not
 an entry."
-  (let ((note (org-iw-test-denote-file org-iw-discovery-test--denote-id
+  (let ((note (org-iw-test-denote-file org-iw-test-denote-id
                                        org-iw-discovery-test--denote-document)))
     (org-iw-test-with-corpus (list note)
       (let ((scan (org-iw-discovery-test--scan))
             (file (org-iw-test-path (car note))))
         (should (equal (org-iw-discovery-test--entries scan)
-                       `((,org-iw-discovery-test--denote-id ("ESSAYS" . 7)))))
+                       `((,org-iw-test-denote-id ("ESSAYS" . 7)))))
         (should-not (org-iw-scan-problems scan))
         (should (equal (org-iw-entry-title (car (org-iw-scan-entries scan)))
                        "Tuesday"))
         (should (= (org-iw-discovery-resolve
-                    scan org-iw-discovery-test--denote-id file)
+                    scan org-iw-test-denote-id file)
                    1))
         (with-current-buffer (org-iw-test-visit (car note))
           (should-not (org-iw-discovery-shared-id-p
-                       scan org-iw-discovery-test--denote-id file)))))))
+                       scan org-iw-test-denote-id file)))))))
 
 (ert-deftest org-iw-discovery-test-scan-denote-document-without-denote ()
   "Without Denote, a member document identified only by its name has no ID."
-  (let ((name (concat org-iw-discovery-test--denote-id "--note.org")))
+  (let ((name (org-iw-test-denote-name org-iw-test-denote-id)))
     (org-iw-test-without-denote
       (org-iw-discovery-test--check
        `((,name . ,org-iw-discovery-test--denote-document))
@@ -981,15 +1059,15 @@ an entry."
 (ert-deftest org-iw-discovery-test-scan-shared-denote-identifier ()
   "Two member files with one Denote identifier are both dropped, as for :ID:."
   (let ((a (org-iw-test-denote-file
-            org-iw-discovery-test--denote-id
+            org-iw-test-denote-id
             (org-iw-test-org ":PROPERTIES:" ":IW_ESSAYS: 1" ":END:") "a"))
         (b (org-iw-test-denote-file
-            org-iw-discovery-test--denote-id
+            org-iw-test-denote-id
             (org-iw-test-org ":PROPERTIES:" ":IW_NOTES: 2" ":END:") "b")))
     (org-iw-discovery-test--check
      `(,a ,b ("c.org" . ,(org-iw-test-heading "C" "c1" ":IW_NOTES: 3")))
      '(("c1" ("NOTES" . 3)))
-     `((duplicate-id ,(car a) ,org-iw-discovery-test--denote-id)))))
+     `((duplicate-id ,(car a) ,org-iw-test-denote-id)))))
 
 (ert-deftest org-iw-discovery-test-resolve-unique ()
   "`org-iw-discovery-resolve' returns a marker at the heading, or point-min."

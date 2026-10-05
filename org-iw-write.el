@@ -95,9 +95,10 @@ take MARKER, QUEUE and EXPECTED.  Nothing is changed."
   (org-iw-write--check-entry marker queue expected))
 
 (defun org-iw-write--document-start-p (marker)
-  "Return non-nil if MARKER is at the start of its buffer, widened."
-  (with-current-buffer (marker-buffer marker)
-    (= marker (org-with-wide-buffer (point-min)))))
+  "Return non-nil if MARKER is where its buffer's document starts.
+See `org-iw-discovery-document-marker'."
+  (= marker (with-current-buffer (marker-buffer marker)
+              (org-iw-discovery-document-marker))))
 
 (defun org-iw-write--document-entry-p (marker)
   "Return non-nil if MARKER is at the entry of its buffer's document.
@@ -184,7 +185,9 @@ buffer with unsaved changes is left modified, returning `unsaved'."
            (insert ":PROPERTIES:\n:END:\n")))
        (when ensure-id
          (org-id-get-create))
-       (org-entry-put marker (concat "IW_" queue) (number-to-string rank))))))
+       ;; A new drawer went in at MARKER, which may have moved past it.
+       (org-entry-put (if new-drawer (point-min) marker)
+                      (concat "IW_" queue) (number-to-string rank))))))
 
 (cl-defun org-iw-write-delete-rank (marker queue &key expected)
   "Delete the rank of the entry at MARKER in QUEUE.

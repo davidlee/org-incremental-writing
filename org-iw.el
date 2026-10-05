@@ -25,9 +25,10 @@
 
 ;;; Commentary:
 
-;; Incremental writing for Org: named queues of headings, worked
-;; through one entry at a time.  Queue state lives on each entry as an
-;; IW_<QUEUE> property holding an integer rank; there is no index file.
+;; Incremental writing for Org: named queues of headings and whole
+;; documents, worked through one entry at a time.  Queue state lives
+;; on each entry as an IW_<QUEUE> property holding an integer rank;
+;; there is no index file.
 
 ;;; Code:
 
@@ -159,33 +160,29 @@ An indirect buffer's file is its base buffer's."
   (when-let* ((file (org-iw--buffer-truename)))
     (member file (org-iw--files))))
 
+(defconst org-iw--not-source
+  "not a source file (outside org-iw-sources or excluded)"
+  "Why a file not among the source files is refused.")
+
 (defun org-iw--require-source ()
   "Refuse unless the current buffer visits a source file in Org mode.
 An indirect buffer's file is its base buffer's."
   (unless (org-iw--source-file-p)
-    (org-iw-core-refuse "%s is not under org-iw-sources" (buffer-name)))
+    (org-iw-core-refuse "%s: %s" (buffer-name) org-iw--not-source))
   (org-iw-discovery-require-org-mode (org-iw--buffer-truename)))
 
-(defun org-iw--document-marker ()
-  "Return a marker at the current buffer's document entry.
-That is the start of the base buffer, widened, whatever the narrowing
-and point.  Text inserted there goes after the marker, so a drawer
-inserted for the document leaves it at the drawer."
-  (with-current-buffer (org-iw-discovery-base-buffer)
-    (org-with-wide-buffer
-     (copy-marker (point-min)))))
-
 (defun org-iw--target-at-point ()
-  "Return a marker at the entry at point, or refuse.
+  "Return the entry at point as (MARKER . DOCUMENT), or refuse.
 The entry is the heading at or above point, ignoring narrowing, or,
-before the first heading, the document (see
-`org-iw--document-marker').  Refuse as `org-iw--require-source'."
+before the first heading, the document: then DOCUMENT is t and
+MARKER is `org-iw-discovery-document-marker'.  Refuse as
+`org-iw--require-source'."
   (org-iw--require-source)
   (org-with-wide-buffer
    (if (org-before-first-heading-p)
-       (org-iw--document-marker)
+       (cons (org-iw-discovery-document-marker) t)
      (org-back-to-heading t)
-     (point-marker))))
+     (cons (point-marker) nil))))
 
 (defun org-iw--configured-queues ()
   "Return `org-iw-queues' as an alist (QUEUE . PLIST), QUEUE canonical.
@@ -450,7 +447,7 @@ it: return SCAN's problem types for ID, as text.  Else return nil."
   "Add the entry at MARKER to QUEUE at PLACEMENT, unless it is a member.
 ORDER is QUEUE's members in SCAN, and QUEUE a canonical queue ID.
 MARKER is at a heading or, with DOCUMENT non-nil, at the document's
-entry (see `org-iw--document-marker').
+entry (see `org-iw-discovery-document-marker').
 
 If the entry is in ORDER, write nothing and return (existing
 POSITION), POSITION being 1-based.  Else write its rank, giving it an
@@ -476,7 +473,7 @@ PLACEMENT, WHERE being its text, with its preposition (by default,
                                 (org-iw--excluded-types scan queue id))))
           (org-iw--refuse-excluded types))
         (when (and id (org-iw-discovery-shared-id-p scan id file))
-          (org-iw-core-refuse "ID shared with another heading"))
+          (org-iw-core-refuse "ID shared with another entry"))
         (pcase (org-iw-core-place order nil queue placement)
           (`(no-gap ,_)
            (org-iw--refuse-no-room (or where "at the end")
@@ -547,10 +544,8 @@ Return the message shown."
   ;; Called for its refusals: a buffer Add cannot use fails before
   ;; the prompt.
   (interactive (progn (org-iw--target-at-point) (org-iw--read-add-args)))
-  (let ((marker (org-iw--target-at-point)))
-    (org-iw--add-at marker (org-with-point-at marker
-                             (org-before-first-heading-p))
-                    queue label)))
+  (pcase-let ((`(,marker . ,document) (org-iw--target-at-point)))
+    (org-iw--add-at marker document queue label)))
 
 ;;;###autoload
 (defun org-iw-add-document (queue &optional label)
@@ -574,46 +569,75 @@ Return the message shown."
   ;; prompt.
   (interactive (progn (org-iw--require-source) (org-iw--read-add-args)))
   (org-iw--require-source)
-  (org-iw--add-at (org-iw--document-marker) t queue label))
+  (org-iw--add-at (org-iw-discovery-document-marker) t queue label))
 
 ;;;; Batch add
 
 ;; A batch's outcomes are a list of (FILE . OUTCOME), OUTCOME being
 ;; (added STATUS), STATUS a result of `org-iw-write-put-rank';
-;; (existing); or (failed REASON), REASON a string.
+;; (existing); (failed REASON), REASON a string; or (stopped), for a
+;; file not added because the batch stopped first.  An outcome ends in
+;; `left-open' when the batch opened the file's buffer and left it
+;; modified.
 
 (defconst org-iw--batch-report-name "*org-iw batch*"
-  "The name of the buffer listing a batch's failed and unsaved files.")
+  "The name of the buffer listing the files of a batch needing attention.")
+
+(defun org-iw--batch-left-open-p (outcome)
+  "Return non-nil if OUTCOME's buffer was opened by the batch and left open."
+  (eq (car (last outcome)) 'left-open))
 
 (defun org-iw--batch-unsaved-p (outcome)
-  "Return non-nil if OUTCOME is an added file left unsaved."
-  (pcase outcome
-    (`(added ,status) (not (eq status 'saved)))))
+  "Return non-nil if OUTCOME leaves unsaved changes in a buffer.
+That is an added file left unsaved, or a buffer left open."
+  (or (org-iw--batch-left-open-p outcome)
+      (pcase outcome
+        (`(added ,status . ,_) (not (eq status 'saved))))))
 
 (defun org-iw--batch-trouble-p (outcome)
-  "Return non-nil if OUTCOME is a failed file or an unsaved one."
-  (or (eq (car outcome) 'failed) (org-iw--batch-unsaved-p outcome)))
+  "Return non-nil if OUTCOME is a failed, unsaved or stopped file."
+  (or (memq (car outcome) '(failed stopped))
+      (org-iw--batch-unsaved-p outcome)))
 
 (defun org-iw--batch-summary (queue outcomes)
   "Return the summary of a batch's OUTCOMES in QUEUE, a canonical queue ID.
-It counts the added, existing, failed and unsaved files, the unsaved
-being added too, and names the report when any failed or are unsaved."
+It counts the added, existing, failed and unsaved files, an unsaved
+file being one added but not saved or one whose buffer was left open.
+If the batch stopped, it says after how many files.  It names the
+report when any file needs attention."
   (let* ((outcomes (mapcar #'cdr outcomes))
          (kinds (mapcar #'car outcomes))
-         (count (lambda (kind) (seq-count (apply-partially #'eq kind) kinds))))
-    (format "Added %d to %s, %d already present, %d failed, %d unsaved (%s)"
+         (count (lambda (kind) (seq-count (apply-partially #'eq kind) kinds)))
+         (stopped (funcall count 'stopped)))
+    (format "Added %d to %s, %d already present, %d failed, %d unsaved%s (%s)"
             (funcall count 'added) (org-iw--queue-name queue)
             (funcall count 'existing) (funcall count 'failed)
             (seq-count #'org-iw--batch-unsaved-p outcomes)
+            (if (zerop stopped)
+                ""
+              (format ", stopped after %d of %d files"
+                      (- (length outcomes) stopped) (length outcomes)))
             (if (seq-some #'org-iw--batch-trouble-p outcomes)
                 (format "not atomic; see %s" org-iw--batch-report-name)
               "not atomic"))))
 
+(defun org-iw--batch-outcome-text (outcome)
+  "Return the text reporting OUTCOME, one file's outcome in a batch."
+  (concat (pcase outcome
+            (`(added ,status . ,_) (org-iw--save-status status))
+            (`(existing . ,_) "already present")
+            (`(failed ,reason . ,_) reason)
+            ('(stopped) "not added: the batch stopped"))
+          (if (org-iw--batch-left-open-p outcome)
+              "; buffer left open, modified"
+            "")))
+
 (defun org-iw--batch-report (queue outcomes)
-  "Show the failed and unsaved files of a batch's OUTCOMES in QUEUE.
-QUEUE is a canonical queue ID.  They are listed, one per line with
-the reason or save status, in a `special-mode' buffer, which is
-returned.  If there are none, return nil and make no buffer."
+  "Show the files of a batch's OUTCOMES in QUEUE that need attention.
+QUEUE is a canonical queue ID.  The failed, unsaved and stopped files
+are listed, one per line with their outcome, in a `special-mode'
+buffer, which is returned.  If there are none, return nil and make
+no buffer."
   (when-let* ((trouble (seq-filter (lambda (outcome)
                                      (org-iw--batch-trouble-p (cdr outcome)))
                                    outcomes)))
@@ -621,79 +645,72 @@ returned.  If there are none, return nil and make no buffer."
       (special-mode)
       (let ((inhibit-read-only t))
         (erase-buffer)
-        (insert (format "Batch add to %s: files failed or not saved\n\n"
+        (insert (format "Batch add to %s: files needing attention\n\n"
                         (org-iw--queue-name queue)))
         (pcase-dolist (`(,file . ,outcome) trouble)
-          (insert file ": "
-                  (pcase outcome
-                    (`(failed ,reason) reason)
-                    (`(added ,status) (org-iw--save-status status)))
-                  "\n")))
+          (insert file ": " (org-iw--batch-outcome-text outcome) "\n")))
       (display-buffer (current-buffer))
       (current-buffer))))
 
-(defun org-iw--call-in-file-buffer (file fn)
-  "Call FN with no arguments in a buffer visiting FILE; return its value.
-FILE is visited if no buffer visits it.  However FN exits, a buffer
-visited here is killed afterwards, unless it is left modified."
+(defun org-iw--batch-outcome (file fn)
+  "Call FN in a buffer visiting FILE; return FILE's outcome in a batch.
+FN takes no arguments and returns an outcome.  If FN, or visiting
+FILE, refuses or signals a file error, the outcome is (failed
+REASON); any other error propagates.  FILE is visited if no buffer
+visits it, and that buffer is killed afterwards, however FN exits,
+unless it is left modified: then the outcome ends in `left-open'."
   (let* ((had (find-buffer-visiting file))
-         (buffer (org-iw-discovery-buffer file)))
-    (unwind-protect
-        (with-current-buffer buffer
-          (funcall fn))
-      (unless (or had (buffer-modified-p buffer))
-        (kill-buffer buffer)))))
+         (buffer nil)
+         (outcome
+          (unwind-protect
+              (condition-case err
+                  (progn
+                    (setq buffer (org-iw-discovery-buffer file))
+                    (with-current-buffer buffer
+                      (funcall fn)))
+                (org-iw-refusal
+                 ;; A write refusal names the file, as the report does.
+                 (list 'failed (string-remove-prefix (concat file ": ")
+                                                     (cadr err))))
+                (file-error (list 'failed (error-message-string err))))
+            (unless (or had (null buffer) (buffer-modified-p buffer))
+              (kill-buffer buffer)))))
+    (if (and buffer (not had) (buffer-live-p buffer))
+        (append outcome '(left-open))
+      outcome)))
 
-(defun org-iw--batch-add-file (scan order queue file sources added-ids)
-  "Add the document of FILE to the end of QUEUE, for a batch; or refuse.
-SCAN, ORDER and QUEUE are as for `org-iw--add-entry', whose result is
-returned.  SOURCES is a hash table of the source files, and ADDED-IDS
-one of the IDs the batch has added.  Refuse if FILE is not a source,
-not in Org mode, or has an ID in ADDED-IDS, or if the add step
-refuses."
-  (unless (gethash file sources)
-    (org-iw-core-refuse
-     "not a source file (outside org-iw-sources or excluded)"))
-  (org-iw--call-in-file-buffer
-   file
-   (lambda ()
-     (org-iw-discovery-require-org-mode file)
-     (when (gethash (org-iw-discovery-document-id file) added-ids)
-       (org-iw-core-refuse "same ID as a file added in this batch"))
-     (org-iw--add-entry scan order (org-iw--document-marker) queue 'end
-                        t))))
-
-(defun org-iw--batch-add (scan queue files sources progress)
+(defun org-iw--batch-add (scan queue files sources on-outcome)
   "Add the documents of FILES to the end of QUEUE, one at a time.
 SCAN is a scan of SOURCES, the source files; QUEUE is a canonical
 queue ID; FILES are truenames in canonical order.  Each file is added
-after the last, so ranks increase in the order of FILES.  A refusal
-or file error fails that file only; any other error propagates.
-After each file, call PROGRESS with (FILE . OUTCOME).
-
-Return the outcomes, (FILE . OUTCOME) in the order of FILES, OUTCOME
-being (added STATUS), (existing) or (failed REASON)."
+after the last, so ranks increase in the order of FILES.  A file
+fails if it is not a source, not in Org mode, or has the ID of a file
+added before it, or if the add step refuses; see
+`org-iw--batch-outcome' for the rest.  After each file, call
+ON-OUTCOME with (FILE . OUTCOME)."
   (let ((order (org-iw--order scan queue))
         (source-set (make-hash-table :test #'equal))
-        (added-ids (make-hash-table :test #'equal))
-        (outcomes nil))
+        (added-ids (make-hash-table :test #'equal)))
     (dolist (source sources)
       (puthash source t source-set))
-    (dolist (file files (nreverse outcomes))
-      (let ((outcome
-             (pcase (condition-case err
-                        (org-iw--batch-add-file scan order queue file
-                                                source-set added-ids)
-                      (org-iw-refusal (list 'failed (cadr err)))
-                      (file-error (list 'failed (error-message-string err))))
-               (`(added ,_ ,status ,entry)
-                (setq order (append order (list entry)))
-                (puthash (org-iw-entry-id entry) t added-ids)
-                (list 'added status))
-               (`(existing ,_) '(existing))
-               (failure failure))))
-        (push (cons file outcome) outcomes)
-        (funcall progress (car outcomes))))))
+    (cl-flet ((add-document (file)
+                (org-iw-discovery-require-org-mode file)
+                (when (gethash (org-iw-discovery-document-id file) added-ids)
+                  (org-iw-core-refuse "same ID as a file added in this batch"))
+                (pcase (org-iw--add-entry scan order
+                                          (org-iw-discovery-document-marker)
+                                          queue 'end t)
+                  (`(added ,_ ,status ,entry)
+                   (setq order (append order (list entry)))
+                   (puthash (org-iw-entry-id entry) t added-ids)
+                   (list 'added status))
+                  (`(existing ,_) '(existing)))))
+      (dolist (file files)
+        (funcall on-outcome
+                 (cons file (if (gethash file source-set)
+                                (org-iw--batch-outcome
+                                 file (lambda () (add-document file)))
+                              (list 'failed org-iw--not-source))))))))
 
 (declare-function dired-get-marked-files "dired"
                   (&optional localp arg filter distinguish-one-marked error))
@@ -702,10 +719,11 @@ being (added STATUS), (existing) or (failed REASON)."
 (defun org-iw-add-files (queue files)
   "Add the documents of FILES to the end of QUEUE.
 QUEUE is a queue ID in any case, read as for `org-iw-add'
-interactively.  FILES are files and directories, a directory standing
-for the Org files under it, chosen as for `org-iw-sources'.
-Interactively, FILES are the marked files in a Dired buffer, else one
-file or directory read from the user.
+interactively.  FILES are files and directories.  A directory stands
+for the Org files under it, chosen as for `org-iw-sources'; a file
+stands for itself, whatever its name.  Interactively, FILES are the
+marked files in a Dired buffer, else one file or directory read from
+the user.
 
 The files are added in the order of their true names, each after the
 last of the queue, as `org-iw-add-document' would add them.  A file
@@ -714,14 +732,17 @@ fails, as does one Add-document would refuse, or a second file with
 the ID of one added before it; the rest are added all the same.  The
 batch is not atomic.  A file's buffer that the batch opened is killed
 once it is done with, unless it is left modified, as after a failed
-save.  The session is untouched.
+save; it is then reported.  The session is untouched.
 
 The summary counts the files added, already present, failed and
-unsaved.  Failed and unsaved files are listed in the *org-iw batch*
-buffer, shown only when there are any.  An error other than a refusal
-or a file error stops the batch, as does a quit; the summary of the
-files done is shown first.  Refuse, changing nothing, if QUEUE is not
-a valid ID or FILES hold no Org file.
+unsaved, a buffer left open counting as unsaved.  Those needing
+attention are listed in the *org-iw batch* buffer, shown only when
+there are any.  An error other than a refusal or a file error stops
+the batch, as does a quit: the summary says after how many files,
+the report lists those not added, and then the error or quit
+propagates.  Refuse, changing nothing, if QUEUE is not a valid ID or
+FILES hold no existing file, a directory without Org files holding
+none.
 
 Return the summary."
   (interactive
@@ -731,7 +752,7 @@ Return the summary."
            (list (read-file-name "Add files or directory: " nil nil t)))))
   (let* ((queue-id (org-iw--queue-id queue))
          (files (or (org-iw-discovery-files files nil)
-                    (org-iw-core-refuse "no Org files selected")))
+                    (org-iw-core-refuse "no existing file selected")))
          (sources (org-iw--files))
          (scan (org-iw-discovery-scan sources))
          (reporter (make-progress-reporter
@@ -748,10 +769,13 @@ Return the summary."
                                (progress-reporter-update reporter
                                                          (length outcomes))))
           (progress-reporter-done reporter))
-      (setq outcomes (reverse outcomes))
+      ;; After a quit or an error, the files without an outcome stopped.
+      (setq outcomes (append (reverse outcomes)
+                             (mapcar (lambda (file) (list file 'stopped))
+                                     (nthcdr (length outcomes) files))))
       (org-iw--batch-report queue-id outcomes)
       (setq summary (org-iw--report scan "%s" (org-iw--batch-summary
-                                                queue-id outcomes))))
+                                               queue-id outcomes))))
     summary))
 
 ;;;; Visit
@@ -951,10 +975,10 @@ the first member of the queue is visited and becomes the session's
 entry.  At the front, that is the entry itself.
 
 LABEL may also be the symbol `remove': the entry's IW line for the
-queue is deleted instead, unconfirmed, and the first of the rest is
-visited.  If none remain, the session is left on the entry and the
-message says how to go on or stop.  The placements' configuration
-is not consulted.
+queue is deleted instead, unconfirmed, with a document's drawer if
+that empties it, and the first of the rest is visited.  If none
+remain, the session is left on the entry and the message says how
+to go on or stop.  The placements' configuration is not consulted.
 
 An entry already at its placement is not written, the only entry in
 its queue is left alone unless removed, and an empty queue is
@@ -1038,7 +1062,7 @@ queue; of several, the session's if it is one of them, else read."
   "Return the queue to act on for the entry at point, a canonical ID.
 See `org-iw--membership-queue' for ASK."
   (org-iw--membership-queue
-   (org-iw--scanned-entry-at (org-iw--target-at-point) (org-iw--scan))
+   (org-iw--scanned-entry-at (car (org-iw--target-at-point)) (org-iw--scan))
    ask))
 
 ;;;###autoload
@@ -1071,7 +1095,7 @@ Return the message shown."
    (let ((queue (org-iw--queue-at-point current-prefix-arg)))
      (list queue (org-iw--read-placement queue))))
   (pcase-let* ((queue-id (org-iw--queue-id queue))
-               (marker (org-iw--target-at-point))
+               (marker (car (org-iw--target-at-point)))
                (`(,label . ,placement) (org-iw--placement queue-id label))
                (scan (org-iw--scan))
                (entry (org-iw--scanned-entry-at marker scan queue-id))
@@ -1096,8 +1120,9 @@ read, among the entry's queues.
 
 The entry is the heading at or above point, even outside a narrowing,
 or the document before the first heading; indirect buffers work.  Its
-IW line for QUEUE alone is deleted through its buffer, which is saved
-unless it already had unsaved changes.  There is no confirmation: the
+IW line for QUEUE alone is deleted through its buffer, with a
+document's drawer if that empties it, and the buffer is saved unless
+it already had unsaved changes.  There is no confirmation: the
 buffer has undo.  The session is left as it is, even when it names
 the entry; the message then says how to go on or stop.
 
@@ -1110,7 +1135,7 @@ read-only, or the entry has a property drawer Org doesn't recognise).
 Return the message shown."
   (interactive (list (org-iw--queue-at-point current-prefix-arg)))
   (let* ((queue-id (org-iw--queue-id queue))
-         (marker (org-iw--target-at-point))
+         (marker (car (org-iw--target-at-point)))
          (scan (org-iw--scan))
          (entry (org-iw--scanned-entry-at marker scan queue-id)))
     (org-iw--report scan "%s" (org-iw--removed-text
@@ -1417,10 +1442,11 @@ Return the message shown."
 
 (defun org-iw-view-remove ()
   "Remove the entry at point from the view's queue, after confirming.
-The entry is found, and its IW line deleted, in a fresh scan; the
-view has no undo, but the entry's buffer has.  Point goes to the next
-row, else to the previous one.  Answered no, nothing changes.  Refuses
-off a row, or, before confirming, if the entry has left the queue.
+The entry is found, and its IW line deleted, in a fresh scan, with a
+document's drawer if that empties it; the view has no undo, but the
+entry's buffer has.  Point goes to the next row, else to the previous
+one.  Answered no, nothing changes.  Refuses off a row, or, before
+confirming, if the entry has left the queue.
 After confirming, it refuses if the write does: the file changed on
 disk or is not writable, its buffer is read-only, the rank changed
 since the scan (as by an edit while asked), or the entry has a

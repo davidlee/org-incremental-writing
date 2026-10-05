@@ -18,7 +18,9 @@ many files at once.
 ## Requirements
 
 - Emacs 30.1 or later; tested on 30.2 (Org 9.7.11) and 31.1 (Org 9.8.10).
-- The Org that ships with Emacs. No other dependencies.
+- The Org that ships with Emacs. No other dependencies;
+  [Denote](https://protesilaos.com/emacs/denote) is optional (see
+  *Document identity*).
 
 ## Install
 
@@ -66,7 +68,7 @@ Or with `use-package`:
 ### Placements
 
 Continue puts the entry back at a *placement*, Move moves an entry to one,
-and Add can enrol a heading at one. A placement is one of:
+and Add can enrol an entry at one. A placement is one of:
 
 | Form | Puts the entry |
 |---|---|
@@ -235,14 +237,19 @@ for `org-iw-sources`. Lisp callers pass a list of files and directories.
   fails, as does one `org-iw-add-document` would refuse, and a second
   file with the ID of one already added in the batch. The others go on.
 - It is not atomic. Quitting (`C-g`) or an unexpected error stops the
-  batch; files already added stay added, and the summary is still shown.
+  batch; files already added stay added. The summary is still shown and
+  says so (`…, stopped after 12 of 74 files`), and the report lists the
+  files not added.
 - It reports in the echo area, for example `Added 70 to Journal, 3
   already present, 1 failed, 0 unsaved (not atomic; see *org-iw batch*)`.
-  The `*org-iw batch*` buffer lists failed files, and files added but
-  left unsaved, with the reason. It appears only when there are any.
+  The `*org-iw batch*` buffer lists the files needing attention, with
+  the reason: failed, added but left unsaved, left open, or not added
+  because the batch stopped. It appears only when there are any.
 - Buffers it opened are closed once done with, unless left modified (a
-  failed save, say). A buffer you already had open is never closed. An
-  open file with unsaved edits is added but reported unsaved.
+  failed save, or a mode hook that edits, say); such a buffer is left
+  open, counted unsaved and listed. A buffer you already had open is
+  never closed. An open file with unsaved edits is added but reported
+  unsaved.
 - The session is untouched. At the rank limit, that file and the rest
   fail with "no room"; automatic redistribution is planned.
 
@@ -262,8 +269,10 @@ and the session is left as it is.
 `org-iw-remove` deletes the entry's `IW_<QUEUE>` line and asks no
 confirmation: undo in the file's buffer brings the line back. The
 heading, its ID and its other queues stay. Removing a document's last
-queue also removes the drawer org-iw made, so the file is as it was
-before Add; undo restores it. A heading keeps its drawer.
+queue also removes its drawer, if nothing else is left in it; undo
+restores it. So a Denote note, which Add gives no `:ID:`, is as it was
+before Add. Any other document keeps its drawer, holding the `:ID:` Add
+gave it if it had none. A heading keeps its drawer.
 
 An entry can leave a queue in three places:
 
@@ -347,8 +356,9 @@ the rows.
 
 When something is off, a command refuses with an `org-iw refused: "…"`
 message and changes nothing. Examples: the file changed on disk, the
-heading's ID is shared with another heading, the entry has left the queue,
-the file is not an Org source file, there is no session for Continue, or there is no room at the chosen
+entry's ID is shared with another entry, the entry has left the queue,
+the file is not a source file (outside `org-iw-sources` or excluded),
+there is no session for Continue, or there is no room at the chosen
 placement.
 
 "No room" means the ranks around that placement are used up, and the

@@ -56,6 +56,10 @@
   "Return the absolute name of NAME in the corpus."
   (expand-file-name name org-iw-test-dir))
 
+(defun org-iw-test-relative (file)
+  "Return FILE relative to the corpus."
+  (file-relative-name file org-iw-test-dir))
+
 (defun org-iw-test--write (name content)
   "Create corpus file NAME holding CONTENT, making its directory."
   (let ((path (org-iw-test-path name)))
@@ -66,8 +70,7 @@
 (defun org-iw-test--listing ()
   "Return the corpus's relative file names, sorted, ignoring backups."
   (sort (seq-remove (lambda (name) (string-suffix-p "~" name))
-                    (mapcar (lambda (path)
-                              (file-relative-name path org-iw-test-dir))
+                    (mapcar #'org-iw-test-relative
                             (directory-files-recursively
                              org-iw-test-dir "" t)))
         #'string<))
@@ -92,8 +95,8 @@ A view made outside the fixture fails it, before the view is redrawn."
 
 (defun org-iw-test--release ()
   "Discard edits to corpus buffers, kill them and restore file modes.
-Kill the queue views made in the test too: they have no file, and a
-view left behind would be found again by its queue ID."
+Kill the queue views made in the test and the batch report too: they
+have no file, and one left behind would be found by a later test."
   (dolist (buffer (seq-filter #'org-iw-test--corpus-buffer-p (buffer-list)))
     (with-current-buffer buffer
       (set-buffer-modified-p nil))
@@ -101,6 +104,8 @@ view left behind would be found again by its queue ID."
   (mapc #'kill-buffer
         (seq-difference (seq-filter #'org-iw-test--view-buffer-p (buffer-list))
                         org-iw-test--outside-views))
+  (when-let* ((report (get-buffer org-iw--batch-report-name)))
+    (kill-buffer report))
   (pcase-dolist (`(,path . ,modes) org-iw-test--modes)
     (set-file-modes path modes)))
 
@@ -168,10 +173,10 @@ corpus, `org-id-locations' nil and `org-id-track-globally' nil.
 BODY runs inside `save-window-excursion'.  A queue view that existed
 before BODY is spared: BODY fails if it would show that view's queue.
 Afterwards, even if BODY fails, the window configuration is restored,
-the corpus buffers and BODY's queue views are killed, the corpus
-buffers' edits discarded, and file modes changed through
-`org-iw-test-set-modes' are restored.  Then I8
-is asserted: the corpus listing must equal the one before BODY, apart
+the corpus buffers, BODY's queue views and any batch report are
+killed, the corpus buffers' edits discarded, and file modes changed
+through `org-iw-test-set-modes' are restored.  Then I8 is asserted:
+the corpus listing must equal the one before BODY, apart
 from *~ backups and paths declared by `org-iw-test-make-symlink' or
 `org-iw-test-make-fifo'.  A violation fails the test, unless BODY
 already failed.  Finally the corpus is deleted."
@@ -255,16 +260,24 @@ ID nil omits the ID line; PROPERTIES are whole drawer lines."
 
 (declare-function denote-file-has-denoted-filename-p "denote" (file))
 
+(defconst org-iw-test-denote-id "20260512T000000"
+  "A Denote identifier, for files named in Denote's scheme.")
+
+(defun org-iw-test-denote-name (identifier &optional title)
+  "Return a file name in Denote's scheme, without Denote.
+It is made of the Denote IDENTIFIER, \"--\", TITLE (default
+\"note\") and \".org\"."
+  (format "%s--%s.org" identifier (or title "note")))
+
 (defun org-iw-test-denote-file (identifier content &optional title)
   "Return a corpus file (NAME . CONTENT), NAME in Denote's scheme.
-NAME is made of the Denote IDENTIFIER, \"--\", TITLE (default
-\"note\") and \".org\".  Skip
-the test unless Denote loads, and fail it unless Denote accepts NAME,
-so a typo cannot quietly turn a test of Denote identity into a test
-of a plain file.  Use it in the FILES of `org-iw-test-with-corpus'."
+NAME is `org-iw-test-denote-name' of IDENTIFIER and TITLE.  Skip the
+test unless Denote loads, and fail it unless Denote accepts NAME, so
+a typo cannot quietly turn a test of Denote identity into a test of
+a plain file.  Use it in the FILES of `org-iw-test-with-corpus'."
   (unless (require 'denote nil t)
     (ert-skip "Denote is unavailable"))
-  (let ((name (format "%s--%s.org" identifier (or title "note"))))
+  (let ((name (org-iw-test-denote-name identifier title)))
     (should (denote-file-has-denoted-filename-p name))
     (cons name content)))
 
@@ -293,12 +306,14 @@ session state, which a test must isolate.  See
 
 (defun org-iw-test-marker (name title)
   "Return a marker at the heading TITLE in corpus file NAME.
+TITLE nil means the start of the file, widened, before any heading.
 The file is visited first; the marker is in its buffer."
   (with-current-buffer (org-iw-test-visit name)
     (org-with-wide-buffer
      (goto-char (point-min))
-     (let ((case-fold-search nil))
-       (re-search-forward (concat "^\\* " (regexp-quote title) "$")))
+     (when title
+       (let ((case-fold-search nil))
+         (re-search-forward (concat "^\\* " (regexp-quote title) "$"))))
      (copy-marker (line-beginning-position)))))
 
 (defun org-iw-test-base (marker)

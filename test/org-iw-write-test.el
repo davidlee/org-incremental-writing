@@ -697,11 +697,6 @@ heading before has a drawer, which must not pass for the target's."
 
 ;;;; Document entries
 
-(defun org-iw-write-test--document-marker (name)
-  "Return a marker at the start of corpus file NAME, visiting it first."
-  (with-current-buffer (org-iw-test-visit name)
-    (point-min-marker)))
-
 (defconst org-iw-write-test--new-document-drawer
   (concat "\\`:PROPERTIES:\n"
           "\\(?::ID: +\\([^ \n]+\\)\n\\)?"
@@ -709,14 +704,16 @@ heading before has a drawer, which must not pass for the target's."
   "A regexp for the drawer put-rank inserts for a new document entry.
 Its group 1 is the new ID, if the drawer has one.")
 
-(defun org-iw-write-test--should-put-new-document (text ensure-id)
+(defun org-iw-write-test--should-put-new-document (text ensure-id advance)
   "Assert put-rank :document makes the heading-first TEXT a member.
 TEXT is file a.org.  The rank 1024 and, with ENSURE-ID, a new ID go
 into a drawer inserted before the first heading; the file is saved,
 TEXT follows the drawer unchanged, the ID is the document's, and one
-undo restores TEXT."
+undo restores TEXT.  ADVANCE non-nil makes the marker advance past
+text inserted at it, as `set-marker-insertion-type' t does."
   (org-iw-test-with-corpus `(("a.org" . ,text))
-    (let ((marker (org-iw-write-test--document-marker "a.org")))
+    (let ((marker (org-iw-test-marker "a.org" nil)))
+      (set-marker-insertion-type marker advance)
       (should (eq (org-iw-write-put-rank marker "ESSAYS" 1024
                                          :expected :absent
                                          :ensure-id ensure-id
@@ -740,12 +737,15 @@ undo restores TEXT."
   "With :document, a file with no text before its first heading joins.
 A drawer goes before the heading, holding the rank and, with
 :ensure-id, a new ID; the heading is untouched, its own ID and
-membership in the queue included."
+membership in the queue included.  So it is whichever way the
+caller's marker moves when the drawer is inserted at it."
   (dolist (text (list (org-iw-test-org "* H" "Body.")
                       (org-iw-test-heading "H" "h1")
                       (org-iw-test-heading "H" "h1" ":IW_ESSAYS: 2048")))
     (dolist (ensure-id '(nil t))
-      (org-iw-write-test--should-put-new-document text ensure-id))))
+      (dolist (advance '(nil t))
+        (org-iw-write-test--should-put-new-document text ensure-id
+                                                    advance)))))
 
 (defun org-iw-write-test--should-fail-plainly (marker call)
   "Assert calling CALL is a plain `error', changing nothing at MARKER.
@@ -794,7 +794,7 @@ The file has no document entry to hold a rank, whatever the first
 heading holds."
   (org-iw-test-with-corpus
       `(("a.org" . ,(org-iw-test-heading "H" "h1" ":IW_ESSAYS: 2048")))
-    (let ((marker (org-iw-write-test--document-marker "a.org")))
+    (let ((marker (org-iw-test-marker "a.org" nil)))
       (org-iw-write-test--should-fail-plainly
        marker (lambda ()
                 (org-iw-write-test--put-4096 marker "ESSAYS"
@@ -817,7 +817,7 @@ refuse, changing nothing."
                              (org-iw-test-set-modes "a.org" #o444)
                              "not writable"))))
       (org-iw-test-with-corpus `(("a.org" . ,text))
-        (let* ((marker (org-iw-write-test--document-marker "a.org"))
+        (let* ((marker (org-iw-test-marker "a.org" nil))
                (reason (funcall setup marker)))
           (when reason
             (should (string-search
@@ -840,7 +840,7 @@ The file comes out as it does without :document."
             (lambda (document)
               (org-iw-test-with-corpus `(("a.org" . ,text))
                 (should (eq (org-iw-write-put-rank
-                             (org-iw-write-test--document-marker "a.org")
+                             (org-iw-test-marker "a.org" nil)
                              "ESSAYS" 1024 :expected expected
                              :document document)
                             'saved))
@@ -862,7 +862,7 @@ too, and one undo brings it back.  Nothing deleted is still an error."
                  `((,(org-iw-test-org "* H" "Body.") t)
                    (,(org-iw-test-org "#+title: X" "Intro." "* H") nil)))
     (org-iw-test-with-corpus `(("a.org" . ,text))
-      (let ((marker (org-iw-write-test--document-marker "a.org")))
+      (let ((marker (org-iw-test-marker "a.org" nil)))
         (should (eq (org-iw-write-put-rank marker "ESSAYS" 1024
                                            :expected :absent
                                            :document document)
@@ -872,7 +872,7 @@ too, and one undo brings it back.  Nothing deleted is still an error."
   (let ((text (org-iw-test-org ":PROPERTIES:" ":IW_ESSAYS: 1024" ":END:"
                                "* H")))
     (org-iw-test-with-corpus `(("a.org" . ,text))
-      (let ((marker (org-iw-write-test--document-marker "a.org")))
+      (let ((marker (org-iw-test-marker "a.org" nil)))
         (should (eq (org-iw-write-test--delete-document marker) 'saved))
         (should (equal (org-iw-test-file-string "a.org") "* H\n"))
         (org-iw-write-test--undo-once (marker-buffer marker))
@@ -880,7 +880,7 @@ too, and one undo brings it back.  Nothing deleted is still an error."
   (org-iw-test-with-corpus
       `(("a.org" . ,(org-iw-test-org ":PROPERTIES:" ":IW_ESSAYS: 2048" ":END:"
                                      "* H")))
-    (let ((marker (org-iw-write-test--document-marker "a.org")))
+    (let ((marker (org-iw-test-marker "a.org" nil)))
       (should (equal (org-iw-write-test--should-fail-plainly
                       marker
                       (lambda ()
