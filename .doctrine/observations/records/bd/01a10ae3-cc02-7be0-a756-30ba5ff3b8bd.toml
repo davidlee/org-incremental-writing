@@ -1,0 +1,18 @@
+schema = "doctrine.observation"
+schema_version = 1
+uid = "01a10ae3-cc02-7be0-a756-30ba5ff3b8bd"
+recorded_at = "2026-10-05T07:07:43.490690726Z"
+kind = "friction"
+summary = """error-message-string of org-iw-refusal shows quoted 'org-iw refused: "..."'"""
+detail = 'SL-004 PHASE-05 worker: error-message-string on an org-iw-refusal yields org-iw refused: "..." with quotes, so an uncaught refusal likely displays that way in the echo area. Predates SL-004; backlog candidate.'
+
+[facets.execution]
+schema_version = 1
+interface = "cli"
+interface_origin = "automatic"
+product_surface = "doctrine"
+product_surface_origin = "automatic"
+command = "observation record"
+command_origin = "automatic"
+repository_context = "primary"
+repository_context_origin = "automatic"

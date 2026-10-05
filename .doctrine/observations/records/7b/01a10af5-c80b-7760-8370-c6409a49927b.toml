@@ -1,0 +1,18 @@
+schema = "doctrine.observation"
+schema_version = 1
+uid = "01a10af5-c80b-7760-8370-c6409a49927b"
+recorded_at = "2026-10-05T07:27:22.123335553Z"
+kind = "friction"
+summary = "test-each matrix is slow: ~5 min per run, four runs per phase; combined runs hit the 10-min tool cap"
+detail = "SL-004 PHASE-05/06 workers: just test-each x (emacs, emacs-30) x (Denote set, unset) costs ~20 min per phase; one combined command exceeded the 600s Bash cap. Also: doctrine memory record takes title positionally (sheet assumed --title); doctrine show rejects memory keys (use doctrine memory show)."
+
+[facets.execution]
+schema_version = 1
+interface = "cli"
+interface_origin = "automatic"
+product_surface = "doctrine"
+product_surface_origin = "automatic"
+command = "observation record"
+command_origin = "automatic"
+repository_context = "primary"
+repository_context_origin = "automatic"

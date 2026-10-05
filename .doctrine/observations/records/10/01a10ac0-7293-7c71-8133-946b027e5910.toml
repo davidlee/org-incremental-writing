@@ -1,0 +1,18 @@
+schema = "doctrine.observation"
+schema_version = 1
+uid = "01a10ac0-7293-7c71-8133-946b027e5910"
+recorded_at = "2026-10-05T06:29:06.835198712Z"
+kind = "friction"
+summary = "memory retrieve takes no positional query; multi-term --query returns nothing"
+detail = "SL-004 PHASE-04 planner: 'doctrine memory retrieve <topic>' as the planner contract phrases it fails; --query with several terms returned nothing and single-term memory search missed marker/mutation/indirect/narrowing topics. Only path-scope browsing surfaced relevant memories."
+
+[facets.execution]
+schema_version = 1
+interface = "cli"
+interface_origin = "automatic"
+product_surface = "doctrine"
+product_surface_origin = "automatic"
+command = "observation record"
+command_origin = "automatic"
+repository_context = "primary"
+repository_context_origin = "automatic"

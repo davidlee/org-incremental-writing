@@ -1,0 +1,18 @@
+schema = "doctrine.observation"
+schema_version = 1
+uid = "01a10ac0-7298-73f0-b76f-d4e6fcbfd5b7"
+recorded_at = "2026-10-05T06:29:06.840440472Z"
+kind = "friction"
+summary = "Closed slices' VT keywords rot as later slices replace behaviour"
+detail = "SL-001 verify-vt now fails VT-2 (PHASE-0?) on 'document targets are not yet supported', deliberately removed by SL-004 PHASE-04 per DEC-023; SL-001 already had other stale VT fails (org-iw-core-append-rank, 'already at end'). No waiver/annotation path for a done slice's criteria was evident."
+
+[facets.execution]
+schema_version = 1
+interface = "cli"
+interface_origin = "automatic"
+product_surface = "doctrine"
+product_surface_origin = "automatic"
+command = "observation record"
+command_origin = "automatic"
+repository_context = "primary"
+repository_context_origin = "automatic"

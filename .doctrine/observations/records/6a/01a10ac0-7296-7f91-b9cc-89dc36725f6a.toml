@@ -1,0 +1,18 @@
+schema = "doctrine.observation"
+schema_version = 1
+uid = "01a10ac0-7296-7f91-b9cc-89dc36725f6a"
+recorded_at = "2026-10-05T06:29:06.83807087Z"
+kind = "friction"
+summary = "Planned mutation lists miss guards; workers must cover every new guard"
+detail = "SL-004 PHASE-04: sheet M1-M18 missed two real gaps (org-iw-add-document from Lisp skipped the source check; --target-at-point heading branch). Worker found and killed them with new tests. Also: test fixtures for document drawers must put the drawer before #+title:; org-iw-test-marker finds only top-level headings; cloned indirect buffers inherit narrowing."
+
+[facets.execution]
+schema_version = 1
+interface = "cli"
+interface_origin = "automatic"
+product_surface = "doctrine"
+product_surface_origin = "automatic"
+command = "observation record"
+command_origin = "automatic"
+repository_context = "primary"
+repository_context_origin = "automatic"

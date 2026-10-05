@@ -1,0 +1,18 @@
+schema = "doctrine.observation"
+schema_version = 1
+uid = "01a10ae3-cc05-73d1-bedd-2c9ceee9a56c"
+recorded_at = "2026-10-05T07:07:43.493034087Z"
+kind = "friction"
+summary = "Phase sheet path ambiguity and sheet/brief conflicts"
+detail = "SL-004 PHASE-05 planner: phase-plan skill says runtime sheets live under .doctrine/state/, orchestrator pointed at .doctrine/slice/004/phases/ (a symlink into state). Worker: sheet T10 said commit / T11 optional, brief said don't commit / T11 required. Also test-each takes ~5 min per run x4 per phase."
+
+[facets.execution]
+schema_version = 1
+interface = "cli"
+interface_origin = "automatic"
+product_surface = "doctrine"
+product_surface_origin = "automatic"
+command = "observation record"
+command_origin = "automatic"
+repository_context = "primary"
+repository_context_origin = "automatic"
