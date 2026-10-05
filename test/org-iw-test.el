@@ -2032,6 +2032,18 @@ Without an ID the scan's own missing-id problem is not shown as exclusion."
                     (org-iw-cmd-test--at "b.org" nil))
                    "entry at point is not in any queue"))))
 
+(ert-deftest org-iw-cmd-test-scanned-entry-at-denote-document ()
+  "A member document identified by its Denote name is found at its start."
+  (let ((note (org-iw-test-denote-file
+               "20260512T000000"
+               (org-iw-test-org ":PROPERTIES:" ":IW_ESSAYS: 1024" ":END:"
+                                "Intro."))))
+    (org-iw-test-with-corpus (list note)
+      (should (equal (org-iw-entry-id
+                      (org-iw-cmd-test--scanned-at
+                       (org-iw-cmd-test--at (car note) nil)))
+                     "20260512T000000")))))
+
 (ert-deftest org-iw-cmd-test-scanned-entry-at-narrowed-and-indirect ()
   "A marker in a narrowed buffer or an indirect buffer finds its entry."
   (org-iw-test-with-corpus org-iw-cmd-test--queue

@@ -31,6 +31,7 @@
 
 ;;; Code:
 
+(require 'cl-lib)
 (require 'ert)
 (require 'seq)
 (require 'subr-x)
@@ -252,6 +253,42 @@ ID nil omits the ID line; PROPERTIES are whole drawer lines."
                  properties
                  '(":END:"))))
 
+(declare-function denote-file-has-denoted-filename-p "denote" (file))
+
+(defun org-iw-test-denote-file (identifier content &optional title)
+  "Return a corpus file (NAME . CONTENT), NAME in Denote's scheme.
+NAME is made of the Denote IDENTIFIER, \"--\", TITLE (default
+\"note\") and \".org\".  Skip
+the test unless Denote loads, and fail it unless Denote accepts NAME,
+so a typo cannot quietly turn a test of Denote identity into a test
+of a plain file.  Use it in the FILES of `org-iw-test-with-corpus'."
+  (unless (require 'denote nil t)
+    (ert-skip "Denote is unavailable"))
+  (let ((name (format "%s--%s.org" identifier (or title "note"))))
+    (should (denote-file-has-denoted-filename-p name))
+    (cons name content)))
+
+(defmacro org-iw-test-without-feature (feature &rest body)
+  "Run BODY with FEATURE absent from `features', then restore it.
+`features' is not special in lexical code, so `let' would bind it
+lexically and `featurep' would not see the binding: it is bound
+dynamically with `cl-progv'."
+  (declare (indent 1) (debug t))
+  `(cl-progv '(features) (list (remq ,feature features))
+     ,@body))
+
+(defmacro org-iw-test-without-denote (&rest body)
+  "Run BODY as if Denote were not installed.
+`denote' is removed from `features' and the one attempt to load
+Denote is marked as made.  BODY reaches discovery's private
+`org-iw-discovery--denote-tried' because Denote's availability is
+session state, which a test must isolate.  See
+`org-iw-test-without-feature' for how `features' is bound."
+  (declare (indent 0) (debug t))
+  `(org-iw-test-without-feature 'denote
+     (let ((org-iw-discovery--denote-tried t))
+       ,@body)))
+
 ;;;; Buffers, markers and snapshots
 
 (defun org-iw-test-marker (name title)
@@ -341,7 +378,9 @@ new ID, unique in the file, and IW_ESSAYS at 1024."
       (should (string-match "\\`:ID: +\\([^ ]+\\)\\'" (nth 1 added)))
       (let ((id (match-string 1 (nth 1 added))))
         (with-current-buffer (marker-buffer marker)
-          (should (equal (org-iw-discovery-id-count id) 1))))
+          (should (equal (org-iw-discovery-id-count
+                          id (buffer-file-name (org-iw-test-base marker)))
+                         1))))
       (should (equal (nth 2 added) ":IW_ESSAYS: 1024"))
       (should (equal (nth 3 added) ":END:")))))
 

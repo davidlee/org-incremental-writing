@@ -99,6 +99,73 @@ do not exist are ignored."
                    (mapcan #'org-iw-discovery--candidates sources)))
         #'string<))
 
+;;;; Document identity
+
+(defvar org-iw-discovery--denote-tried nil
+  "Non-nil once loading Denote has been tried.
+It is set before the one attempt of a session, so a Denote that fails
+to load warns once.")
+
+(declare-function denote-file-has-denoted-filename-p "denote" (file))
+(declare-function denote-retrieve-filename-identifier "denote" (file))
+
+(defmacro org-iw-discovery--at-document-start (&rest body)
+  "Run BODY at the start of the current buffer's base buffer, widened.
+That is where the document's entry is, if it has one.  The current
+buffer, point and the narrowing are restored afterwards."
+  (declare (indent 0) (debug t))
+  `(with-current-buffer (org-iw-discovery-base-buffer)
+     (org-with-wide-buffer
+      (goto-char (point-min))
+      ,@body)))
+
+(defun org-iw-discovery--denote-available-p ()
+  "Return non-nil if Denote is loaded, trying to load it once if not.
+A load error is shown as a warning and gives nil; it never signals."
+  (or (featurep 'denote)
+      (unless org-iw-discovery--denote-tried
+        (setq org-iw-discovery--denote-tried t)
+        (condition-case err
+            (require 'denote nil t)
+          (error
+           (display-warning 'org-iw
+                            (format "Denote failed to load: %s"
+                                    (error-message-string err)))
+           nil)))))
+
+(defun org-iw-discovery--denote-identifier (file)
+  "Return the Denote identifier in the name of FILE, or nil.
+There is one only if Denote is available and FILE is named in its
+file naming scheme; where FILE lives does not matter."
+  (and (org-iw-discovery--denote-available-p)
+       (denote-file-has-denoted-filename-p file)
+       (denote-retrieve-filename-identifier file)))
+
+(defun org-iw-discovery--id-at-point ()
+  "Return the ID property of the entry at point, or nil if it is empty."
+  (org-string-nw-p (org-entry-get nil "ID")))
+
+(defun org-iw-discovery-document-slot-p ()
+  "Return non-nil if the current buffer has text before its first heading.
+That text is where the document's own entry, and its file-level
+property drawer, are.  The answer is the base buffer's, widened,
+whatever the current buffer, its narrowing and point."
+  (org-iw-discovery--at-document-start
+    (org-before-first-heading-p)))
+
+(defun org-iw-discovery-document-id (file)
+  "Return the ID of the current buffer's document, or nil if it has none.
+FILE is the truename of the buffer's file.  The ID is the file-level
+:ID: if the buffer has a document slot and the :ID: is not empty,
+else the Denote identifier in FILE's name (see
+`org-iw-discovery--denote-identifier').  The base buffer is read,
+widened, wherever point is.  This is the one owner of a document's
+identity."
+  (or (org-iw-discovery--at-document-start
+        (and (org-iw-discovery-document-slot-p)
+             (org-iw-discovery--id-at-point)))
+      (org-iw-discovery--denote-identifier file)))
+
 ;;;; Reading entries
 
 (defun org-iw-discovery--tally (values)
@@ -114,7 +181,8 @@ any case, where `org-at-property-p' holds.  VALUE keeps its case and
 POS is the start of the line; lines come in buffer order.  Only the
 accessible portion is searched, so widen first to see the whole buffer.
 
-This is the only matcher of ID lines, so every caller agrees on them."
+This is the only matcher of ID lines, and `org-iw-discovery--identities'
+its only reader, so every caller agrees on them."
   (save-excursion
     (goto-char (point-min))
     (let ((lines nil))
@@ -126,11 +194,6 @@ This is the only matcher of ID lines, so every caller agrees on them."
             (when (org-at-property-p)
               (push (cons value (point)) lines)))))
       (nreverse lines))))
-
-(defun org-iw-discovery--id-values ()
-  "Return the values of the ID property lines in the current buffer.
-See `org-iw-discovery--id-lines'."
-  (mapcar #'car (org-iw-discovery--id-lines)))
 
 (defun org-iw-discovery--iw-lines ()
   "Return the entry's IW_ property lines as an alist (NAME . VALUE).
@@ -196,7 +259,7 @@ other invalid name are an `invalid-property'; a bad rank is an
       (cons (nreverse memberships)
             (append (nreverse invalid) (nreverse problems))))))
 
-(defun org-iw-discovery--title (file)
+(defun org-iw-discovery-title (file)
   "Return the title of the entry at point in FILE.
 A heading's title is its text; the document's is its #+title, else
 the base name of FILE."
@@ -205,16 +268,41 @@ the base name of FILE."
     (or (cadr (assoc "TITLE" (org-collect-keywords '("TITLE"))))
         (file-name-base file))))
 
-(defun org-iw-discovery-entry-id ()
-  "Return the ID of the entry at point, or nil if it has none.
-The scan and the commands both read it here, so they agree on it."
-  (org-string-nw-p (org-entry-get nil "ID")))
+(defun org-iw-discovery--identities (file)
+  "Return the identities in the current buffer, FILE's text, as (ID . POS).
+FILE is the buffer's truename.  The base buffer is read, widened.
+The document's identity, if it has one, comes first, at `point-min';
+then the ID property lines (see `org-iw-discovery--id-lines'), each
+at the start of its line, except those in the document's own drawer,
+whose :ID: is the document's identity already.
+
+This is the only enumerator of identities, so the scan's tally and
+`org-iw-discovery-id-count' agree on them."
+  (org-iw-discovery--at-document-start
+    (let ((document (org-iw-discovery-document-id file))
+          (drawer (and (org-iw-discovery-document-slot-p)
+                       (org-get-property-block))))
+      (append (and document (list (cons document (point-min))))
+              (seq-remove (lambda (line)
+                            (and drawer
+                                 (<= (car drawer) (cdr line) (cdr drawer))))
+                          (org-iw-discovery--id-lines))))))
+
+(defun org-iw-discovery-entry-id (file)
+  "Return the ID of the entry at point in FILE, or nil if it has none.
+FILE is the truename of the current buffer's file.  A heading's ID is
+its :ID:; before the first heading, the entry is the document, and its
+ID is `org-iw-discovery-document-id'.  The scan and the commands both
+read it here, so they agree on it."
+  (if (org-before-first-heading-p)
+      (org-iw-discovery-document-id file)
+    (org-iw-discovery--id-at-point)))
 
 (defun org-iw-discovery--read-entry (file tally)
   "Read the entry starting at point in FILE.
-TALLY counts the buffer's ID property line values.  Return (ENTRY
+TALLY counts the buffer's identities.  Return (ENTRY
 . PROBLEMS), where ENTRY is nil unless a membership survives."
-  (let ((id (org-iw-discovery-entry-id)))
+  (let ((id (org-iw-discovery-entry-id file)))
     (cl-flet ((problem (type)
                 (org-iw-problem-create :type type :file file :id id)))
       (cond
@@ -226,7 +314,7 @@ TALLY counts the buffer's ID property line values.  Return (ENTRY
                       (org-iw-discovery--iw-lines))))
           (cons (and memberships
                      (org-iw-entry-create
-                      :id id :title (org-iw-discovery--title file)
+                      :id id :title (org-iw-discovery-title file)
                       :file file :memberships memberships
                       :outline (mapcar #'string-clean-whitespace
                                        (org-get-outline-path))))
@@ -258,7 +346,8 @@ section, outside any block, when Org finds no property drawer:
 (defun org-iw-discovery--scan-buffer (file)
   "Scan the current buffer, in Org mode, holding the text of FILE.
 Return (ENTRIES . PROBLEMS), each in buffer order."
-  (let ((tally (org-iw-discovery--tally (org-iw-discovery--id-values)))
+  (let ((tally (org-iw-discovery--tally
+                (mapcar #'car (org-iw-discovery--identities file))))
         (seen nil)
         (entries nil)
         (problems nil))
@@ -368,21 +457,23 @@ symlink."
   (or (find-buffer-visiting file)
       (find-file-noselect file)))
 
-(defun org-iw-discovery--id-positions (id)
-  "Return the start positions of the ID property lines with value ID.
-The search covers the whole of the current buffer's base buffer,
-whatever its narrowing or the current buffer's.  Positions are in
-the base buffer."
-  (with-current-buffer (org-iw-discovery-base-buffer)
-    (org-with-wide-buffer
-     (cl-loop for (value . position) in (org-iw-discovery--id-lines)
-              when (string= value id) collect position))))
+(defun org-iw-discovery--id-positions (id file)
+  "Return the positions where ID is an identity in the current buffer.
+FILE is the truename of the buffer's file.  The search covers the
+whole of the current buffer's base buffer, whatever its narrowing or
+the current buffer's, and positions are in the base buffer: an ID
+property line's start, or `point-min' for the document's identity.
+See `org-iw-discovery--identities'."
+  (cl-loop for (value . position) in (org-iw-discovery--identities file)
+           when (string= value id) collect position))
 
-(defun org-iw-discovery-id-count (id)
-  "Return the number of ID property lines with value ID.
-The whole base buffer of the current buffer is counted, ignoring
-narrowing.  The key matches in any case; the value, case-sensitively."
-  (length (org-iw-discovery--id-positions id)))
+(defun org-iw-discovery-id-count (id file)
+  "Return the number of identities with value ID in the current buffer.
+FILE is the truename of the buffer's file.  The whole base buffer is
+counted, ignoring narrowing: the document's identity once, and each
+ID property line outside its drawer.  The key of an ID property line
+matches in any case; values compare case-sensitively."
+  (length (org-iw-discovery--id-positions id file)))
 
 (defun org-iw-discovery--refuse (what id file)
   "Signal an `org-iw-refusal' that WHAT is wrong with ID in FILE."
@@ -420,12 +511,13 @@ to match its problem by."
                       (org-iw-discovery--id-problems scan id)))))
 
 (defun org-iw-discovery-shared-id-p (scan id file)
-  "Return non-nil if a heading other than the entry at point has ID.
+  "Return non-nil if an entry other than the one at point has ID.
 ID is the entry's ID, and FILE the truename of the current buffer's
-file.  That holds if ID is on other than one ID property line of the
-base buffer, a scanned entry in another file has it, or SCAN excluded
-it as a duplicate."
-  (or (/= (org-iw-discovery-id-count id) 1)
+file.  The other entry may be a heading or the document.  That holds
+if ID is other than one identity of the base buffer (see
+`org-iw-discovery-id-count'), a scanned entry in another file has it,
+or SCAN excluded it as a duplicate."
+  (or (/= (org-iw-discovery-id-count id file) 1)
       (seq-some (lambda (entry)
                   (and (equal (org-iw-entry-id entry) id)
                        (not (equal (org-iw-entry-file entry) file))))
@@ -438,13 +530,14 @@ This is the only resolver of IDs.  The marker is in FILE's buffer, at
 the heading, or at `point-min' for a document-level ID.  SCAN is the
 scan that found the entry; refuse with `org-iw-refusal' if it excluded
 ID as a duplicate (in any file), if FILE's buffer is not in Org mode
-\(a mode derived from it counts), or if ID is not on exactly one ID
-property line in FILE, which catches copies the scan cannot know of."
+\(a mode derived from it counts), or if ID is not exactly one identity
+in FILE (see `org-iw-discovery-id-count'), which catches copies the
+scan cannot know of."
   (when (org-iw-discovery-excluded-id-p scan id)
     (org-iw-discovery--refuse "duplicated, excluded from the queue" id file))
   (with-current-buffer (org-iw-discovery-buffer file)
     (org-iw-discovery-require-org-mode file)
-    (pcase (org-iw-discovery--id-positions id)
+    (pcase (org-iw-discovery--id-positions id file)
       ('() (org-iw-discovery--refuse "not found" id file))
       (`(,position)
        (org-with-wide-buffer

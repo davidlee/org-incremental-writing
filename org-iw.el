@@ -443,8 +443,8 @@ line for QUEUE but is not in ORDER (the scan excluded it), or if
 another heading has its ID.  Return the heading's 1-based position in ORDER
 if it is already a member, else nil."
   (org-with-point-at marker
-    (let ((id (org-iw-discovery-entry-id))
-          (file (org-iw--buffer-truename)))
+    (let* ((file (org-iw--buffer-truename))
+           (id (org-iw-discovery-entry-id file)))
       (if-let* ((index (cl-position (org-iw--find-entry order id file) order)))
           (1+ index)
         (when-let* ((types (org-iw--excluded-types scan queue id)))
@@ -758,9 +758,10 @@ being in no queue.  Given QUEUE, a canonical queue ID, refuse also
 unless the entry is in it: as excluded if it has an IW_ line for QUEUE
 \(see `org-iw--excluded-types'), else as not in QUEUE."
   (org-with-point-at marker
-    (let* ((id (org-iw-discovery-entry-id))
+    (let* ((file (org-iw--buffer-truename))
+           (id (org-iw-discovery-entry-id file))
            (entry (and id (org-iw--find-entry (org-iw-scan-entries scan)
-                                              id (org-iw--buffer-truename))))
+                                              id file)))
            (absent (and entry queue (not (org-iw-core-rank entry queue))))
            (excluded
             (cond (absent (org-iw--excluded-types scan queue id))

@@ -26,3 +26,48 @@ fresh-as-of: 2026-10-05 · design locked → plan · f5bd251
 - IDE-002 — CUSTOM_ID heading identity
 - ASM-001 — unique source file names (still held)
 - CHR-003 — README per slice (design § 10 includes README.md)
+
+## PHASE-01 (2026-10-05, execute)
+
+- flake.nix derives the Denote dir from nixpkgs-unstable
+  `emacsPackages.elpaPackages.denote` via a `runCommand` that `find`s
+  `denote.el` (no store hash or version literal) and exports
+  `ORG_IW_DENOTE_DIR` to the devshell and all jails.
+- **Unevaluated in the jail (no nix).** The human must check with
+  `nix develop` / a jail restart: `printenv ORG_IW_DENOTE_DIR`;
+  `emacs-30 -Q --batch -L "$ORG_IW_DENOTE_DIR" --eval "(require 'denote)"`.
+  `just --evaluate denote_load` shows the flag.
+- justfile `denote_load` (`-L DIR` when set and non-empty) is used by
+  `test`, `test-each` and `coverage` only.
+- Gate 327/327 on 31 and 30, with the variable unset and set by hand
+  (commit f8d72bf).
+
+## PHASE-02 (2026-10-05, execute)
+
+- Discovery owns document identity: `org-iw-discovery-document-slot-p`,
+  `org-iw-discovery-document-id` (file-level `:ID:` when slotted ▸ Denote
+  identifier ▸ nil), private `--denote-identifier` / `--denote-available-p`
+  (soft load once, `--denote-tried` set first, load error → one
+  `display-warning` of type `org-iw`). `entry-id`, `--id-positions`,
+  `id-count` take FILE; `--title` → public `org-iw-discovery-title`.
+- One enumerator: `--identities (file)` → `(ID . POS)`, document identity
+  at `point-min` then `:ID:` lines outside the file-level drawer (drawer
+  consulted only when slotted). It is the sole reader of `--id-lines`;
+  the scan tally and `--id-positions` both read it. `--id-values` deleted.
+  `--at-document-start` macro owns "base buffer, widened, at point-min".
+- Test helpers (`test/org-iw-test-helpers.el`):
+  `org-iw-test-denote-file IDENTIFIER CONTENT &optional TITLE` → corpus
+  pair `IDENTIFIER--TITLE.org`, skips unless Denote loads, asserts Denote
+  accepts the name; `org-iw-test-without-denote` (BODY with `denote` out
+  of `features` and `--denote-tried` t); `org-iw-test-without-feature`.
+- Surprise: `features` is made non-special in C, so `let` binds it
+  lexically in lexical-binding code and `featurep` ignores it. Bind it with
+  `cl-progv` (`dlet` trips byte-compile's prefix warning). Also: Emacs 31
+  warns on loading a .el without a lexical-binding cookie.
+- Tests 327 → 340. Gate green unset and set (31 and 30); test-each 340
+  all alone on emacs and emacs-30, unset and set. Zero skips on both with
+  `ORG_IW_DENOTE_DIR` set by hand; unset, emacs-30 skips exactly the 8
+  Denote-route tests.
+- Mutation: 22 mutants, 20 killed, 2 equivalent (slot-p without base
+  switch: indirect buffers share text; `--check-heading` nil FILE: heading
+  branch only until PHASE-03). Table in the phase sheet.
