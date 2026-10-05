@@ -298,8 +298,9 @@ reconcile", with no items named for change).
 
 ### Withdrawn / tolerated / follow-up
 - F-17 and part of F-1: tolerated, as the Synthesis records.
-- F-5 → ISS-005 (jail mount; diagnosed 2026-10-06, flake fix proposed
-  to the user). F-16 → ISS-006.
+- F-5 → ISS-005 (jail mount). Diagnosed 2026-10-06: the jail was built
+  before e14c071; no flake change is needed, the host rebuilds it.
+  F-16 → ISS-006.
 - Found while reconciling, outside the brief: PRD-001's prose still says
   Org-ID-only identity (spec-001.md:32, :97) → CHR-005. It was not
   edited here.
