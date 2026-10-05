@@ -1,0 +1,516 @@
+id    = 11
+slug  = "reconciliation-review-of-sl-003"
+title = "reconciliation review of SL-003"
+# no status — a review's status is DERIVED from its findings, so
+# it is never stored (the storage rule forbids derived data in authored files).
+
+[review]
+facet     = "reconciliation"     # scope|design|plan|phase-plan|implementation|code-review|reconciliation
+raiser    = "raiser"
+responder = "responder"
+rounds_base = 0
+contests_base = 0
+concluded = true
+
+[[review.turn]]
+act = "conclude"
+role = "raiser"
+note = """
+Pre-close conformance audit of SL-003 over e7213f2..HEAD (all source, tests, README) against the locked design (dr-01a0fedb rev 53), DEC-012..020, ADR-001..004 (REV-004), POL-001..003, STD-001..004. Scaled-up STD-003 roster: opus modelling, test (85-mutant pass), legibility reviewers and opus verifier. Evidence: slice conformance (registry and --against full range), doctrine check gate, just test-each, verify-vt, execution probes of I10′–I14 and RV-005 F-1/F-2. Fix-now delta f714d4b; reconcile items F-1..F-3 in the brief.
+"""
+
+[target]                   # the outbound `reviews` edge: RV-NNN ──reviews──▶ <ref>
+ref   = "SL-003"
+
+[[finding]]
+id = "F-1"
+status = "verified"
+severity = "minor"
+title = "Expected every path the slice edits to be a design-target (§ 10, selectors); observed test/org-iw-test-helpers.el edited but undeclared"
+detail = """
+`git log e7213f2..HEAD -- test/org-iw-test-helpers.el` gives 83885ef (PHASE-06) and 136fe79 (RV-007 fixes). The file is in neither design § 10 (design.md:945-962) nor the slice's design-target selectors. The registry-based `doctrine slice conformance 3` does not list it, because the recorded deltas missed it. `--against e7213f2..HEAD` does list it undeclared. The registry's other 12 undeclared paths are all `.doctrine/` metadata (DEC-020, IMP-008, RV-010, design.md, notes.md, an observation), not code.
+"""
+disposition = "design-wrong"
+response = """
+The design, not the code, is behind: the helpers file is the test fixture's natural home (STD-004 mirrors tests; helpers are shared). Reconciliation brief: `doctrine slice selector add` design-target `test/org-iw-test-helpers.el` (load-bearing for conformance), mirrored by a § 10 row. The registry's `.doctrine/` undeclared paths are metadata and need no selector.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = """
+The design, not the code, is behind: the helpers file is the test fixture's natural home (STD-004 mirrors tests; helpers are shared). Reconciliation brief: `doctrine slice selector add` design-target `test/org-iw-test-helpers.el` (load-bearing for conformance), mirrored by a § 10 row. The registry's `.doctrine/` undeclared paths are metadata and need no selector.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Reconciliation Brief entry written (review-011.md)."
+
+[[finding]]
+id = "F-2"
+status = "verified"
+severity = "minor"
+title = "Expected design § 5.2/§ 5.4 to describe the shipped command and discovery helpers; observed drift in owners, signatures and the helper list"
+detail = """
+Verified by execution and against the cited lines (modelling reviewer, verifier):
+- § 5.2 (design.md:385) says `org-iw--view-redraw` "re-tags the mark". Since RV-009 F-1, the view's printer `org-iw--view-print-row` (org-iw.el:962-969) draws the tag on every reprint. The redraw only clears a mark whose entry is gone (:1007-1008). Same behaviour, different owner.
+- § 5.2 (design.md:272-276) gives `--scanned-entry-at (MARKER SCAN)`. The code is `(marker scan &optional queue)` and owns the "not in queue NAME" refusal (org-iw.el:722-747, e2db495). § 5.4 step 4 (design.md:473) still describes a separate refusal.
+- § 5.2 (design.md:216) says `:outline (org-get-outline-path)` and "nothing else changes". Discovery wraps the path in `string-clean-whitespace` (org-iw-discovery.el:231-232, RV-006 F-4).
+- § 5.2 and § 10 omit the helpers added during execution, each recorded in notes.md as a deviation that removes duplication: `--removed-text`, `--moved-text`, `--entry-marker`, `--queue-at-point`, `--empty-text`, `--continue-place`/`--continue-remove`, `--session-entry-p`, `--heading-or-refuse`, and the `--view-*` family (print-row, set-mark, rescan, refresh, revert, move, step, place, redraw-and-report, row-position).
+"""
+disposition = "design-wrong"
+response = """
+The code is right; each drift is a recorded, reviewed deviation (notes.md PHASE-04/05/06, RV-006 F-4, RV-009 F-1). Reconciliation brief: direct edit of design.md § 5.2 (redraw/printer ownership, `--scanned-entry-at` signature and refusal, the outline whitespace clean, the added helpers), § 5.4 step 4, and § 10's org-iw.el row.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = """
+The code is right; each drift is a recorded, reviewed deviation (notes.md PHASE-04/05/06, RV-006 F-4, RV-009 F-1). Reconciliation brief: direct edit of design.md § 5.2 (redraw/printer ownership, `--scanned-entry-at` signature and refusal, the outline whitespace clean, the added helpers), § 5.4 step 4, and § 10's org-iw.el row.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Reconciliation Brief entry written (review-011.md)."
+
+[[finding]]
+id = "F-3"
+status = "verified"
+severity = "minor"
+title = "Expected REQ-013 AC2 to match what the slice delivers; observed AC2 promises entries distinguishable by file/outline context, which DEC-017 meets only in part"
+detail = """
+Carry-in from RV-005 F-11 (a follow-up whose route is a REV at reconcile; plan.md § RV-005 routing). Design § 5.5 edge case "Same title, same parent, same file" says two such entries are told apart only by ordinal: the accepted gap in DEC-017. The design states that this meets REQ-013 AC2 only in part, and that the two disagree. AC2 is unchanged (`doctrine show REQ-013`).
+"""
+disposition = "design-wrong"
+response = """
+Governance must tell the truth about the accepted gap (DEC-017). Reconciliation brief: REV modifying REQ-013 AC2 to qualify "distinguishable" (ordinal tells apart same-title same-parent same-file entries; same-named files in different directories remain ASM-001).
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = """
+Governance must tell the truth about the accepted gap (DEC-017). Reconciliation brief: REV modifying REQ-013 AC2 to qualify "distinguishable" (ordinal tells apart same-title same-parent same-file entries; same-named files in different directories remain ASM-001).
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Reconciliation Brief entry written (review-011.md)."
+
+[[finding]]
+id = "F-4"
+status = "verified"
+severity = "minor"
+title = "Expected the view commands' docstrings to list every refusal (ISS-001's standard); observed the write refusals missing"
+detail = """
+org-iw.el:1132 (place-before), :1143 (place-after), :1155 (view-remove), :1174 (move-up) and :1184 (move-down) list only "off a row / left the queue / no room". Every one of them writes through put-rank or delete-rank, so it also refuses when the file changed on disk or is not writable, the buffer is read-only, or Org doesn't recognise the drawer. `org-iw-move` lists these (:789-791). In `org-iw-view-remove`, `y-or-n-p` (:1163) sits between the rescan (:1162) and `--delete-rank :expected` (:1170). So "the rank changed since the scan" is reachable there too, and undocumented.
+"""
+disposition = "fix-now"
+response = """
+Docstrings of the five view commands gain the write refusals, phrased as org-iw-move's; view-remove also names "the rank changed since the scan" (reachable across its prompt).
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+Docstrings of the five view commands gain the write refusals, phrased as org-iw-move's; view-remove also names "the rank changed since the scan" (reachable across its prompt).
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in f714d4b; gate 327/327 (31.1, 30.2), test-each green; new tests kill the prior survivors (rerun on scratch)."
+
+[[finding]]
+id = "F-5"
+status = "verified"
+severity = "minor"
+title = "Expected README to say what Continue does after the session's entry is removed; observed it says Continue refuses, but when that entry was the last it reports the queue empty"
+detail = """
+README.md:191 says Continue refuses ("T is no longer in queue NAME"). org-iw.el:710-711 returns `org-iw--report-empty` ("Queue NAME is empty") when the order is empty, before the absent check. Verified by the verifier.
+"""
+disposition = "fix-now"
+response = """
+README.md:191 gains the empty-queue case.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+README.md:191 gains the empty-queue case.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in f714d4b; gate 327/327 (31.1, 30.2), test-each green; new tests kill the prior survivors (rerun on scratch)."
+
+[[finding]]
+id = "F-6"
+status = "verified"
+severity = "minor"
+title = "Expected D's 'next row, else the previous one' rule (design § 5.4/§ 9) to be pinned; observed dropping the 'else previous' fallback survives the suite"
+detail = """
+org-iw.el:1167: `(or (cadr (member id ids)) (cadr (member id (reverse ids))))`. The mutant `(cadr (member id ids))` survives all 331 tests. `org-iw-cmd-test-view-remove` covers only the last row of a fresh view, where the redraw's own "last row when fewer remain" rule lands on the same row. Probe P1 (/home/scratch/sl-003/review/tests/probes.el) kills it: reorder so the view's last row is c1, D on it, expect point on b1 after a scan that changed the order.
+"""
+disposition = "fix-now"
+response = """
+Add probe P1 as a test beside view-remove-stale-goes-to-next-row.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+Add probe P1 as a test beside view-remove-stale-goes-to-next-row.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in f714d4b; gate 327/327 (31.1, 30.2), test-each green; new tests kill the prior survivors (rerun on scratch)."
+
+[[finding]]
+id = "F-7"
+status = "verified"
+severity = "minor"
+title = "Expected the 'only FILE changed' half of --should-change-lines to be self-tested (STD-001 item 2); observed deleting it survives"
+detail = """
+test/org-iw-test.el:1451-1452 (`assoc-delete-all` comparison of the other files) is shared by `--should-move` and `--should-delete`. `org-iw-cmd-test-should-delete-self-test` never deletes the right line and also changes another file, so its rejection always comes from the FILE half. Deleting :1451-1452 survives the suite. Probe P2 kills it: delete the right a.org line plus a b.org line; the oracle must fail.
+"""
+disposition = "fix-now"
+response = """
+Add probe P2's case to the should-delete self-test.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+Add probe P2's case to the should-delete self-test.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in f714d4b; gate 327/327 (31.1, 30.2), test-each green; new tests kill the prior survivors (rerun on scratch)."
+
+[[finding]]
+id = "F-8"
+status = "verified"
+severity = "minor"
+title = "Expected the padding design § 5.3 fixes (tabulated-list-padding 2) to be pinned literally (STD-001 item 4); observed 1 and 3 survive"
+detail = """
+org-iw.el:901 sets the padding; design.md:435 fixes 2. Mutants 1 and 3 survive the suite. Probe P4: `(should (equal (buffer-local-value 'tabulated-list-padding view) 2))`, next to the `tabulated-list-format` assertion in `list-queue-rows`.
+"""
+disposition = "fix-now"
+response = """
+Pin the padding in list-queue-rows (probe P4).
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+Pin the padding in list-queue-rows (probe P4).
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in f714d4b; gate 327/327 (31.1, 30.2), test-each green; new tests kill the prior survivors (rerun on scratch)."
+
+[[finding]]
+id = "F-9"
+status = "verified"
+severity = "minor"
+title = "Expected org-iw-write-delete-rank to be tested in a folded buffer (STD-001 item 5); observed no folded case"
+detail = """
+test/org-iw-write-test.el has no fold test for delete-rank. Behaviour is correct: probe P3 (overview with folded drawers; one line deleted; still folded afterwards) passes on 31.1 and 30.2. put-rank has no folded case either, a gap that predates this slice.
+"""
+disposition = "fix-now"
+response = """
+Add a folded-buffer delete-rank test (probe P3).
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+Add a folded-buffer delete-rank test (probe P3).
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in f714d4b; gate 327/327 (31.1, 30.2), test-each green; new tests kill the prior survivors (rerun on scratch)."
+
+[[finding]]
+id = "F-10"
+status = "verified"
+severity = "nit"
+title = "Expected one owner per call shape (POL-002); observed three small command-layer repeats"
+detail = """
+- "Find the member by ID or refuse it as absent": Continue at org-iw.el:713-715 and `--view-rescan` at :1046-1048 are the same `(or (org-iw--find-entry order id) (org-iw--refuse-absent scan queue id TITLE))`.
+- `(org-iw--read-queue (org-iw--known-queues (org-iw--scan)))` appears in Add's interactive spec (:479-480) and in `--read-session-queue` (:409).
+- "Now 1/%d: %s" is built in both `--continue-place` (:642) and `--continue-remove` (:659). IMP-006, which covers Add's WHERE, D/N text, does not cover this one.
+"""
+disposition = "fix-now"
+response = """
+POL-002: one helper each — member-or-refuse-absent (Continue, view rescan), read-queue over a fresh scan's known queues (Add, read-session-queue), "Now 1/N: T" text (both Continue arms).
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+POL-002: one helper each — member-or-refuse-absent (Continue, view rescan), read-queue over a fresh scan's known queues (Add, read-session-queue), "Now 1/N: T" text (both Continue arms).
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in f714d4b; gate 327/327 (31.1, 30.2), test-each green; new tests kill the prior survivors (rerun on scratch)."
+
+[[finding]]
+id = "F-11"
+status = "verified"
+severity = "nit"
+title = "Expected one test helper per concept (POL-002, STD-001 item 7); observed two parallel test helpers"
+detail = """
+- `org-iw-cmd-test--entry` (test/org-iw-test.el:943) reimplements `org-iw--find-entry` (org-iw.el:204), which this slice made the single lookup by ID.
+- `org-iw-cmd-test--continue-chosen` (:1765, SL-002) is `org-iw-cmd-test--call-prefixed` (:1104, new in df0b156) without the marker.
+"""
+disposition = "fix-now"
+response = """
+POL-002: `org-iw-cmd-test--entry` delegates to `org-iw--find-entry`; `--continue-chosen` calls `--call-prefixed` (MARKER optional).
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+POL-002: `org-iw-cmd-test--entry` delegates to `org-iw--find-entry`; `--continue-chosen` calls `--call-prefixed` (MARKER optional).
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in f714d4b; gate 327/327 (31.1, 30.2), test-each green; new tests kill the prior survivors (rerun on scratch)."
+
+[[finding]]
+id = "F-12"
+status = "verified"
+severity = "nit"
+title = "Expected the shared-preflight refusal scenarios to be written once over both write verbs; observed per-verb copies"
+detail = """
+In test/org-iw-write-test.el:
+- put-rank: :291, :301, :318, :328, :339, :355;
+- delete-rank: :606, :621, :630, :647.
+They are the same file conditions (changed on disk, directly and through an indirect buffer; unwritable; read-only base, through the indirect, and the indirect itself). Both verbs already reach `--should-refuse-by`. What is copied is the scenario bodies, which one table over the two verbs would share.
+"""
+disposition = "fix-now"
+response = """
+POL-002 (STD-003: duplication is fix-now unless waived): one table-driven test per file condition, looping over both verbs.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+POL-002 (STD-003: duplication is fix-now unless waived): one table-driven test per file condition, looping over both verbs.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in f714d4b; gate 327/327 (31.1, 30.2), test-each green; new tests kill the prior survivors (rerun on scratch)."
+
+[[finding]]
+id = "F-13"
+status = "verified"
+severity = "nit"
+title = "Expected a view buffer found by org-iw--view-buffer to be a working view; observed one whose major mode the user changed is still found and redrawn"
+detail = """
+`org-iw--view-queue` is permanent-local (org-iw.el:909), and lookup is by queue (:915-925). After `M-x fundamental-mode` in a view, `org-iw-list-queue` returns "Queue ESSAYS: 3 entries". The buffer stays in fundamental-mode, with no mark tag, and RET is `newline` (verifier probe c4.el). Design § 5.2 says only a new view is put in the mode.
+"""
+disposition = "tolerated"
+response = """
+Self-inflicted: the user must change the major mode of a special buffer by hand; killing the buffer recovers, and nothing is written wrongly (every action rescans, I12). The fix contradicts design § 5.2 ("only a new view is put in the mode") and would need a design amendment out of proportion to the hazard.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "tolerated"
+response = """
+Self-inflicted: the user must change the major mode of a special buffer by hand; killing the buffer recovers, and nothing is written wrongly (every action rescans, I12). The fix contradicts design § 5.2 ("only a new view is put in the mode") and would need a design amendment out of proportion to the hazard.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Rationale accepted; recorded under Synthesis tradeoffs."
+
+[[finding]]
+id = "F-14"
+status = "verified"
+severity = "nit"
+title = "Expected one text for 'the entry has IW_<Q> but the scan excluded it'; observed Add and Move/Remove word it differently"
+detail = """
+Add says "heading has IW_%s but it is excluded (%s)" (org-iw.el:443, from before this slice). Move and Remove say "entry at point is excluded (%s)" (:740, worded by design.md:275). Both compute the condition through `org-iw--excluded-types`.
+"""
+disposition = "fix-now"
+response = """
+POL-002 message contract. Move's wording is design-fixed (design.md:275) and covers documents; Add's predates the slice. Add refuses through the same owner, so one text remains. No SL-003 design text changes.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+POL-002 message contract. Move's wording is design-fixed (design.md:275) and covers documents; Add's predates the slice. Add refuses through the same owner, so one text remains. No SL-003 design text changes.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in f714d4b; gate 327/327 (31.1, 30.2), test-each green; new tests kill the prior survivors (rerun on scratch)."
+
+[[finding]]
+id = "F-15"
+status = "verified"
+severity = "nit"
+title = "Expected placement docs to name every command that reads placements; observed only Continue and Add named"
+detail = """
+The `org-iw-placements` docstring (org-iw.el:91) says "Placements offered by `org-iw-continue' and `org-iw-add'", and README.md:64 says the same. `org-iw-move` also reads placements (:796, :799).
+"""
+disposition = "fix-now"
+response = """
+Name org-iw-move in the org-iw-placements docstring and README.md:64.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+Name org-iw-move in the org-iw-placements docstring and README.md:64.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in f714d4b; gate 327/327 (31.1, 30.2), test-each green; new tests kill the prior survivors (rerun on scratch)."
+
+[[finding]]
+id = "F-16"
+status = "verified"
+severity = "nit"
+title = "Expected shared membership-write helpers in their own section; observed them under ';;;; Continue' and ';;;; Remove'"
+detail = """
+`--put-rank`, `--delete-rank`, `--move`, `--moved-text` and `--refuse-absent` (org-iw.el:566-622) sit under `;;;; Continue` (:564), but Move, Remove and the view use them too. `--removed-text` sits under `;;;; Remove` (:813) but Continue uses it first (:656).
+"""
+disposition = "fix-now"
+response = """
+Move the shared helpers (incl. --removed-text) into a ';;;; Membership writes' section ahead of Continue. No behaviour change.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+Move the shared helpers (incl. --removed-text) into a ';;;; Membership writes' section ahead of Continue. No behaviour change.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Fixed in f714d4b; gate 327/327 (31.1, 30.2), test-each green; new tests kill the prior survivors (rerun on scratch)."
+
+# Findings are append-only `[[finding]]` tables, added by `review raise`.
+# Empty here at creation — a fresh review is Active, awaiting the raiser.

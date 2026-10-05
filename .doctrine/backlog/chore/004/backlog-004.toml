@@ -1,15 +1,15 @@
 schema = "doctrine.backlog"
 version = 1
 
-id = 1
-slug = "put-rank-and-continue-docstrings-omit-preflight-refusals"
-title = "put-rank and continue docstrings omit preflight refusals"
-kind = "issue"
-status = "resolved"
-resolution = "fixed"
-created = "2026-10-01"
+id = 4
+slug = "sl-001-phase-02-vt-3-keys-org-iw-core-append-rank-deleted-by-sl-002"
+title = "SL-001 PHASE-02 VT-3 keys org-iw-core-append-rank, deleted by SL-002"
+kind = "chore"
+status = "open"
+resolution = ""                 # seeded empty so `backlog edit` sets it in place
+created = "2026-10-05"
 updated = "2026-10-05"
-tags = ["area:docs"]
+tags = []
 
 # outbound-only. Cross-kind structural edges (e.g. references with a role
 # — `originates_from` for backlog→slice provenance — governed_by, related, drift) are

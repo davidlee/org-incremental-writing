@@ -1,0 +1,51 @@
+memory_uid = "mem_01a109ea2bdc7e929af4700f2f56b4f5"
+memory_key = "mem.fact.doctrine.conformance-registry-gaps"
+schema_version = 1
+lifespan = "procedural"
+memory_type = "fact"
+status = "active"
+title = "slice conformance registry can miss edited paths"
+summary = "Registry-based slice conformance can miss edited paths; cross-check with --against at audit"
+created = "2026-10-05"
+updated = "2026-10-05"
+
+[scope]
+paths = []
+globs = []
+commands = ["doctrine slice conformance"]
+tags = ["audit"]
+workspace = "default"
+repo = "github.com/davidlee/org-incremental-writing"
+repo_id_kind = "remote"
+repo_id_confidence = "high"
+
+[git]
+anchor_kind = "checkout_state"
+commit = ""
+tree = "e7d487292f88971dae1c2614c86bc1a4e8528fe1"
+ref_name = "refs/heads/main"
+checkout_state_id = "0fc98d6e9341be302ff7d8e21b9549d6008466369ad0b9b75d27ddebab240d0b"
+base_commit = "f714d4b1fe377af45271e72877229e00e80f451d"
+verified_sha = ""
+normalizer = "forget.checkout.v1"
+
+[review]
+verification_state = "unverified"
+reviewed = ""
+review_by = ""
+
+[trust]
+trust_level = "high"
+
+[ranking]
+severity = "medium"
+weight = 0
+
+[[source]]
+kind = "review"
+ref = "RV-011"
+
+[[relation]]
+label = "related"
+target = "mem_019ec92b30127db0aac7eb7badb1cbf2"
+

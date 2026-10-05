@@ -16,3 +16,8 @@ not fixed there.
 
 Design § 5.2 (write preflight) is the reference. Fix: bring both
 docstrings in line; checkdoc/lint stay green.
+
+Resolved by SL-003 (DEC-014), verified at audit RV-011 (2026-10-05):
+put-rank's docstring lists "buffer is read-only"; Continue's lists
+every write refusal (fixed in SL-002, RV-004 F-5); the new view
+commands meet the same standard (RV-011 F-4).

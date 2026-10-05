@@ -181,28 +181,29 @@ tests, 31.1 and 30.2), `just test-each` 236 alone green.
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: 2026-10-05 · PHASE-08 completed, pre-audit · 3d1911f
+fresh-as-of: 2026-10-05 · audit (RV-011 concluded) · f714d4b
 
 ### Produced
-- PHASE-01..08 done — Move, Remove, Continue's Remove, queue view (commits 525c721..63ca35a); 331 tests, gate green on 31.1/30.2
+- PHASE-01..08 done — Move, Remove, Continue's Remove, queue view (commits 525c721..63ca35a)
 - per-phase reviews: RV-006 (PHASE-01..03), RV-007 (04..06), RV-009 (07); design amendments re-locked via RV-008, RV-010
+- audit RV-011 — 16 findings; fix-now delta f714d4b (327 tests, gate green on 31.1/30.2)
 - REV-004 — amends ADR-003 (post-edit invariant check) and ADR-004 item 5
-- DEC-020 — C-u on Move/Remove picks the queue; placement prompt names it (trial ruling)
-- minted: ISS-002, ISS-003, IMP-006, IMP-007, IMP-008, IMP-009, IDE-001; IMP-005 item 3 (title double space)
-- PHASE-08 VH-1 held (user trial, 2026-10-05)
+- DEC-020 — C-u on Move/Remove picks the queue; placement prompt names it
+- minted: ISS-002, ISS-003, IMP-006..IMP-009, IDE-001, CHR-004 (SL-001 VT row keyed on a deleted symbol)
+- ISS-001 resolved (DEC-014; RV-011)
 
 ### Learned
 - mem.fact.emacs.tabulated-list-tags — reprints drop put-tag tags; draw from the printer
 - mem.fact.org.entry-delete-case — org-entry-delete misses lowercase keys
 - mem_01a0f61703707ab195b31ba1ae0c631e — amending a locked design: regress before editing
+- mem.fact.doctrine.conformance-registry-gaps — cross-check registry conformance with --against
 
 ### Open
-- ISS-001 — this slice resolves it (DEC-014); close at audit
+- reconcile: RV-011 Reconciliation Brief — F-1 selector + § 10, F-2 § 5.2/§ 5.4/§ 10, F-3 REV on REQ-013 AC2
 - ASM-001 — unique source file names
 - QUE-002 — Denote identity (shapes SL-004)
 - IMP-005 — uniform title rendering, incl. the double space
 - CHR-003 — standard: each slice updates README
-- reconcile: design § 5.2 `--view-redraw` "re-tags the mark" now done by the printer (RV-009 note)
 
 ## RV-006 rulings (2026-10-03)
 
@@ -334,3 +335,12 @@ PHASE-07 (4f212ee): reorder, mark and b/a, D, README; RV-009 fixes in
 clarified (f1f74f8). Trial follow-ups logged, not fixed: IMP-008 (view
 undo), IMP-009 (refusal text in the view), IDE-001 (refresh views after
 org-iw commands; user scoped it to org-iw's own writes).
+
+## Audit RV-011 (2026-10-05)
+
+Scaled-up STD-003 roster (opus modelling, test, legibility; opus
+verifier). No blocker or major. Fix-now F-4..F-12, F-14..F-16 in f714d4b;
+F-13 tolerated (view buffer after a manual mode change); F-1..F-3 to
+reconcile (brief in review-011.md). Phase-sheet risks (J off-by-one, I11
+byte identity, document detection, A6, vacuous probes) were each settled
+in their phase; nothing further to lift. ISS-001 resolved.
