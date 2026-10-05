@@ -24,3 +24,6 @@ Assessment:
   or a timer), which is a design question, not trivial.
 - Pairs naturally with IMP-008 (view undo): both are about the view
   tracking its sources.
+
+User clarification (2026-10-05): scope is org-iw's own commands only, not
+hand edits. So this is the small case above.
