@@ -1,0 +1,18 @@
+schema = "doctrine.observation"
+schema_version = 1
+uid = "01a10a81-3115-7532-984a-a553c440eaac"
+recorded_at = "2026-10-05T05:20:01.301212586Z"
+kind = "friction"
+summary = "doctrine memory retrieve takes --query/--path-scope, not a positional; scoped retrieval found little, planners fell back to memory list; RV finding details only visible via review show --json"
+detail = "Reported by SL-004 PHASE-02 capsule-phase-planner."
+
+[facets.execution]
+schema_version = 1
+interface = "cli"
+interface_origin = "automatic"
+product_surface = "doctrine"
+product_surface_origin = "automatic"
+command = "observation record"
+command_origin = "automatic"
+repository_context = "primary"
+repository_context_origin = "automatic"

@@ -1,0 +1,18 @@
+schema = "doctrine.observation"
+schema_version = 1
+uid = "01a10a81-3113-7bb2-8e69-91290b3e2850"
+recorded_at = "2026-10-05T05:20:01.299097985Z"
+kind = "friction"
+summary = "slice verify-vt reports UNATTRIBUTABLE for every VT despite committed slice changes to the mandated test files"
+detail = "SL-004: after commit 39b7b82 (feat(SL-004) touching test/org-iw-discovery-test.el), verify-vt 4 says 'keyword present but test/org-iw-discovery-test.el not modified by this slice' for all VTs incl. PHASE-02, and also for PHASE-03..05 whose keywords are pre-existing symbols. verify-vt has no --against/base option, so attribution cannot be steered; the verdict is non-halting but carries no signal."
+
+[facets.execution]
+schema_version = 1
+interface = "cli"
+interface_origin = "automatic"
+product_surface = "doctrine"
+product_surface_origin = "automatic"
+command = "observation record"
+command_origin = "automatic"
+repository_context = "primary"
+repository_context_origin = "automatic"

@@ -1,0 +1,18 @@
+schema = "doctrine.observation"
+schema_version = 1
+uid = "01a10a81-3117-76c3-815b-8e29beb5f432"
+recorded_at = "2026-10-05T05:20:01.303608759Z"
+kind = "friction"
+summary = "Emacs: let-binding features in lexical-binding code does not affect featurep; Denote absence must be simulated with cl-progv"
+detail = "SL-004 PHASE-02 worker: org-iw-test-without-denote needed cl-progv over features (dlet trips byte-compile prefix warning). Also Emacs 31 warns on loading an .el without a lexical-binding cookie, which perturbed a warns-once count. Memory candidate for /record-memory."
+
+[facets.execution]
+schema_version = 1
+interface = "cli"
+interface_origin = "automatic"
+product_surface = "doctrine"
+product_surface_origin = "automatic"
+command = "observation record"
+command_origin = "automatic"
+repository_context = "primary"
+repository_context_origin = "automatic"
