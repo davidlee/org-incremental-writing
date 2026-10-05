@@ -1,0 +1,46 @@
+memory_uid = "mem_01a109c695cf7a13a1ce6fc3f9451c7a"
+memory_key = "mem.fact.org.entry-delete-case"
+schema_version = 1
+memory_type = "fact"
+status = "active"
+title = "org-entry-delete misses lowercase property keys"
+summary = "org-entry-delete skips a lowercase :iw_q: key unless case-fold-search is t"
+created = "2026-10-05"
+updated = "2026-10-05"
+
+[scope]
+paths = []
+globs = []
+commands = []
+tags = ["org", "org-iw"]
+workspace = "default"
+repo = "github.com/davidlee/org-incremental-writing"
+repo_id_kind = "remote"
+repo_id_confidence = "high"
+
+[git]
+anchor_kind = "checkout_state"
+commit = ""
+tree = "ba193a2bd544e9f4e200b4965295bfd161d65468"
+ref_name = "refs/heads/main"
+checkout_state_id = "c08c320d43ad2270b036c6c290ede1c0a3cef472bd654487f382a51cb3c088e5"
+base_commit = "3d1911fbf4c52e94ef9ad33101b1dcd0df346ca3"
+verified_sha = ""
+normalizer = "forget.checkout.v1"
+
+[review]
+verification_state = "unverified"
+reviewed = ""
+review_by = ""
+
+[trust]
+trust_level = "medium"
+
+[ranking]
+severity = "none"
+weight = 0
+
+[[source]]
+kind = "slice"
+ref = "SL-003"
+

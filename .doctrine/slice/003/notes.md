@@ -181,23 +181,28 @@ tests, 31.1 and 30.2), `just test-each` 236 alone green.
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: 2026-10-03 · design drafting (run rev 22) · 33c2c87
+fresh-as-of: 2026-10-05 · PHASE-08 completed, pre-audit · 3d1911f
 
 ### Produced
-- research/research.md (+ raw/governance.md, raw/code-map.md)
-- design run dr-01a0fedb: inq-1..inq-9 resolved; stage drafting
-- DEC-012..DEC-019 (accepted, shape SL-003); DEC-016 references DEC-011
-- slice-003.md scope rewritten; governed_by + ADR-004, STD-001..004
+- PHASE-01..08 done — Move, Remove, Continue's Remove, queue view (commits 525c721..63ca35a); 331 tests, gate green on 31.1/30.2
+- per-phase reviews: RV-006 (PHASE-01..03), RV-007 (04..06), RV-009 (07); design amendments re-locked via RV-008, RV-010
+- REV-004 — amends ADR-003 (post-edit invariant check) and ADR-004 item 5
+- DEC-020 — C-u on Move/Remove picks the queue; placement prompt names it (trial ruling)
+- minted: ISS-002, ISS-003, IMP-006, IMP-007, IMP-008, IMP-009, IDE-001; IMP-005 item 3 (title double space)
+- PHASE-08 VH-1 held (user trial, 2026-10-05)
 
 ### Learned
-- org-entry-delete skips a lowercase key unless case-fold-search is t (research fact 3; candidate memory at close)
+- mem.fact.emacs.tabulated-list-tags — reprints drop put-tag tags; draw from the printer
+- mem.fact.org.entry-delete-case — org-entry-delete misses lowercase keys
+- mem_01a0f61703707ab195b31ba1ae0c631e — amending a locked design: regress before editing
 
 ### Open
-- ASM-001 — unique source file names (held)
-- QUE-002 — Denote identity / document ID policy (shapes SL-004)
-- IMP-005 — uniform title rendering in mode line/messages; compact IDs
+- ISS-001 — this slice resolves it (DEC-014); close at audit
+- ASM-001 — unique source file names
+- QUE-002 — Denote identity (shapes SL-004)
+- IMP-005 — uniform title rendering, incl. the double space
 - CHR-003 — standard: each slice updates README
-- ISS-001 — to be resolved by this slice (DEC-014)
+- reconcile: design § 5.2 `--view-redraw` "re-tags the mark" now done by the printer (RV-009 note)
 
 ## RV-006 rulings (2026-10-03)
 
@@ -320,3 +325,12 @@ and verified. For reconciliation: § 5.2's `--view-redraw` comment says it
 `--view-redraw` only clears a mark whose entry is gone. Same behaviour,
 different owner. `--view-entry` was absorbed into `--view-rescan` (F-4).
 Out of scope: IMP-007 (prompt recorder ignores unused answers).
+
+## PHASE-07 and PHASE-08 (2026-10-04..05)
+
+PHASE-07 (4f212ee): reorder, mark and b/a, D, README; RV-009 fixes in
+409272b. PHASE-08: user trial, steps 1–8 pass. Trial rulings: DEC-020
+(designed 3cf9da5, built df0b156); README on removing the session's entry
+clarified (f1f74f8). Trial follow-ups logged, not fixed: IMP-008 (view
+undo), IMP-009 (refusal text in the view), IDE-001 (refresh views after
+org-iw commands; user scoped it to org-iw's own writes).

@@ -1,0 +1,46 @@
+memory_uid = "mem_01a109c695b97040933a6b89de8a9c3f"
+memory_key = "mem.fact.emacs.tabulated-list-tags"
+schema_version = 1
+memory_type = "fact"
+status = "active"
+title = "tabulated-list reprints drop put-tag tags"
+summary = "Any (tabulated-list-print t), incl. inherited { and }, erases tabulated-list-put-tag tags; draw tags from tabulated-list-printer"
+created = "2026-10-05"
+updated = "2026-10-05"
+
+[scope]
+paths = []
+globs = []
+commands = []
+tags = ["emacs", "org-iw"]
+workspace = "default"
+repo = "github.com/davidlee/org-incremental-writing"
+repo_id_kind = "remote"
+repo_id_confidence = "high"
+
+[git]
+anchor_kind = "checkout_state"
+commit = ""
+tree = "ba193a2bd544e9f4e200b4965295bfd161d65468"
+ref_name = "refs/heads/main"
+checkout_state_id = "263a0d0900508067871f7bcd9ed880d842a3ec1856a784098d7cfa085ba40393"
+base_commit = "3d1911fbf4c52e94ef9ad33101b1dcd0df346ca3"
+verified_sha = ""
+normalizer = "forget.checkout.v1"
+
+[review]
+verification_state = "unverified"
+reviewed = ""
+review_by = ""
+
+[trust]
+trust_level = "medium"
+
+[ranking]
+severity = "none"
+weight = 0
+
+[[source]]
+kind = "review"
+ref = "RV-009"
+

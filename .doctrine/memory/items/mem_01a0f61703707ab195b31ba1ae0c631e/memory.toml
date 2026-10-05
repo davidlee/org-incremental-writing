@@ -6,7 +6,7 @@ status = "active"
 title = "Design run review and lock gotchas (doctrine 0.46.5)"
 summary = "policy label bound, att- declarations for section review, severe findings need a route"
 created = "2026-10-01"
-updated = "2026-10-01"
+updated = "2026-10-05"
 
 [scope]
 paths = []
