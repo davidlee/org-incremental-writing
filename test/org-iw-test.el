@@ -654,7 +654,9 @@ Nothing changes and no Org parsing runs, so no warnings appear."
                    ("h1" (":IW_ESSAYS+: 1") "invalid-property")
                    (nil (":IW_ESSAYS: 1") "missing-id")))
     (org-iw-cmd-test--refuses (apply #'org-iw-test-heading "H" id lines)
-                              "ESSAYS" (format "excluded (%s)" type) "H")))
+                              "ESSAYS"
+                              (format "entry at point is excluded (%s)" type)
+                              "H")))
 
 (ert-deftest org-iw-cmd-test-add-refuses-at-rank-limit ()
   "Add refuses when the last rank leaves no room below the limit."
@@ -942,8 +944,7 @@ DRAFTS holds D (d.org).")
 
 (defun org-iw-cmd-test--entry (scan id)
   "Return the entry of SCAN with ID."
-  (seq-find (lambda (entry) (equal (org-iw-entry-id entry) id))
-            (org-iw-scan-entries scan)))
+  (org-iw--find-entry (org-iw-scan-entries scan) id))
 
 (defun org-iw-cmd-test--visit (id &optional scan)
   "Visit the entry ID as 1/3 of ESSAYS, from SCAN or a fresh scan.
@@ -1102,9 +1103,12 @@ The ID is copied after the scan, so resolve finds it ambiguous."
   "Target, not yet queued, and ESSAYS holding E1 to E8.")
 
 (defun org-iw-cmd-test--call-prefixed (marker command)
-  "Call COMMAND interactively with a prefix argument at MARKER."
+  "Call COMMAND interactively with a prefix argument at MARKER.
+A nil MARKER calls it where point is."
   (let ((current-prefix-arg '(4)))
-    (org-iw-cmd-test--call-at marker #'call-interactively command)))
+    (if marker
+        (org-iw-cmd-test--call-at marker #'call-interactively command)
+      (call-interactively command))))
 
 (ert-deftest org-iw-cmd-test-add-at-placement ()
   "Add at Soon ranks the heading 3rd of 9, writing one line."
@@ -1467,25 +1471,38 @@ FROM and TO are ranks.  Return FN's value."
 Return FN's value."
   (org-iw-cmd-test--should-change-lines fn file (list line) nil))
 
+(defun org-iw-cmd-test--line-deleter (name line)
+  "Return a function deleting LINE from corpus file NAME and saving it."
+  (lambda ()
+    (with-current-buffer (org-iw-test-visit name)
+      (goto-char (point-min))
+      (search-forward (concat line "\n"))
+      (replace-match "")
+      (save-buffer))))
+
 (ert-deftest org-iw-cmd-test-should-delete-self-test ()
-  "The delete oracle fails on no change, another line, or another file."
+  "The delete oracle fails unless LINE alone, of FILE alone, goes.
+No change, another line, another file, and LINE with another file's
+line too, each fail."
   (org-iw-test-with-corpus org-iw-cmd-test--queue
-    (let ((delete (lambda (name line)
-                    (lambda ()
-                      (with-current-buffer (org-iw-test-visit name)
-                        (goto-char (point-min))
-                        (search-forward (concat line "\n"))
-                        (replace-match "")
-                        (save-buffer))))))
-      (dolist (fn (list #'ignore
-                        (funcall delete "b.org" ":IW_ESSAYS: 2048")
-                        (funcall delete "a.org" ":ID: a1")))
-        (should-error (org-iw-cmd-test--should-delete
-                       fn "a.org" ":IW_ESSAYS: 1024")
-                      :type 'ert-test-failed))
-      (org-iw-cmd-test--should-delete
-       (funcall delete "a.org" ":IW_ESSAYS: 1024")
-       "a.org" ":IW_ESSAYS: 1024"))))
+    (dolist (fn (list #'ignore
+                      (org-iw-cmd-test--line-deleter "b.org" ":IW_ESSAYS: 2048")
+                      (org-iw-cmd-test--line-deleter "a.org" ":ID: a1")))
+      (should-error (org-iw-cmd-test--should-delete
+                     fn "a.org" ":IW_ESSAYS: 1024")
+                    :type 'ert-test-failed))
+    (org-iw-cmd-test--should-delete
+     (org-iw-cmd-test--line-deleter "a.org" ":IW_ESSAYS: 1024")
+     "a.org" ":IW_ESSAYS: 1024"))
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (should-error (org-iw-cmd-test--should-delete
+                   (lambda ()
+                     (funcall (org-iw-cmd-test--line-deleter
+                               "a.org" ":IW_ESSAYS: 1024"))
+                     (funcall (org-iw-cmd-test--line-deleter
+                               "d.org" ":IW_DRAFTS: 1")))
+                   "a.org" ":IW_ESSAYS: 1024")
+                  :type 'ert-test-failed)))
 
 (defun org-iw-cmd-test--set-rank (name from to)
   "Change IW_ESSAYS FROM to TO in corpus file NAME's buffer, unsaved."
@@ -1762,11 +1779,6 @@ The refusal names the queue by its configured name."
 
 ;;;; Continue: placements
 
-(defun org-iw-cmd-test--continue-chosen ()
-  "Call `org-iw-continue' interactively with a prefix argument."
-  (let ((current-prefix-arg '(4)))
-    (call-interactively #'org-iw-continue)))
-
 (ert-deftest org-iw-cmd-test-continue-standard-placements ()
   "Soon, Later and End put E1 3rd, 4th and 8th, one line each.
 The head of the rest is visited, and the message names the label."
@@ -1803,7 +1815,7 @@ default, which plain Continue then uses."
                             :default "Soon"))))
       (org-iw-visit-next "ESSAYS")
       (org-iw-cmd-test--with-prompt "Later"
-        (should (equal (org-iw-cmd-test--continue-chosen)
+        (should (equal (org-iw-cmd-test--call-prefixed nil #'org-iw-continue)
                        "Moved E1 to Later, 4/8 (saved). Now 1/8: E2"))
         (pcase-let ((`(,call) org-iw-cmd-test--prompts))
           (should (equal (plist-get call :prompt) "Placement in ESSAYS: "))
@@ -1830,12 +1842,13 @@ default, which plain Continue then uses."
     (org-iw-cmd-test--open-all)
     (org-iw-cmd-test--with-prompt nil
       (org-iw-cmd-test--should-refuse-cleanly
-       "no session" #'org-iw-cmd-test--continue-chosen)
+       "no session"
+       (lambda () (org-iw-cmd-test--call-prefixed nil #'org-iw-continue)))
       (org-iw-visit-next "ESSAYS")
       (let ((org-iw-queues '(("essays" :placements nil))))
         (org-iw-cmd-test--should-refuse-cleanly
          "queue ESSAYS :placements: no placements"
-         #'org-iw-cmd-test--continue-chosen)))))
+         (lambda () (org-iw-cmd-test--call-prefixed nil #'org-iw-continue)))))))
 
 (ert-deftest org-iw-cmd-test-continue-refuses-placement-before-scan ()
   "A bad label or bad config refuses before any scan, naming its source."
@@ -2482,7 +2495,7 @@ is visited, not C, the second of the order."
   (org-iw-test-with-corpus org-iw-cmd-test--queue
     (org-iw-visit-next "ESSAYS")
     (org-iw-cmd-test--with-prompt "Remove"
-      (should (equal (org-iw-cmd-test--continue-chosen)
+      (should (equal (org-iw-cmd-test--call-prefixed nil #'org-iw-continue)
                      "Removed A from ESSAYS (saved). Now 1/2: B"))
       (pcase-let ((`(,call) org-iw-cmd-test--prompts))
         (should (equal (plist-get call :prompt) "Placement in ESSAYS: "))
@@ -2745,6 +2758,7 @@ tells same-titled entries apart; without a session nothing is starred."
       (should (equal (buffer-local-value 'tabulated-list-format view)
                      [("#" 5 nil :right-align t) ("Title" 40 nil)
                       ("Context" 30 nil) ("File" 0 nil)]))
+      (should (equal (buffer-local-value 'tabulated-list-padding view) 2))
       (should (eq (org-iw-cmd-test--cell-face rows "n1" 2) 'shadow))
       (should-not (org-iw-cmd-test--cell-face rows "n1" 1)))))
 
@@ -3389,6 +3403,19 @@ goes to A."
         (org-iw-view-remove))
       (should (equal (org-iw-cmd-test--view-ids view) '("a1" "b1")))
       (should (equal (tabulated-list-get-id) "a1")))))
+
+(ert-deftest org-iw-cmd-test-view-remove-last-goes-to-previous-row ()
+  "D on the last row shown puts point on the previous row shown.
+The rows show A B C; in truth A has moved last.  Removing C, point
+goes to B, not to the last row of the new order."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (let ((view (org-iw-cmd-test--view "ESSAYS")))
+      (org-iw-cmd-test--set-rank "a.org" 1024 4096)
+      (org-iw-cmd-test--goto-row "c1")
+      (org-iw-cmd-test--with-prompt :yes
+        (org-iw-view-remove))
+      (should (equal (org-iw-cmd-test--view-ids view) '("b1" "a1")))
+      (should (equal (tabulated-list-get-id) "b1")))))
 
 (ert-deftest org-iw-cmd-test-view-actions-refuse-off-row ()
   "Each view action refuses off a row: in an empty view, or past the rows.

@@ -61,8 +61,8 @@ Or with `use-package`:
 
 ### Placements
 
-Continue puts the entry back at a *placement*, and Add can enrol a heading
-at one. A placement is one of:
+Continue puts the entry back at a *placement*, Move moves an entry to one,
+and Add can enrol a heading at one. A placement is one of:
 
 | Form | Puts the entry |
 |---|---|
@@ -189,7 +189,8 @@ leaves the session as it is:
 
 - The mode line still names the removed entry, and the message says so.
 - `org-iw-continue` refuses ("T is no longer in queue NAME"), because
-  there is no entry to put back.
+  there is no entry to put back. If it was the queue's last entry,
+  Continue reports "Queue NAME is empty" instead.
 - Run `org-iw-visit-next` to go on with the queue's first entry, or
   `org-iw-end-session` to stop.
 

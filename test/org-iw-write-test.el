@@ -288,82 +288,70 @@ The error comes before anything changes."
 
 ;;;; File checks (RV-001 F-4)
 
-(ert-deftest org-iw-write-test-refuses-changed-on-disk ()
-  "A clean buffer whose file changed on disk refuses, with no prompt."
-  (org-iw-test-with-corpus `(("a.org" . ,org-iw-write-test--target))
-    (let ((marker (org-iw-test-marker "a.org" "Target")))
-      (org-iw-test-rewrite-behind
-       "a.org" (concat org-iw-write-test--target "* Added outside\n"))
-      (should (string-search "changed on disk"
-                             (org-iw-write-test--should-refuse
-                              marker "ESSAYS" :expected 2048))))))
+;; Both write verbs share the preflight, so each file condition is
+;; checked once over both.
 
-(ert-deftest org-iw-write-test-refuses-changed-on-disk-indirect ()
-  "The check is on the base buffer, reached through an indirect buffer.
-An indirect buffer has no file, so a check on it would pass.
-The indirect buffer is made by `make-indirect-buffer' (via
-`org-iw-test-call-with-indirect')."
+(defun org-iw-write-test--should-refuse-each (marker reason)
+  "Assert each write verb refuses at MARKER with REASON, changing nothing.
+The verbs are put-rank and delete-rank, at ESSAYS :expected 2048; see
+`org-iw-write-test--should-refuse-by'."
+  (dolist (verb (list #'org-iw-write-test--put-4096 #'org-iw-write-delete-rank))
+    (should (string-search reason (org-iw-write-test--should-refuse-by
+                                   verb marker "ESSAYS" :expected 2048)))))
+
+(ert-deftest org-iw-write-test-refuses-changed-on-disk ()
+  "A file changed on disk refuses, directly and through an indirect buffer.
+The check is on the base buffer: an indirect buffer has no file, so a
+check on it would pass.  The indirect buffer is made by
+`make-indirect-buffer' (via `org-iw-test-call-with-indirect').  There
+is no prompt."
   (org-iw-test-with-corpus `(("a.org" . ,org-iw-write-test--target))
     (let ((marker (org-iw-test-marker "a.org" "Target")))
       (org-iw-test-rewrite-behind
        "a.org" (concat org-iw-write-test--target "* Added outside\n"))
+      (org-iw-write-test--should-refuse-each marker "changed on disk")
       (org-iw-test-call-with-indirect
        marker
        (lambda (indirect-marker)
-         (should (string-search "changed on disk"
-                                (org-iw-write-test--should-refuse
-                                 indirect-marker "ESSAYS"
-                                 :expected 2048))))))))
+         (org-iw-write-test--should-refuse-each
+          indirect-marker "changed on disk"))))))
 
 (ert-deftest org-iw-write-test-refuses-unwritable-file ()
   "A read-only file refuses (its modes set, via `set-file-modes')."
   (org-iw-test-unless-root
     (org-iw-test-with-corpus `(("a.org" . ,org-iw-write-test--target))
       (org-iw-test-set-modes "a.org" #o444)
-      (should (string-search "not writable"
-                             (org-iw-write-test--should-refuse
-                              (org-iw-test-marker "a.org" "Target")
-                              "ESSAYS" :expected 2048))))))
+      (org-iw-write-test--should-refuse-each
+       (org-iw-test-marker "a.org" "Target") "not writable"))))
 
 (ert-deftest org-iw-write-test-refuses-read-only-buffer ()
-  "A read-only base buffer refuses (RV-002 F-1); nothing is written.
-`org-entry-put' would otherwise write through `org-no-read-only'."
+  "A read-only base buffer refuses, directly and from a writable indirect.
+RV-002 F-1: `org-entry-put' and `org-entry-delete' would otherwise
+write through `org-no-read-only'.  The check is on the base buffer,
+not the one holding the marker."
   (org-iw-test-with-corpus `(("a.org" . ,org-iw-write-test--target))
     (let ((marker (org-iw-test-marker "a.org" "Target")))
       (with-current-buffer (org-iw-test-base marker)
         (setq buffer-read-only t))
-      (should (string-search "buffer is read-only"
-                             (org-iw-write-test--should-refuse
-                              marker "ESSAYS" :expected 2048))))))
-
-(ert-deftest org-iw-write-test-refuses-read-only-base-through-indirect ()
-  "A read-only base refuses from a writable indirect buffer (RV-002 F-1).
-The check is on the base buffer, not the one holding the marker."
-  (org-iw-test-with-corpus `(("a.org" . ,org-iw-write-test--target))
-    (let ((marker (org-iw-test-marker "a.org" "Target")))
-      (with-current-buffer (org-iw-test-base marker)
-        (setq buffer-read-only t))
+      (org-iw-write-test--should-refuse-each marker "buffer is read-only")
       (org-iw-test-call-with-indirect
        marker
        (lambda (indirect-marker)
          (setq buffer-read-only nil)
-         (should (string-search "buffer is read-only"
-                                (org-iw-write-test--should-refuse
-                                 indirect-marker "ESSAYS"
-                                 :expected 2048))))))))
+         (org-iw-write-test--should-refuse-each
+          indirect-marker "buffer is read-only"))))))
 
 (ert-deftest org-iw-write-test-refuses-read-only-indirect ()
   "A read-only indirect buffer over a writable base refuses (RV-006 F-1).
-`org-entry-put' would otherwise write through `org-no-read-only'."
+Writing from it would otherwise go through `org-no-read-only', or
+signal `buffer-read-only'."
   (org-iw-test-with-corpus `(("a.org" . ,org-iw-write-test--target))
     (org-iw-test-call-with-indirect
      (org-iw-test-marker "a.org" "Target")
      (lambda (indirect-marker)
        (setq buffer-read-only t)
-       (should (string-search "buffer is read-only"
-                              (org-iw-write-test--should-refuse
-                               indirect-marker "ESSAYS"
-                               :expected 2048)))))))
+       (org-iw-write-test--should-refuse-each
+        indirect-marker "buffer is read-only")))))
 
 (ert-deftest org-iw-write-test-writes-through-indirect-buffer ()
   "From a narrowed indirect buffer the edit lands in the base and saves.
@@ -598,63 +586,30 @@ The indirect buffer stays narrowed to the same text, past the target."
                          (org-iw-test-file-string "a.org"))
                         '((":IW_ESSAYS: 2048")))))))))
 
+;; STD-001 item 5: from a folded view.
+(ert-deftest org-iw-write-test-delete-rank-folded ()
+  "From a folded heading with a folded drawer, the one line goes; folds stay."
+  (org-iw-test-with-corpus `(("a.org" . ,org-iw-write-test--target))
+    (let ((marker (org-iw-test-marker "a.org" "Target")))
+      (with-current-buffer (marker-buffer marker)
+        (org-overview)
+        (goto-char marker)
+        (org-fold-hide-drawer-all)
+        (should (org-invisible-p (line-end-position))))
+      (should (eq (org-iw-write-delete-rank marker "ESSAYS" :expected 2048)
+                  'saved))
+      (should (equal (org-iw-test-changed-lines
+                      org-iw-write-test--target
+                      (org-iw-test-file-string "a.org"))
+                     '((":IW_ESSAYS: 2048"))))
+      (with-current-buffer (marker-buffer marker)
+        (goto-char marker)
+        (should (org-invisible-p (line-end-position)))))))
+
 (defun org-iw-write-test--delete-should-refuse (marker)
   "Assert delete-rank of ESSAYS at 2048 at MARKER refuses; return why."
   (org-iw-write-test--should-refuse-by #'org-iw-write-delete-rank
                                        marker "ESSAYS" :expected 2048))
-
-(ert-deftest org-iw-write-test-delete-rank-refuses-changed-on-disk ()
-  "A file changed on disk refuses, directly and through an indirect buffer."
-  (org-iw-test-with-corpus `(("a.org" . ,org-iw-write-test--target))
-    (let ((marker (org-iw-test-marker "a.org" "Target")))
-      (org-iw-test-rewrite-behind
-       "a.org" (concat org-iw-write-test--target "* Added outside\n"))
-      (should (string-search "changed on disk"
-                             (org-iw-write-test--delete-should-refuse marker)))
-      (org-iw-test-call-with-indirect
-       marker
-       (lambda (indirect-marker)
-         (should (string-search "changed on disk"
-                                (org-iw-write-test--delete-should-refuse
-                                 indirect-marker))))))))
-
-(ert-deftest org-iw-write-test-delete-rank-refuses-unwritable-file ()
-  "A read-only file refuses."
-  (org-iw-test-unless-root
-    (org-iw-test-with-corpus `(("a.org" . ,org-iw-write-test--target))
-      (org-iw-test-set-modes "a.org" #o444)
-      (should (string-search "not writable"
-                             (org-iw-write-test--delete-should-refuse
-                              (org-iw-test-marker "a.org" "Target")))))))
-
-(ert-deftest org-iw-write-test-delete-rank-refuses-read-only-buffer ()
-  "A read-only base buffer refuses, directly and from a writable indirect.
-`org-entry-delete' would otherwise delete through `org-no-read-only'."
-  (org-iw-test-with-corpus `(("a.org" . ,org-iw-write-test--target))
-    (let ((marker (org-iw-test-marker "a.org" "Target")))
-      (with-current-buffer (org-iw-test-base marker)
-        (setq buffer-read-only t))
-      (should (string-search "buffer is read-only"
-                             (org-iw-write-test--delete-should-refuse marker)))
-      (org-iw-test-call-with-indirect
-       marker
-       (lambda (indirect-marker)
-         (setq buffer-read-only nil)
-         (should (string-search "buffer is read-only"
-                                (org-iw-write-test--delete-should-refuse
-                                 indirect-marker))))))))
-
-(ert-deftest org-iw-write-test-delete-rank-refuses-read-only-indirect ()
-  "A read-only indirect buffer over a writable base refuses (RV-006 F-1).
-Deleting from it would otherwise signal `buffer-read-only'."
-  (org-iw-test-with-corpus `(("a.org" . ,org-iw-write-test--target))
-    (org-iw-test-call-with-indirect
-     (org-iw-test-marker "a.org" "Target")
-     (lambda (indirect-marker)
-       (setq buffer-read-only t)
-       (should (string-search "buffer is read-only"
-                              (org-iw-write-test--delete-should-refuse
-                               indirect-marker)))))))
 
 (ert-deftest org-iw-write-test-delete-rank-refuses-unexpected-lines ()
   "A stale rank, a non-member, or a duplicated or accumulated key refuses.
