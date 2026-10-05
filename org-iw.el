@@ -159,18 +159,33 @@ An indirect buffer's file is its base buffer's."
   (when-let* ((file (org-iw--buffer-truename)))
     (member file (org-iw--files))))
 
+(defun org-iw--require-source ()
+  "Refuse unless the current buffer visits a source file in Org mode.
+An indirect buffer's file is its base buffer's."
+  (unless (org-iw--source-file-p)
+    (org-iw-core-refuse "%s is not under org-iw-sources" (buffer-name)))
+  (org-iw-discovery-require-org-mode (org-iw--buffer-truename)))
+
+(defun org-iw--document-marker ()
+  "Return a marker at the current buffer's document entry.
+That is the start of the base buffer, widened, whatever the narrowing
+and point.  Text inserted there goes after the marker, so a drawer
+inserted for the document leaves it at the drawer."
+  (with-current-buffer (org-iw-discovery-base-buffer)
+    (org-with-wide-buffer
+     (copy-marker (point-min)))))
+
 (defun org-iw--target-at-point ()
   "Return a marker at the entry at point, or refuse.
 The entry is the heading at or above point, ignoring narrowing, or,
-before the first heading, the document, marked at the start of the
-buffer.  The current buffer must visit a source file and be in Org
-mode."
-  (unless (org-iw--source-file-p)
-    (org-iw-core-refuse "%s is not under org-iw-sources" (buffer-name)))
-  (org-iw-discovery-require-org-mode (org-iw--buffer-truename))
+before the first heading, the document (see
+`org-iw--document-marker').  Refuse as `org-iw--require-source'."
+  (org-iw--require-source)
   (org-with-wide-buffer
-   (org-back-to-heading-or-point-min t)
-   (point-marker)))
+   (if (org-before-first-heading-p)
+       (org-iw--document-marker)
+     (org-back-to-heading t)
+     (point-marker))))
 
 (defun org-iw--configured-queues ()
   "Return `org-iw-queues' as an alist (QUEUE . PLIST), QUEUE canonical.
@@ -414,12 +429,6 @@ is a prefix argument or no session."
 
 ;;;; Add
 
-(defun org-iw--heading-or-refuse (marker)
-  "Return MARKER, from `org-iw--target-at-point', or refuse a document."
-  (when (org-with-point-at marker (org-before-first-heading-p))
-    (org-iw-core-refuse "document targets are not yet supported"))
-  marker)
-
 (defun org-iw--problem-types-text (types)
   "Return problem TYPES, a list of symbols, as text for a refusal."
   (if types (mapconcat #'symbol-name types ", ") "unknown"))
@@ -429,32 +438,88 @@ is a prefix argument or no session."
   (org-iw-core-refuse "entry at point is excluded (%s)" types))
 
 (defun org-iw--excluded-types (scan queue id)
-  "Return why SCAN excluded the heading at point, ID, from QUEUE, or nil.
-QUEUE is a canonical queue ID, and the heading is not one of its
-members.  If the heading has an IW_ line for QUEUE, the scan excluded
+  "Return why SCAN excluded the entry at point, ID, from QUEUE, or nil.
+QUEUE is a canonical queue ID, and the entry is not one of its
+members.  If the entry has an IW_ line for QUEUE, the scan excluded
 it: return SCAN's problem types for ID, as text.  Else return nil."
   (and (org-iw-discovery-queue-lines queue)
        (org-iw--problem-types-text (org-iw-discovery-problem-types scan id))))
 
-(defun org-iw--check-heading (marker scan order queue)
-  "Refuse unless the heading at MARKER may join QUEUE, a canonical queue ID.
-ORDER is QUEUE's members in SCAN.  Refuse if the heading has an IW_
-line for QUEUE but is not in ORDER (the scan excluded it), or if
-another heading has its ID.  Return the heading's 1-based position in ORDER
-if it is already a member, else nil."
+(defun org-iw--add-entry (scan order marker queue placement document
+                               &optional where)
+  "Add the entry at MARKER to QUEUE at PLACEMENT, unless it is a member.
+ORDER is QUEUE's members in SCAN, and QUEUE a canonical queue ID.
+MARKER is at a heading or, with DOCUMENT non-nil, at the document's
+entry (see `org-iw--document-marker').
+
+If the entry is in ORDER, write nothing and return (existing
+POSITION), POSITION being 1-based.  Else write its rank, giving it an
+ID only if it has no identity, and return (added DEPTH STATUS ENTRY):
+DEPTH is its index in the new order, STATUS the result of
+`org-iw-write-put-rank', and ENTRY the entry as a scan now reads it.
+
+Refuse, writing nothing, if the entry has an IW_ line for QUEUE that
+SCAN excluded, another entry has its ID, or there is no room at
+PLACEMENT, WHERE being its text, with its preposition (by default,
+\"at the end\"), or if the write refuses."
   (org-with-point-at marker
     (let* ((file (org-iw--buffer-truename))
-           (id (org-iw-discovery-entry-id file)))
+           (id (if document
+                   (org-iw-discovery-document-id file)
+                 (org-iw-discovery-entry-id file))))
       (if-let* ((index (cl-position (org-iw--find-entry order id file) order)))
-          (1+ index)
-        (when-let* ((types (org-iw--excluded-types scan queue id)))
+          (list 'existing (1+ index))
+        ;; A file starting with a heading has no document drawer yet:
+        ;; the lines at its start are the heading's.
+        (when-let* ((types (and (or (not document)
+                                    (org-iw-discovery-document-slot-p))
+                                (org-iw--excluded-types scan queue id))))
           (org-iw--refuse-excluded types))
         (when (and id (org-iw-discovery-shared-id-p scan id file))
-          (org-iw-core-refuse "ID shared with another heading"))))))
+          (org-iw-core-refuse "ID shared with another heading"))
+        (pcase (org-iw-core-place order nil queue placement)
+          (`(no-gap ,_)
+           (org-iw--refuse-no-room (or where "at the end")
+                                   (org-iw--queue-name queue)))
+          (`(moved ,depth ,rank)
+           (let ((status (org-iw-write-put-rank marker queue rank
+                                                :expected :absent
+                                                :ensure-id (null id)
+                                                :document document)))
+             (list 'added depth status (org-iw-discovery-entry file)))))))))
+
+(defun org-iw--add-at (marker document queue label)
+  "Add the entry at MARKER, the DOCUMENT or not, to QUEUE at LABEL.
+See `org-iw--add-entry' and `org-iw-add', which documents QUEUE and
+LABEL.  Return the message shown."
+  (pcase-let* ((queue-id (org-iw--queue-id queue))
+               (`(,where . ,placement)
+                (if label (org-iw--placement queue-id label) '(nil . end)))
+               (scan (org-iw--scan))
+               (order (org-iw--order scan queue-id))
+               (name (org-iw--queue-name queue-id)))
+    (pcase (org-iw--add-entry scan order marker queue-id placement document
+                              (and where (format "at %s" where)))
+      (`(existing ,position)
+       (org-iw--report scan "Already in %s at %d/%d"
+                       name position (length order)))
+      (`(added ,depth ,status ,_)
+       (org-iw--report scan "Added to %s at %s%d/%d %s"
+                       name (if where (concat where ", ") "")
+                       (1+ depth) (1+ (length order))
+                       (org-iw--save-status status))))))
+
+(defun org-iw--read-add-args ()
+  "Read the arguments of `org-iw-add' and `org-iw-add-document'.
+That is a queue ID and, with a prefix argument, a label."
+  (let ((queue (org-iw--read-known-queue)))
+    (list queue
+          (and current-prefix-arg
+               (org-iw--read-placement (org-iw--queue-id queue))))))
 
 ;;;###autoload
 (defun org-iw-add (queue &optional label)
-  "Add the heading at point to QUEUE, at the placement LABEL.
+  "Add the entry at point to QUEUE, at the placement LABEL.
 QUEUE is a queue ID in any case; interactively, it is read with
 completion over the configured and discovered queues, and a new
 one may be typed.  LABEL names one of the queue's placements (see
@@ -462,53 +527,54 @@ one may be typed.  LABEL names one of the queue's placements (see
 Interactively, a prefix argument reads LABEL after QUEUE, with
 completion over the queue's labels, defaulting to its default.
 
-The heading is the one at or above point, even outside a narrowing;
-indirect buffers work.  It is given an ID and a property drawer if
-it lacks them, and its file is saved unless its buffer already had
-unsaved changes.
+The entry is the heading at or above point, even outside a
+narrowing; indirect buffers work.  Before the first heading it is
+the document, as with `org-iw-add-document'.  A heading is given an
+ID and a property drawer if it lacks them, and its file is saved
+unless its buffer already had unsaved changes.
 
-A heading already in QUEUE is left alone.  Add refuses, changing
+An entry already in QUEUE is left alone.  Add refuses, changing
 nothing, if the buffer is not a source file or not in Org mode (a
-derived mode counts), point is before the first heading, QUEUE is
-not a valid ID, LABEL is given and is not one of the queue's labels
-or the queue's placements are misconfigured (checked before any
-scan), the heading has a property drawer Org does not see, its IW
-property for QUEUE was excluded by the scan, another heading has its
-ID, there is no room for a rank at the placement, or the write
-refuses (the file changed on disk or is not writable, or its buffer
-is read-only).
+derived mode counts), QUEUE is not a valid ID, LABEL is given and is
+not one of the queue's labels or the queue's placements are
+misconfigured (checked before any scan), the entry has a property
+drawer Org does not see, its IW property for QUEUE was excluded by
+the scan, another entry has its ID, there is no room for a rank at
+the placement, or the write refuses (the file changed on disk or is
+not writable, or its buffer is read-only).
 
 Return the message shown."
-  ;; Called for its refusals: a buffer or point Add cannot use fails
-  ;; before the prompt.
-  (interactive
-   (progn (org-iw--heading-or-refuse (org-iw--target-at-point))
-          (let ((queue (org-iw--read-known-queue)))
-            (list queue
-                  (and current-prefix-arg
-                       (org-iw--read-placement (org-iw--queue-id queue)))))))
-  (pcase-let* ((marker (org-iw--heading-or-refuse (org-iw--target-at-point)))
-               (queue-id (org-iw--queue-id queue))
-               (`(,where . ,placement)
-                (if label (org-iw--placement queue-id label) '(nil . end)))
-               (scan (org-iw--scan))
-               (order (org-iw--order scan queue-id))
-               (total (1+ (length order)))
-               (name (org-iw--queue-name queue-id)))
-    (if-let* ((position (org-iw--check-heading marker scan order queue-id)))
-        (org-iw--report scan "Already in %s at %d/%d"
-                        name position (length order))
-      (pcase (org-iw-core-place order nil queue-id placement)
-        (`(no-gap ,_) (org-iw--refuse-no-room
-                       (if where (format "at %s" where) "at the end") name))
-        (`(moved ,depth ,rank)
-         (let ((status (org-iw--save-status
-                        (org-iw-write-put-rank marker queue-id rank
-                                               :expected :absent
-                                               :ensure-id t))))
-           (org-iw--report scan "Added to %s at %s%d/%d %s"
-                           name (if where (concat where ", ") "")
-                           (1+ depth) total status)))))))
+  ;; Called for its refusals: a buffer Add cannot use fails before
+  ;; the prompt.
+  (interactive (progn (org-iw--target-at-point) (org-iw--read-add-args)))
+  (let ((marker (org-iw--target-at-point)))
+    (org-iw--add-at marker (org-with-point-at marker
+                             (org-before-first-heading-p))
+                    queue label)))
+
+;;;###autoload
+(defun org-iw-add-document (queue &optional label)
+  "Add the document of the current buffer to QUEUE, at the placement LABEL.
+QUEUE and LABEL are as for `org-iw-add', and read the same way
+interactively, the prefix argument included.
+
+The document is the whole file, wherever point is; narrowing and
+indirect buffers make no difference.  Its entry is the property
+drawer at the start of the file, inserted there, before any heading,
+if the file has none.  A document's ID is that drawer's ID or, for a
+file named in Denote's scheme with Denote available, the identifier
+in its name; the document is given an ID only if it has neither.
+The file is saved unless its buffer already had unsaved changes.
+
+A document already in QUEUE is left alone.  Add-document refuses as
+`org-iw-add' does, changing nothing.
+
+Return the message shown."
+  ;; Called for its refusals: a buffer it cannot use fails before the
+  ;; prompt.
+  (interactive (progn (org-iw--require-source) (org-iw--read-add-args)))
+  (org-iw--require-source)
+  (org-iw--add-at (org-iw--document-marker) t queue label))
 
 ;;;; Visit
 

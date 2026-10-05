@@ -101,3 +101,48 @@ fresh-as-of: 2026-10-05 · design locked → plan · f5bd251
   emacs-30 skips 9 (PHASE-02's 8 + `remove-denote-document`).
 - Mutation: 14 targets (M8 split a/b), all killed, 0 equivalent. Table in
   the phase sheet.
+
+## PHASE-04 (2026-10-05, execute)
+
+- One add step (POL-002): `org-iw--add-entry (scan order marker queue
+  placement document &optional where)` → `(existing POS)` |
+  `(added DEPTH STATUS ENTRY)`, STATUS raw from put-rank. Identity:
+  `document-id` for a document, else `entry-id`; IW-line exclusion check
+  only for a heading or a slotted document (a slotless file's point-min
+  lines are the first heading's); `:ensure-id` only without identity.
+  `--check-heading`, `--heading-or-refuse` deleted. Add and Add-document
+  share `--add-at` (validate, scan, order, add step, message) and
+  `--read-add-args`.
+- `--require-source` (source + Org mode, first) and `--document-marker`
+  (base buffer, widened, `copy-marker` type nil). `--target-at-point` =
+  both + heading marker; a document target is now a base-buffer marker.
+- S1 ruling: `org-iw-discovery-entry (file)` public reader at point over
+  the private one constructor `org-iw-discovery--entry (file id
+  memberships)`, shared with `--read-entry`. ENTRY is read after the
+  write, `equal` to the rescanned member (other queues, outline). No
+  rescan.
+- Replaced `org-iw-cmd-test-add-refuses-document-target` with
+  `org-iw-cmd-test-add-before-first-heading-enrols-document`.
+  **SL-001 VT-2** keyword "document targets are not yet supported" no
+  longer exists in `test/org-iw-test.el` (DEC-023); its verify-vt row
+  needs a waiver or annotation.
+- VA-1 greps: no `heading-or-refuse` / `check-heading` in org-iw.el;
+  `:expected :absent` only at org-iw.el:486 (in `--add-entry`,
+  448–489); `org-iw-core-place` calls at 480 (`--add-entry`) and 678
+  (`--move`), line 272 is `org-iw-core-placement-p`; "not yet
+  supported" absent from org-iw.el and tests.
+- Tests 348 → 370 (+22 new, 1 replaced). Gate green set and unset;
+  test-each 370 all alone on emacs and emacs-30, set and unset. Set: 0
+  skipped. Unset, emacs-30 skips 13: PHASE-02/03's 9 +
+  `add-denote-note-no-id`, `add-denote-name-without-denote-gets-id`,
+  `add-denote-refuses-heading-sharing-identifier`,
+  `add-denote-refuses-identifier-shared-across-files`.
+- Mutation: 25 mutants, 23 killed, 2 equivalent (M17b → redundant
+  `goto-char` deleted; M18 Add's DOCUMENT flag before the first heading,
+  kept as the write's start guard). Two unplanned survivors closed by
+  `add-document-refuses-outside-sources`, `target-at-point-heading`.
+- Gotcha: a file-level drawer after `#+title:` is not the document's
+  drawer; fixtures put it first.
+- PHASE-05 carries: the batch bypasses `--require-source` and must pass
+  a `--document-marker`-style marker (type nil, base, widened) with
+  DOCUMENT t; WHERE nil gives "at the end".

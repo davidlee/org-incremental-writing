@@ -459,6 +459,35 @@ heading does not leak in."
       (should (equal (org-iw-discovery-test--problems scan)
                      '((missing-id "b.org" nil) (missing-id "a.org" nil)))))))
 
+(ert-deftest org-iw-discovery-test-entry-at-point ()
+  "The entry at point is the scan's: memberships in drawer order, outline.
+Read in a live buffer, from the document, a nested heading and headings
+that are not entries: without memberships, or without an ID."
+  (org-iw-test-with-corpus
+      `(("a.org" . ,(concat
+                     (org-iw-test-org ":PROPERTIES:" ":ID: d1" ":IW_Q: 5"
+                                      ":IW_ESSAYS: 3" ":END:" "#+title: Doc")
+                     (org-iw-test-heading "Parent" "p1" ":CUSTOM: x")
+                     "*" (org-iw-test-heading "Child [1/2]" "c1"
+                                              ":IW_R: 2" ":iw_q: 7")
+                     (org-iw-test-heading "Bare" nil ":IW_Q: 1"))))
+    (let ((file (org-iw-test-path "a.org"))
+          (scanned (org-iw-scan-entries (org-iw-discovery-test--scan))))
+      (cl-flet ((entry-at (heading)
+                  (with-current-buffer (org-iw-test-visit "a.org")
+                    (goto-char (point-min))
+                    (when heading
+                      (search-forward (concat heading "\n"))
+                      (forward-line -1))
+                    (org-iw-discovery-entry file))))
+        (should (equal (list (entry-at nil) (entry-at "** Child [1/2]"))
+                       scanned))
+        (should (equal (org-iw-entry-outline (cadr scanned)) '("Parent")))
+        (should (equal (org-iw-entry-memberships (cadr scanned))
+                       '(("R" . 2) ("Q" . 7))))
+        (should-not (entry-at "* Parent"))
+        (should-not (entry-at "* Bare"))))))
+
 ;;;; Problems
 
 (ert-deftest org-iw-discovery-test-classify-lines ()

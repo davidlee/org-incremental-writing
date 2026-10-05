@@ -364,13 +364,16 @@ as `clone-indirect-buffer' does, and killed afterwards."
           (funcall fn (copy-marker (marker-position marker))))
       (kill-buffer indirect))))
 
-(defun org-iw-test-should-add-drawer (text marker anchor)
+(defun org-iw-test-should-add-drawer (text marker anchor &optional rank)
   "Assert the saved file of MARKER is TEXT plus one new drawer.
-The drawer must directly follow the line ANCHOR and hold exactly one
-new ID, unique in the file, and IW_ESSAYS at 1024."
+The drawer must directly follow the line ANCHOR, or start the file if
+ANCHOR is nil, and hold exactly one new ID, unique in the file, and
+IW_ESSAYS at RANK, by default 1024."
   (let ((disk (org-iw-test-file-string
                (buffer-file-name (org-iw-test-base marker)))))
-    (should (string-search (concat anchor "\n:PROPERTIES:\n") disk))
+    (should (if anchor
+                (string-search (concat anchor "\n:PROPERTIES:\n") disk)
+              (string-prefix-p ":PROPERTIES:\n" disk)))
     (pcase-let ((`(,removed . ,added) (org-iw-test-changed-lines text disk)))
       (should-not removed)
       (should (equal (length added) 4))
@@ -381,7 +384,8 @@ new ID, unique in the file, and IW_ESSAYS at 1024."
           (should (equal (org-iw-discovery-id-count
                           id (buffer-file-name (org-iw-test-base marker)))
                          1))))
-      (should (equal (nth 2 added) ":IW_ESSAYS: 1024"))
+      (should (equal (nth 2 added)
+                     (format ":IW_ESSAYS: %d" (or rank 1024))))
       (should (equal (nth 3 added) ":END:")))))
 
 (defmacro org-iw-test-unless-root (&rest body)

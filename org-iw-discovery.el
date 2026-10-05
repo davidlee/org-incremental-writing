@@ -298,6 +298,28 @@ read it here, so they agree on it."
       (org-iw-discovery-document-id file)
     (org-iw-discovery--id-at-point)))
 
+(defun org-iw-discovery--entry (file id memberships)
+  "Return the entry at point in FILE, with ID and MEMBERSHIPS, or nil.
+MEMBERSHIPS is the alist of `org-iw-discovery--classify-lines'; nil
+gives nil.  This is the one constructor of scanned entries."
+  (and memberships
+       (org-iw-entry-create
+        :id id :title (org-iw-discovery-title file)
+        :file file :memberships memberships
+        :outline (mapcar #'string-clean-whitespace (org-get-outline-path)))))
+
+(defun org-iw-discovery-entry (file)
+  "Return the entry starting at point in FILE as a scan reads it, or nil.
+FILE is the truename of the current buffer's file, and the buffer
+must be widened.  Point is at a heading, or at `point-min' for the
+document.  The result is nil if the entry has no ID or no
+membership.  Unlike a scan, it does not check that the ID is
+unique."
+  (when-let* ((id (org-iw-discovery-entry-id file)))
+    (org-iw-discovery--entry
+     file id (car (org-iw-discovery--classify-lines
+                   (org-iw-discovery--iw-lines))))))
+
 (defun org-iw-discovery--read-entry (file tally)
   "Read the entry starting at point in FILE.
 TALLY counts the buffer's identities.  Return (ENTRY
@@ -312,12 +334,7 @@ TALLY counts the buffer's identities.  Return (ENTRY
         (pcase-let ((`(,memberships . ,types)
                      (org-iw-discovery--classify-lines
                       (org-iw-discovery--iw-lines))))
-          (cons (and memberships
-                     (org-iw-entry-create
-                      :id id :title (org-iw-discovery-title file)
-                      :file file :memberships memberships
-                      :outline (mapcar #'string-clean-whitespace
-                                       (org-get-outline-path))))
+          (cons (org-iw-discovery--entry file id memberships)
                 (mapcar #'problem types))))))))
 
 (defun org-iw-discovery--in-block-p ()

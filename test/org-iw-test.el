@@ -518,6 +518,66 @@ Choosing it returns the symbol remove; a label is returned as is."
       (should (equal (org-iw-test-file-string "a.org")
                      org-iw-cmd-test--target)))))
 
+;;;; The add step (`org-iw--add-entry')
+
+;; Tested apart: its plain-data result is what a batch of adds consumes.
+
+(defun org-iw-cmd-test--add-entry (marker document)
+  "Return `org-iw--add-entry' of MARKER, a DOCUMENT or not, to ESSAYS.
+The entry goes at the end, against a fresh scan."
+  (let ((scan (org-iw--scan)))
+    (org-iw--add-entry scan (org-iw--order scan "ESSAYS") marker "ESSAYS"
+                       'end document)))
+
+(defun org-iw-cmd-test--should-add-entry (marker document depth memberships)
+  "Assert the add step adds MARKER, a DOCUMENT or not, at DEPTH, saved.
+Its entry must have MEMBERSHIPS and be `equal' to the one a fresh
+scan reads.  Return the entry."
+  (pcase-let ((`(added ,added-depth ,status ,entry)
+               (org-iw-cmd-test--add-entry marker document)))
+    (should (equal added-depth depth))
+    (should (eq status 'saved))
+    (should (equal (org-iw-entry-memberships entry) memberships))
+    (should (equal entry (org-iw--find-entry
+                          (org-iw-scan-entries (org-iw--scan))
+                          (org-iw-entry-id entry) (org-iw-entry-file entry))))
+    entry))
+
+(ert-deftest org-iw-cmd-test-add-entry-added-entry-equals-rescan ()
+  "The added entry is the member a fresh scan reads after the write.
+For a heading without an ID, a nested heading in another queue, and
+the document."
+  (org-iw-test-with-corpus
+      `(("a.org" . ,(concat (org-iw-test-org "Intro.")
+                            (org-iw-test-heading "Member" "m1"
+                                                 ":IW_ESSAYS: 1024")
+                            (org-iw-test-org "* New")
+                            "*" (org-iw-test-heading "Nested" "n1"
+                                                     ":IW_OTHER: 5"))))
+    (let ((new (org-iw-cmd-test--should-add-entry
+                (org-iw-test-marker "a.org" "New") nil 1
+                '(("ESSAYS" . 2048))))
+          (nested (org-iw-cmd-test--should-add-entry
+                   (with-current-buffer (org-iw-test-visit "a.org")
+                     (goto-char (point-max))
+                     (org-back-to-heading)
+                     (point-marker))
+                   nil 2 '(("OTHER" . 5) ("ESSAYS" . 3072))))
+          (document (org-iw-cmd-test--should-add-entry
+                     (org-iw-cmd-test--at "a.org" nil) t 3
+                     '(("ESSAYS" . 4096)))))
+      (should (org-iw-entry-id new))
+      (should (equal (org-iw-entry-outline nested) '("New")))
+      (should (equal (org-iw-entry-title document) "a")))))
+
+(ert-deftest org-iw-cmd-test-add-entry-existing ()
+  "The add step finds a member at its 1-based position; nothing changes."
+  (org-iw-test-with-corpus (org-iw-cmd-test--queue-of-three ":IW_ESSAYS: 2048")
+    (let ((marker (org-iw-test-marker "a.org" "Target")))
+      (should (equal (org-iw-cmd-test--should-change-nothing
+                      (lambda () (org-iw-cmd-test--add-entry marker nil)))
+                     '(existing 2))))))
+
 ;;;; Add: already a member (VT-1)
 
 (defun org-iw-cmd-test--queue-of-three (target-line)
@@ -554,20 +614,24 @@ TITLE nil means the start of the file, before any heading."
     (with-current-buffer (org-iw-test-visit name)
       (copy-marker (point-min)))))
 
-(defun org-iw-cmd-test--should-refuse (marker queue substring)
-  "Assert Add at MARKER to QUEUE refuses with SUBSTRING, changing nothing.
-See `org-iw-cmd-test--should-refuse-cleanly'.  Return the refusal
-message."
+(defun org-iw-cmd-test--should-refuse (marker queue substring
+                                              &optional command)
+  "Assert COMMAND at MARKER to QUEUE refuses with SUBSTRING, changing nothing.
+COMMAND defaults to `org-iw-add'.  See
+`org-iw-cmd-test--should-refuse-cleanly'.  Return the refusal message."
   (org-iw-cmd-test--should-refuse-cleanly
-   substring (lambda () (org-iw-cmd-test--call-at marker #'org-iw-add queue))))
+   substring (lambda ()
+               (org-iw-cmd-test--call-at marker (or command #'org-iw-add)
+                                         queue))))
 
-(defun org-iw-cmd-test--refuses (text queue substring &optional title)
-  "Assert Add refuses with SUBSTRING in a corpus holding a.org as TEXT.
-Add is at heading TITLE of a.org, or its start if TITLE is nil, to
-QUEUE.  Return the refusal message."
+(defun org-iw-cmd-test--refuses (text queue substring
+                                        &optional title command)
+  "Assert COMMAND refuses with SUBSTRING in a corpus holding a.org as TEXT.
+COMMAND, by default `org-iw-add', is called at heading TITLE of a.org,
+or its start if TITLE is nil, to QUEUE.  Return the refusal message."
   (org-iw-test-with-corpus `(("a.org" . ,text))
     (org-iw-cmd-test--should-refuse (org-iw-cmd-test--at "a.org" title)
-                                    queue substring)))
+                                    queue substring command)))
 
 (defconst org-iw-cmd-test--intro
   (org-iw-test-org "Intro." "* H")
@@ -585,10 +649,6 @@ QUEUE.  Return the refusal message."
       (org-iw-cmd-test--should-refuse (copy-marker (point-min))
                                       "ESSAYS" "not under org-iw-sources"))))
 
-(ert-deftest org-iw-cmd-test-add-refuses-document-target ()
-  "Add refuses point before the first heading."
-  (org-iw-cmd-test--refuses org-iw-cmd-test--intro "ESSAYS"
-                            "document targets are not yet supported"))
 
 (ert-deftest org-iw-cmd-test-add-refuses-invalid-queue ()
   "Add refuses a typed queue ID that is not valid, quoting it."
@@ -673,25 +733,257 @@ Nothing changes and no Org parsing runs, so no warnings appear."
       (org-iw-cmd-test--should-refuse (org-iw-cmd-test--at "b.org" nil)
                                       "ESSAYS" "not under org-iw-sources")))
   (org-iw-cmd-test--refuses org-iw-cmd-test--intro "ess_ays"
-                            "document targets")
+                            "invalid queue ID")
   (org-iw-cmd-test--refuses org-iw-cmd-test--malformed "ess_ays"
                             "invalid queue ID" "H"))
 
 (ert-deftest org-iw-cmd-test-add-refuses-before-prompting ()
-  "Interactively, a non-source buffer or a document target never prompts."
+  "Interactively, a non-source buffer never prompts."
   (org-iw-cmd-test--with-prompt nil
     (with-temp-buffer
       (insert "* H\n")
       (org-mode)
       (should-error (call-interactively #'org-iw-add)
-                    :type 'org-iw-refusal))
-    (org-iw-test-with-corpus `(("a.org" . ,org-iw-cmd-test--intro))
-      (with-current-buffer (org-iw-test-visit "a.org")
-        (goto-char (point-min))
-        (should (string-search "document targets"
-                               (cadr (should-error
-                                      (call-interactively #'org-iw-add)
-                                      :type 'org-iw-refusal))))))))
+                    :type 'org-iw-refusal))))
+
+;;;; Add: the document (EX-3)
+
+(ert-deftest org-iw-cmd-test-add-before-first-heading-enrols-document ()
+  "Before the first heading Add enrols the document, in a drawer at the top.
+It replaces org-iw-cmd-test-add-refuses-document-target: Add no longer
+refuses there.  The heading is untouched, and a fresh scan has the
+document as a member, titled by its file."
+  (org-iw-test-with-corpus `(("a.org" . ,org-iw-cmd-test--intro))
+    (let ((marker (org-iw-cmd-test--at "a.org" nil)))
+      (should (equal (org-iw-cmd-test--call-at marker #'org-iw-add "ESSAYS")
+                     "Added to ESSAYS at 1/1 (saved)"))
+      (org-iw-test-should-add-drawer org-iw-cmd-test--intro marker nil)
+      (should (equal (mapcar #'org-iw-entry-title
+                             (org-iw--order (org-iw--scan) "ESSAYS"))
+                     '("a"))))))
+
+(defconst org-iw-cmd-test--nested
+  (org-iw-test-org "#+title: Doc" "Intro." "* A" "** B" "Body of B." "* C")
+  "A document with a preamble, titled Doc, and a nested heading B.")
+
+(defun org-iw-cmd-test--at-text (name text)
+  "Return a marker at TEXT in corpus file NAME, after it."
+  (with-current-buffer (org-iw-test-visit name)
+    (org-with-wide-buffer
+     (goto-char (point-min))
+     (search-forward text)
+     (point-marker))))
+
+(defun org-iw-cmd-test--should-have-added-document (marker &optional title)
+  "Assert the document of MARKER's file is in ESSAYS, alone, titled TITLE.
+Its file must be `org-iw-cmd-test--nested' plus a drawer at the top,
+saved, and its base buffer unmodified.  TITLE defaults to Doc."
+  (should-not (buffer-modified-p (org-iw-test-base marker)))
+  (org-iw-test-should-add-drawer org-iw-cmd-test--nested marker nil)
+  (should (equal (mapcar #'org-iw-entry-title
+                         (org-iw--order (org-iw--scan) "ESSAYS"))
+                 (list (or title "Doc")))))
+
+(ert-deftest org-iw-cmd-test-add-document-from-heading ()
+  "Add-document from a nested heading's body adds the document only."
+  (org-iw-test-with-corpus `(("a.org" . ,org-iw-cmd-test--nested))
+    (let ((marker (org-iw-cmd-test--at-text "a.org" "Body of B.")))
+      (should (equal (org-iw-cmd-test--call-at marker #'org-iw-add-document
+                                               "ESSAYS")
+                     "Added to ESSAYS at 1/1 (saved)"))
+      (org-iw-cmd-test--should-have-added-document marker))))
+
+(ert-deftest org-iw-cmd-test-add-document-narrowed ()
+  "Add-document ignores a narrowing to a subtree, and keeps it."
+  (org-iw-test-with-corpus `(("a.org" . ,org-iw-cmd-test--nested))
+    (let ((marker (org-iw-cmd-test--at-text "a.org" "Body of B.")))
+      (with-current-buffer (marker-buffer marker)
+        (goto-char marker)
+        (org-narrow-to-subtree)
+        (let ((narrowed (buffer-string)))
+          (org-iw-add-document "ESSAYS")
+          (should (equal (buffer-string) narrowed))))
+      (org-iw-cmd-test--should-have-added-document marker))))
+
+(ert-deftest org-iw-cmd-test-add-document-from-indirect-buffer ()
+  "Add-document works in a narrowed indirect buffer; the base is saved."
+  (org-iw-test-with-corpus `(("a.org" . ,org-iw-cmd-test--nested))
+    (org-iw-test-call-with-indirect
+     (org-iw-cmd-test--at-text "a.org" "Body of B.")
+     (lambda (indirect-marker)
+       (org-iw-cmd-test--narrow-to-line "Body of B.")
+       (should (equal (org-iw-add-document "ESSAYS")
+                      "Added to ESSAYS at 1/1 (saved)"))
+       (should (equal (buffer-string) "Body of B."))
+       (org-iw-cmd-test--should-have-added-document indirect-marker)))))
+
+(ert-deftest org-iw-cmd-test-add-document-refuses-before-prompting ()
+  "Interactively, Add-document refuses a buffer it cannot use first.
+That is one with no source file, and a source file not in Org mode."
+  (org-iw-cmd-test--with-prompt nil
+    (with-temp-buffer
+      (insert "Intro.\n")
+      (org-mode)
+      (should (string-search "not under org-iw-sources"
+                             (cadr (should-error
+                                    (call-interactively #'org-iw-add-document)
+                                    :type 'org-iw-refusal)))))
+    (org-iw-test-with-corpus `(("a.txt" . "Intro.\n"))
+      (let ((org-iw-sources (list (org-iw-test-path "a.txt"))))
+        (with-current-buffer (org-iw-test-visit "a.txt")
+          (text-mode)
+          (should (string-search
+                   "buffer not in Org mode"
+                   (cadr (should-error
+                          (call-interactively #'org-iw-add-document)
+                          :type 'org-iw-refusal)))))))))
+
+(ert-deftest org-iw-cmd-test-add-document-refuses-outside-sources ()
+  "Called from Lisp too, Add-document refuses a file outside the sources."
+  (org-iw-test-with-corpus `(("a.org" . "* A\n")
+                             ("b.org" . ,org-iw-cmd-test--intro))
+    (let ((org-iw-sources (list (org-iw-test-path "a.org"))))
+      (org-iw-cmd-test--should-refuse (org-iw-cmd-test--at "b.org" nil)
+                                      "ESSAYS" "not under org-iw-sources"
+                                      #'org-iw-add-document))))
+
+;;;; Add-document: identity (EX-4)
+
+(defconst org-iw-cmd-test--denote-id "20260512T000000"
+  "A Denote identifier, for files named in Denote's scheme.")
+
+(defun org-iw-cmd-test--add-document-at-start (name)
+  "Call `org-iw-add-document' to ESSAYS at the start of corpus file NAME.
+Return the message."
+  (org-iw-cmd-test--call-at (org-iw-cmd-test--at name nil)
+                            #'org-iw-add-document "ESSAYS"))
+
+(ert-deftest org-iw-cmd-test-add-denote-note-no-id ()
+  "A Denote note gains only a drawer and its rank, never an ID (I2).
+With a preamble, by Add before the first heading, and starting with a
+heading, by Add-document; the heading is byte-identical.  The member's
+ID is the Denote identifier."
+  (pcase-dolist (`(,text ,command)
+                 `((,(org-iw-test-org "#+title: T" "Text." "* H") org-iw-add)
+                   (,(org-iw-test-heading "H" "h1") org-iw-add-document)))
+    (let ((note (org-iw-test-denote-file org-iw-cmd-test--denote-id text)))
+      (org-iw-test-with-corpus (list note)
+        (should (equal (org-iw-cmd-test--call-at
+                        (org-iw-cmd-test--at (car note) nil) command "ESSAYS")
+                       "Added to ESSAYS at 1/1 (saved)"))
+        (should (equal (org-iw-test-changed-lines
+                        text (org-iw-test-file-string (car note)))
+                       '(nil ":PROPERTIES:" ":IW_ESSAYS: 1024" ":END:")))
+        (should (equal (org-iw-cmd-test--order "ESSAYS")
+                       (list org-iw-cmd-test--denote-id)))))))
+
+(ert-deftest org-iw-cmd-test-add-document-inserts-id ()
+  "A document with neither an ID nor a Denote name is given an ID."
+  (let ((text (org-iw-test-org "#+title: T" "Text." "* H")))
+    (org-iw-test-with-corpus `(("a.org" . ,text))
+      (org-iw-cmd-test--add-document-at-start "a.org")
+      (org-iw-test-should-add-drawer text (org-iw-cmd-test--at "a.org" nil)
+                                     nil))))
+
+(ert-deftest org-iw-cmd-test-add-denote-name-without-denote-gets-id ()
+  "Without Denote, a file named in its scheme is a plain file: it gains an ID."
+  (let* ((text (org-iw-test-org "Text." "* H"))
+         (note (org-iw-test-denote-file org-iw-cmd-test--denote-id text)))
+    (org-iw-test-without-denote
+      (org-iw-test-with-corpus (list note)
+        (org-iw-cmd-test--add-document-at-start (car note))
+        (org-iw-test-should-add-drawer
+         text (org-iw-cmd-test--at (car note) nil) nil)))))
+
+(ert-deftest org-iw-cmd-test-add-document-heading-first-file ()
+  "A file starting with a heading gains a drawer above the heading.
+The heading and its drawer are byte-identical (I3).  A first heading
+already in the queue, with an ID, is not taken for the document."
+  (pcase-dolist (`(,text ,rank ,order)
+                 `((,(org-iw-test-org "* H" "Body.") 1024 1)
+                   (,(concat (org-iw-test-heading "H" "h1" ":IW_ESSAYS: 1024")
+                             (org-iw-test-org "Body."))
+                    2048 2)))
+    (org-iw-test-with-corpus `(("a.org" . ,text))
+      (let ((marker (org-iw-test-marker "a.org" "H")))
+        (should (string-prefix-p
+                 "Added to ESSAYS"
+                 (org-iw-cmd-test--call-at marker #'org-iw-add-document
+                                           "ESSAYS")))
+        (org-iw-test-should-add-drawer text marker nil rank)
+        (should (equal (length (org-iw-cmd-test--order "ESSAYS")) order))))))
+
+;;;; Add-document: members and refusals (EX-5)
+
+(defconst org-iw-cmd-test--document-in-other
+  (org-iw-test-org ":PROPERTIES:" ":ID: d1" ":IW_OTHER: 5" ":END:"
+                   "#+title: Doc" "* H")
+  "A document d1 in queue OTHER at 5.")
+
+(ert-deftest org-iw-cmd-test-add-document-member-is-no-op ()
+  "Adding a member document reports its position; nothing changes."
+  (org-iw-test-with-corpus
+      `(("a.org" . ,(org-iw-test-org ":PROPERTIES:" ":ID: d1"
+                                     ":IW_ESSAYS: 1024" ":END:" "* H")))
+    (org-iw-cmd-test--open-all)
+    (should (equal (org-iw-cmd-test--should-change-nothing
+                    (lambda ()
+                      (org-iw-cmd-test--add-document-at-start "a.org")))
+                   "Already in ESSAYS at 1/1"))))
+
+(ert-deftest org-iw-cmd-test-add-document-keeps-other-queue ()
+  "A document in another queue gains one line; that queue is untouched."
+  (org-iw-test-with-corpus `(("a.org" . ,org-iw-cmd-test--document-in-other))
+    (org-iw-cmd-test--add-document-at-start "a.org")
+    (should (equal (org-iw-test-changed-lines
+                    org-iw-cmd-test--document-in-other
+                    (org-iw-test-file-string "a.org"))
+                   '(nil ":IW_ESSAYS: 1024")))
+    (should (equal (mapcar (lambda (entry) (org-iw-core-rank entry "OTHER"))
+                           (org-iw--order (org-iw--scan) "OTHER"))
+                   '(5)))))
+
+(ert-deftest org-iw-cmd-test-add-document-refuses-excluded ()
+  "Add-document refuses a document whose IW_ESSAYS the scan excluded."
+  (org-iw-cmd-test--refuses
+   (org-iw-test-org ":PROPERTIES:" ":ID: d1" ":IW_ESSAYS: soon" ":END:" "* H")
+   "ESSAYS" "entry at point is excluded (invalid-rank)" nil
+   #'org-iw-add-document))
+
+(ert-deftest org-iw-cmd-test-add-denote-refuses-heading-sharing-identifier ()
+  "A heading whose :ID: is the note's Denote identifier blocks the note."
+  (org-iw-test-with-corpus
+      (list (org-iw-test-denote-file
+             org-iw-cmd-test--denote-id
+             (concat (org-iw-test-org "Intro.")
+                     (org-iw-test-heading "H" org-iw-cmd-test--denote-id))))
+    (org-iw-cmd-test--should-refuse
+     (org-iw-cmd-test--at (format "%s--note.org" org-iw-cmd-test--denote-id)
+                          nil)
+     "ESSAYS" "ID shared with another heading" #'org-iw-add-document)))
+
+(ert-deftest org-iw-cmd-test-add-denote-refuses-identifier-shared-across-files ()
+  "A member file with the same Denote identifier blocks the note."
+  (let ((note (org-iw-test-denote-file org-iw-cmd-test--denote-id
+                                       (org-iw-test-org "Intro.") "one"))
+        (other (org-iw-test-denote-file
+                org-iw-cmd-test--denote-id
+                (org-iw-test-org ":PROPERTIES:" ":IW_OTHER: 5" ":END:")
+                "two")))
+    (org-iw-test-with-corpus (list note other)
+      (org-iw-cmd-test--should-refuse (org-iw-cmd-test--at (car note) nil)
+                                      "ESSAYS" "ID shared with another heading"
+                                      #'org-iw-add-document))))
+
+(ert-deftest org-iw-cmd-test-add-document-refuses-at-rank-limit ()
+  "Add-document refuses when the last rank leaves no room below the limit."
+  (org-iw-test-with-corpus
+      `(("a.org" . ,org-iw-cmd-test--intro)
+        ("b.org" . ,(org-iw-test-heading "Last" "l1"
+                                         ":IW_ESSAYS: 9007199254740991")))
+    (org-iw-cmd-test--should-refuse (org-iw-cmd-test--at "a.org" nil) "ESSAYS"
+                                    (org-iw-cmd-test--no-room "at the end")
+                                    #'org-iw-add-document)))
 
 ;;;; Target at point
 
@@ -700,6 +992,56 @@ Nothing changes and no Org parsing runs, so no warnings appear."
   (goto-char (point-min))
   (search-forward text)
   (narrow-to-region (line-beginning-position) (line-end-position)))
+
+(ert-deftest org-iw-cmd-test-require-source-refuses ()
+  "The source precondition: a source file's buffer, in Org mode.
+Tested apart because Add and Add-document share it and the batch
+bypasses it.  A plain or indirect source buffer passes."
+  (org-iw-test-with-corpus `(("a.org" . "* A\n") ("b.org" . "* B\n"))
+    (let ((org-iw-sources (list (org-iw-test-path "a.org"))))
+      (with-current-buffer (org-iw-test-visit "b.org")
+        (org-iw-cmd-test--should-refuse-cleanly
+         "not under org-iw-sources" #'org-iw--require-source))
+      (with-temp-buffer
+        (org-mode)
+        (org-iw-cmd-test--should-refuse-cleanly
+         "not under org-iw-sources" #'org-iw--require-source))
+      (with-current-buffer (org-iw-test-visit "a.org")
+        (org-iw--require-source)
+        (fundamental-mode)
+        (org-iw-cmd-test--should-refuse-cleanly
+         "buffer not in Org mode" #'org-iw--require-source)
+        (org-mode))
+      (org-iw-test-call-with-indirect
+       (org-iw-test-marker "a.org" "A")
+       (lambda (_) (org-iw--require-source))))))
+
+(ert-deftest org-iw-cmd-test-document-marker-widened-base ()
+  "The document marker is at the start of the widened base buffer.
+Narrowing, and an indirect buffer narrowed past the preamble, do not
+move it, and text inserted at the start leaves it before that text,
+so a drawer put-rank inserts there holds the rank."
+  (let ((text (org-iw-test-org "#+title: T" "Intro." "* H" "Body.")))
+    (org-iw-test-with-corpus `(("a.org" . ,text))
+      (let ((base (org-iw-test-visit "a.org")))
+        (with-current-buffer base
+          (save-restriction
+            (org-iw-cmd-test--narrow-to-line "Intro.")
+            (let ((marker (org-iw--document-marker)))
+              (should (eq (marker-buffer marker) base))
+              (should (= marker 1)))))
+        (org-iw-test-call-with-indirect
+         (org-iw-test-marker "a.org" "H")
+         (lambda (_)
+           (org-iw-cmd-test--narrow-to-line "Body.")
+           (let ((marker (org-iw--document-marker)))
+             (should (eq (marker-buffer marker) base))
+             (should (= marker 1))
+             (with-current-buffer base
+               (org-with-wide-buffer
+                (goto-char 1)
+                (insert "X")))
+             (should (= marker 1)))))))))
 
 (ert-deftest org-iw-cmd-test-target-at-point-document ()
   "Before the first heading the target is the document: the wide start.
@@ -712,6 +1054,20 @@ Narrowing to the second line of the preamble does not move it."
         (should (eq (marker-buffer target) (current-buffer)))
         (should (= target 1))
         (should (org-with-point-at target (org-before-first-heading-p)))))))
+
+(ert-deftest org-iw-cmd-test-target-at-point-heading ()
+  "In a heading's body the target is the heading's start, even narrowed.
+The write layer reads the entry's drawer from there."
+  (org-iw-test-with-corpus
+      `(("a.org" . ,(org-iw-test-org "Intro." "* A" "** B" "Body of B.")))
+    (with-current-buffer (org-iw-test-visit "a.org")
+      (org-iw-cmd-test--narrow-to-line "Body of B.")
+      (let ((target (org-iw--target-at-point)))
+        (should (eq (marker-buffer target) (current-buffer)))
+        (should (equal (org-with-point-at target
+                         (buffer-substring-no-properties
+                          (point) (line-end-position)))
+                       "** B"))))))
 
 (ert-deftest org-iw-cmd-test-add-first-line-heading ()
   "A heading on the first line is a heading, not the document: Add adds it.
@@ -1135,6 +1491,23 @@ The placement prompt defaults to the queue's default, not to the end."
           (should (equal (plist-get placement :prompt) "Placement in ESSAYS: "))
           (should (equal (plist-get placement :order) '("Soon" "Later" "End")))
           (should (equal (plist-get placement :default) "Soon")))))))
+
+(ert-deftest org-iw-cmd-test-add-document-at-placement ()
+  "With a prefix argument Add-document reads a placement as Add does.
+From a heading, the document joins at the placement read after the
+queue, which defaults to the queue's default."
+  (org-iw-test-with-corpus org-iw-cmd-test--target-and-eight
+    (let ((org-iw-queues '(("essays" :default "Soon"))))
+      (org-iw-cmd-test--with-prompt '("essays" "Later")
+        (should (equal (org-iw-cmd-test--call-prefixed
+                        (org-iw-test-marker "a.org" "Target")
+                        #'org-iw-add-document)
+                       "Added to ESSAYS at Later, 5/9 (saved)"))
+        (should (equal (plist-get (cadr org-iw-cmd-test--prompts) :default)
+                       "Soon")))
+      (should (equal (org-iw-entry-title
+                      (nth 4 (org-iw--order (org-iw--scan) "ESSAYS")))
+                     "a")))))
 
 (ert-deftest org-iw-cmd-test-add-chooser-refuses-before-prompting ()
   "Bad config refuses after the queue prompt, before the placement prompt."
