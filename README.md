@@ -11,6 +11,8 @@ Status: 0.1.0, pre-release. The feature set covers adding, visiting,
 Continue with a choice of placement, moving and removing entries, and a
 view of each queue in which to reorder it.
 
+![banner](./assets/octopus.jpg)
+
 ## Requirements
 
 - Emacs 30.1 or later; tested on 30.2 (Org 9.7.11) and 31.1 (Org 9.8.10).
