@@ -79,6 +79,9 @@
           (agents.codex or codex) # mcp server slave — llm-agents build on linux
           doctrine-pkg
           wrappedEmacs
+          # Listed so the jail mounts it: set-env's store path alone is not
+          # in the jail's closure.
+          denoteDir
         ];
 
         # Sibling repos to bind-mount (for editable deps / source inspection).
