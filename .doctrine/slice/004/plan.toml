@@ -1,0 +1,178 @@
+# Implementation plan for SL-004 — the authored, durable phase plan.
+#
+# This is the single source of each phase's objective, criteria, verification,
+# and links. Runtime status lives separately under .doctrine/state/ (phase
+# tracking) — never record progress here. Hand-edit freely: the tool reads this
+# file but does not rewrite it.
+schema  = "doctrine.plan.overview"
+version = 1
+slice   = "SL-004"
+
+# Canonical spec/requirement links — cite ids, never restate what they say. The
+# plan reader does not model these yet, so nothing downstream consumes them.
+[specs]
+primary       = []
+collaborators = []
+
+[requirements]
+targets      = []
+dependencies = []
+
+# One
+#
+# Every phase after PHASE-01 has the entrance "previous phase completed; just
+# gate green" (EN-1). just gate = lint + test-all (Emacs 31.1 and 30.2). Every
+# phase ends with just gate and just test-each green and an STD-001 item 3
+# mutation pass over the guards it added (ad hoc, until CHR-001), survivors
+# killed or justified in the phase sheet. "design §" means SL-004 design.md.
+# VT keywords name test or code symbols, never message text (STD-002); a
+# keyword that is a planned test name may be re-keyed by the append rule if
+# the worker names the test differently. "Denote-route test" means a test
+# using a Denote-scheme file name under the Denote helper of PHASE-02/EX-8.
+
+[[phase]]
+id        = "PHASE-01"
+name      = "Tooling: Denote on the test load path"
+objective = "Make Denote loadable under -Q by both test Emacsen (design § 8 first risk row): flake.nix exports ORG_IW_DENOTE_DIR to the dev shell and the agent jails; the justfile puts it on the load path of every recipe that loads the suite when it is set. No elisp changes."
+entrance_criteria = [
+  { id = "EN-1", text = "SL-004 design locked; DEC-021..028 accepted; RV-012 concluded, no finding routed demonstrate/probe/control." },
+]
+exit_criteria = [
+  { id = "EX-1", text = "flake.nix sets ORG_IW_DENOTE_DIR, in the devshell env and in the jails' set-env options, to the directory holding denote.el of a Denote 4.x derivation, derived from the package (no hard-coded store hash)." },
+  { id = "EX-2", text = "The justfile computes the Denote load flag once (a just variable or shell fragment) and test, test-each and coverage use it: -L \"$ORG_IW_DENOTE_DIR\" when the variable is set and non-empty, nothing otherwise. Recipes unchanged in behaviour when it is unset." },
+  { id = "EX-3", text = "With ORG_IW_DENOTE_DIR set to the Denote 4.2.3 directory (the dev-shell value, or set by hand where the running jail predates the flake change), emacs-30 started with the justfile's test arguments loads denote; just gate green with the variable set and with it unset." },
+]
+verification = [
+  { id = "VA-1", text = "Agent evaluates the flake's ORG_IW_DENOTE_DIR (nix eval, or reads the expression if nix is unavailable in the jail), confirms it names a directory with denote.el, and runs `emacs-30 -Q --batch` with the justfile's load flags to (require 'denote) with the variable set; then just gate both ways. The end-to-end proof is PHASE-02/EX-8." },
+]
+specs        = []
+requirements = []
+
+[[phase]]
+id        = "PHASE-02"
+name      = "Discovery: document identity"
+objective = "Give discovery the one owner of document identity and the document slot (design § 5.2 Discovery, DEC-021, DEC-022): org-iw-discovery-document-slot-p, org-iw-discovery-document-id, --denote-identifier with its once-per-session soft load, entry-id taking FILE, --id-positions / id-count / shared-id-p / resolve and the scan's tally reading identity through the owner, and --title made public. Callers in org-iw.el pass FILE; no command behaviour changes for headings."
+entrance_criteria = [
+  { id = "EN-1", text = "PHASE-01 completed; just gate green." },
+]
+exit_criteria = [
+  { id = "EX-1", text = "document-slot-p: non-nil with text before the first heading and for an empty file; nil when the file starts with a heading; answers for the widened base buffer from a narrowed or indirect buffer." },
+  { id = "EX-2", text = "document-id: the file-level :ID: when the slot's drawer has one, even on a Denote-named file; else the Denote filename identifier (Denote loaded); else nil. Denote absent (features without denote, --denote-tried t) on a Denote-scheme name → nil. Heading-first Denote note whose first heading has an :ID: → the Denote identifier, not the heading's (RV-012 F-4). Same answer wherever point is." },
+  { id = "EX-3", text = "--denote-identifier uses denote-file-has-denoted-filename-p and denote-retrieve-filename-identifier only (RV-012 F-3), both declare-function'd; the soft load is tried once per session; a load error yields exactly one display-warning and nil, and never signals (RV-012 F-12); Denote required later in the session is picked up by featurep." },
+  { id = "EX-4", text = "entry-id takes FILE: at a heading, its :ID: as before; before the first heading, document-id. Every caller passes FILE (scan's --read-entry, --check-heading, Continue). The existing suite passes unmodified apart from call shapes." },
+  { id = "EX-5", text = "Identity occurrences (REQ-007): a file-level :ID: counts once, at point-min; a heading repeating it makes two (duplicate); a Denote-identified document resolves to point-min with count 1; a heading :ID: equal to the file's Denote identifier is a duplicate-id in the scan; in a slotless file the first heading's :ID: is never taken for the document's. shared-id-p takes FILE." },
+  { id = "EX-6", text = "Scan: a Denote-named member document without :ID: scans as an entry with the Denote identifier (no missing-id) and resolves; without Denote it is missing-id (DEC-021 consequence); two member files with one Denote identifier are both duplicate-id and dropped; I1 for a member document with headings. Each file's scan result depends only on its text and name; cross-file checks stay in the post-pass (DEC-027)." },
+  { id = "EX-7", text = "org-iw-discovery-title is public and --title is gone (RV-012 F-7)." },
+  { id = "EX-8", text = "Test helpers: one Denote helper that skips unless Denote loads and writes Denote-scheme corpus files, and one Denote-absent binding, both in org-iw-test-helpers.el with a caller in this phase. Existing fixtures keep non-Denote names. With ORG_IW_DENOTE_DIR set, just test-all runs every Denote-route test on 31 and 30 with none skipped (closes PHASE-01's proof)." },
+]
+verification = [
+  { id = "VT-1", expects = "document-id and document-slot-p cases incl. F-4 heading-first, Denote absent, narrowed", test_file = "test/org-iw-discovery-test.el", keywords = ["org-iw-discovery-document-id", "org-iw-discovery-document-slot-p", "org-iw-discovery-test-document-id-heading-first-denote"], waived = false },
+  { id = "VT-2", expects = "soft load: one warning on load error, nil, never signals; picked up later", test_file = "test/org-iw-discovery-test.el", keywords = ["org-iw-discovery--denote-tried", "display-warning", "org-iw-discovery-test-denote-load-error-warns-once"], waived = false },
+  { id = "VT-3", expects = "id-count / resolve / shared-id-p and scan duplicates for Denote and file-level identities", test_file = "test/org-iw-discovery-test.el", keywords = ["org-iw-discovery-id-count", "org-iw-discovery-resolve", "org-iw-discovery-test-scan-denote-document", "org-iw-discovery-test-heading-id-equals-denote-identifier"], waived = false },
+  { id = "VA-1", text = "Agent greps: no denote-filename-is-note-p, no Denote filename regexp and no #+identifier read in org-iw*.el; no call of org-iw-discovery-entry-id without FILE; org-iw-discovery--title gone; --id-lines is read only through --id-positions and the tally." },
+]
+specs        = []
+requirements = []
+
+[[phase]]
+id        = "PHASE-03"
+name      = "Write: document creation and leaving"
+objective = "Add put-rank's :document key with drawer insertion for a slotless document, and the delete rule that lets a document's emptied drawer go (design § 5.2 Write, DEC-022); qualify the write commentary. Prove a Denote document leaves its last queue through Remove and Continue → Remove (RV-012 F-1)."
+entrance_criteria = [
+  { id = "EN-1", text = "PHASE-02 completed; just gate green." },
+]
+exit_criteria = [
+  { id = "EX-1", text = "put-rank :document t on a heading-first file, with and without :ensure-id, the heading with and without an :ID:: an empty drawer is inserted at point-min, the rank (and :ID: under :ensure-id) land in it, and the heading's text and drawer are byte-identical (I3, RV-012 F-2). One undo restores the file." },
+  { id = "EX-2", text = "put-rank :document t errors, changing nothing, when MARKER is not at the widened point-min of the base buffer (incl. from a narrowed buffer, RV-012 F-6), and when the buffer has no slot and EXPECTED is not :absent. With a slot it behaves as without :document." },
+  { id = "EX-3", text = "delete-rank of a document's last IW_ line with no other properties removes the drawer: the file equals its text before the add (I7); undo restores the line and drawer. A document drawer still holding :ID: or another property stays. A heading's rank-only drawer still errors and rolls back (unchanged)." },
+  { id = "EX-4", text = "Without :document, put-rank and delete-rank behave as before: the existing write suite passes unmodified." },
+  { id = "EX-5", text = "Remove and Continue → Remove of a Denote-identified document member in its last queue succeed and leave the file as it was before enrolment (RV-012 F-1)." },
+  { id = "EX-6", text = "The write commentary's \"point-min for a document entry\" is qualified: callers creating a document membership pass :document t." },
+]
+verification = [
+  { id = "VT-1", expects = "drawer insertion with heading byte-identical; marker and EXPECTED errors; undo", test_file = "test/org-iw-write-test.el", keywords = ["org-iw-write-put-rank", ":document", "org-iw-write-test-document-heading-first"], waived = false },
+  { id = "VT-2", expects = "document drawer removed on last delete, undo; heading rank-only drawer still errors", test_file = "test/org-iw-write-test.el", keywords = ["org-iw-write-delete-rank", "org-iw-write-test-delete-document-drawer"], waived = false },
+  { id = "VT-3", expects = "Remove and Continue → Remove of a Denote document member", test_file = "test/org-iw-test.el", keywords = ["org-iw-remove", "org-iw-continue 'remove", "org-iw-cmd-test-remove-denote-document"], waived = false },
+]
+specs        = []
+requirements = []
+
+[[phase]]
+id        = "PHASE-04"
+name      = "Add and Add-document"
+objective = "Extract org-iw--require-source and add org-iw--document-marker; replace --check-heading and Add's body with the one add step org-iw--add-entry; let Add enrol the document before the first heading and add the autoloaded org-iw-add-document (design § 5.2 Commands, § 5.4, DEC-023)."
+entrance_criteria = [
+  { id = "EN-1", text = "PHASE-03 completed; just gate green." },
+]
+exit_criteria = [
+  { id = "EX-1", text = "--target-at-point is --require-source composed with the heading marker or --document-marker; --heading-or-refuse and --check-heading are gone; Add's body is the scan, --add-entry and its message." },
+  { id = "EX-2", text = "--add-entry returns (existing POSITION) or (added DEPTH STATUS ENTRY); ENTRY, built through entry-id and org-iw-discovery-title after the write, equals the member a fresh scan reads (RV-012 F-7). It passes :ensure-id only when the target has no identity and :document only for a document target." },
+  { id = "EX-3", text = "Add before the first heading enrols the document (REQ-011 AC1); at a heading, unchanged. Add-document enrols the document from a heading, from a narrowed buffer and from an indirect buffer (RV-012 F-6); its prefix argument reads a placement as Add's (DEC-011). Messages as today." },
+  { id = "EX-4", text = "A Denote note gains only its IW_ line and drawer, no :ID: (I2); a non-Denote document gains an :ID: (REQ-011 AC3); a heading-first non-Denote file gets the drawer at the top with the heading byte-identical (I3)." },
+  { id = "EX-5", text = "Already a member → \"Already in\" with nothing written (REQ-011 AC4); membership in another queue untouched (AC5); excluded, ID shared (incl. a Denote identifier repeated by a heading) and no room refuse with nothing changed, as Add does for headings." },
+]
+verification = [
+  { id = "VT-1", expects = "Add before first heading; Add-document from heading, narrowed, indirect; prefix placement; I2, AC3, I3; AC4, AC5; refusals", test_file = "test/org-iw-test.el", keywords = ["org-iw-add-document", "org-iw-cmd-test-add-document-narrowed", "org-iw-cmd-test-add-denote-note-no-id"], waived = false },
+  { id = "VT-2", expects = "--add-entry plain-data results; ENTRY equals rescanned member", test_file = "test/org-iw-test.el", keywords = ["org-iw--add-entry", "org-iw--document-marker", "org-iw--require-source"], waived = false },
+  { id = "VA-1", text = "Agent greps org-iw.el: no --heading-or-refuse / --check-heading; put-rank with :expected :absent and org-iw-core-place for adding are called only from --add-entry (one add step, POL-002); the SL-003 'document targets are not yet supported' test is replaced, not deleted silently." },
+]
+specs        = []
+requirements = []
+
+[[phase]]
+id        = "PHASE-05"
+name      = "Batch add"
+objective = "Add the autoloaded org-iw-add-files, the fold org-iw--batch-add over --add-entry, the buffer open/kill rule, the progress reporter, org-iw--batch-summary and the *org-iw batch* report (design § 5.2, § 5.4 batch flow, DEC-024..028), within DEC-027's cost rules."
+entrance_criteria = [
+  { id = "EN-1", text = "PHASE-04 completed; just gate green." },
+]
+exit_criteria = [
+  { id = "EX-1", text = "Selection: in dired, the marked files; else one file or directory from read-file-name. FILES go through org-iw-discovery-files (expanded, deduplicated, truename order). None → \"no Org files selected\" and nothing else." },
+  { id = "EX-2", text = "Order: the same file set in any selection order gives the same queue order, appended after existing members with strictly increasing ranks (REQ-012 AC1, I4). Rerunning reports every file existing and writes nothing (AC2)." },
+  { id = "EX-3", text = "Failures, each with its own reason and the rest processed as if alone (AC3, I6): not a source file; excluded by org-iw-exclude-regexp (RV-012 F-9); not writable; not in Org mode; unrecognised drawer; no room at the end (that file and the rest); second of two selected copies with one identity (RV-012 F-5)." },
+  { id = "EX-4", text = "Buffers (DEC-026, I5): opened and left unmodified (saved, refused or existing) → killed; pre-existing → kept; dirty pre-existing → added, unsaved, listed; opened whose save failed → kept, listed (REQ-021 AC4); narrowed pre-existing → drawer at the top (RV-012 F-6). Session untouched (eq)." },
+  { id = "EX-5", text = "Report (DEC-028): the summary counts added, existing, failed, unsaved and says not atomic (AC4); *org-iw batch* is a special-mode buffer listing failed and unsaved files, shown only when there are any. PROGRESS is called once per file (RV-012 F-10)." },
+  { id = "EX-6", text = "Errors (RV-012 F-7): only org-iw-refusal and file-error are caught per file; any other error, and quit, still produce the summary for the outcomes so far, then propagate." },
+  { id = "EX-7", text = "Cost (DEC-027, RV-012 F-8/F-14): the body calls org-iw-discovery-scan and org-iw--files once per run whatever the number of files (counted by advice around a Lisp call); no per-file rescan or sources walk. I2 holds across a batch of Denote notes." },
+]
+verification = [
+  { id = "VT-1", expects = "selection, canonical order, append ranks, rerun, failures incl. F-5/F-9, buffer kill/keep, narrowed, session", test_file = "test/org-iw-test.el", keywords = ["org-iw-add-files", "org-iw--batch-add", "dired-get-marked-files", "org-iw-cmd-test-batch-canonical-order"], waived = false },
+  { id = "VT-2", expects = "summary, report buffer on trouble only, progress, summary after uncaught error and quit", test_file = "test/org-iw-test.el", keywords = ["org-iw--batch-summary", "org-iw--batch-report", "org-iw-cmd-test-batch-summary-after-error"], waived = false },
+  { id = "VT-3", expects = "one scan and one sources walk per batch", test_file = "test/org-iw-test.el", keywords = ["advice-add", "org-iw-discovery-scan", "org-iw-cmd-test-batch-scans-once"], waived = false },
+]
+specs        = []
+requirements = []
+
+[[phase]]
+id        = "PHASE-06"
+name      = "README"
+objective = "Document document entries, Add before the first heading, Add-document, document identity (file-level :ID:, Denote's identifier when Denote is available, else an inserted :ID:), leaving a queue, and batch add (design § 10, CHR-003)."
+entrance_criteria = [
+  { id = "EN-1", text = "PHASE-05 completed; just gate green." },
+]
+exit_criteria = [
+  { id = "EX-1", text = "README covers: a document's membership in its file-level drawer, never inherited by headings; Add before the first heading and org-iw-add-document; identity order and that a Denote note gains no :ID:; a Denote-identified member leaves the queue in a session without Denote; removing a document's last membership removes the drawer; org-iw-add-files from dired or a prompt, canonical order, append only, the report, not atomic, buffers it opened are closed." },
+  { id = "EX-2", text = "just gate and just test-each green." },
+]
+verification = [
+  { id = "VA-1", text = "Agent reads README against design § 5.4, § 5.5 edge cases and DEC-021/023/024/026/028; every command named exists with that name." },
+]
+specs        = []
+requirements = []
+
+[[phase]]
+id        = "PHASE-07"
+name      = "Human trial"
+objective = "Run the design § 9 human trial (POL-003) on a Git copy of the user's notes, and fold any defects back before audit."
+entrance_criteria = [
+  { id = "EN-1", text = "PHASE-06 completed; just gate and just test-each green." },
+]
+exit_criteria = [
+  { id = "EX-1", text = "The user has run the trial and reported the outcome; defects are fixed in this phase (TDD) or recorded as backlog items with the user's agreement." },
+  { id = "EX-2", text = "just gate and just test-each green after any fixes." },
+]
+verification = [
+  { id = "VH-1", text = "On a Git copy of ~/notes, the user batch-enrols the journal directory (74 Denote-named files, no #+identifier:) from dired; inspects the queue view; Visits and Continues a few times; git diff shows one drawer per file and no :ID: lines; undoes one document add; removes one document and sees its drawer gone; reports the batch's wall-clock time." },
+]
+specs        = []
+requirements = []
