@@ -1,15 +1,17 @@
 # org-incremental-writing
 
 Incremental writing queues for Org. A queue is a named, ordered list of
-existing Org headings. You open the first one, work on it, then put it
+existing Org headings or whole documents (files). You open the first one, work on it, then put it
 back — soon, later, or at the end — and move on to the next.
 
-Queue state lives on each heading as an `IW_<QUEUE>` property holding an
-integer rank. There is no index file, and content never moves.
+Queue state lives on each entry as an `IW_<QUEUE>` property holding an
+integer rank: on a heading's property drawer, or, for a document, on the
+drawer at the top of the file. There is no index file, and content never moves.
 
 Status: 0.1.0, pre-release. The feature set covers adding, visiting,
-Continue with a choice of placement, moving and removing entries, and a
-view of each queue in which to reorder it.
+Continue with a choice of placement, moving and removing entries, a view
+of each queue in which to reorder it, documents as entries, and adding
+many files at once.
 
 ![banner](./assets/octopus.jpg)
 
@@ -32,7 +34,7 @@ Or with `use-package`:
 ```elisp
 (use-package org-iw
   :load-path "/path/to/org-incremental-writing"
-  :commands (org-iw-add org-iw-visit-next org-iw-continue org-iw-end-session
+  :commands (org-iw-add org-iw-add-document org-iw-add-files org-iw-visit-next org-iw-continue org-iw-end-session
              org-iw-move org-iw-remove org-iw-list-queue))
 ```
 
@@ -109,6 +111,8 @@ No keys are bound. Suggested bindings:
 
 ```elisp
 (keymap-global-set "C-c i a" #'org-iw-add)
+(keymap-global-set "C-c i d" #'org-iw-add-document)
+(keymap-global-set "C-c i f" #'org-iw-add-files)
 (keymap-global-set "C-c i v" #'org-iw-visit-next)
 (keymap-global-set "C-c i c" #'org-iw-continue)
 (keymap-global-set "C-c i q" #'org-iw-end-session)
@@ -121,12 +125,14 @@ No keys are bound. Suggested bindings:
 
 | Command | Does |
 |---|---|
-| `org-iw-add` | Add the heading at point to the end of a queue, whatever its default; with `C-u`, choose the placement, defaulting to the queue's default. |
+| `org-iw-add` | Add the heading at point to the end of a queue, whatever its default; before the first heading, add the file's document instead. With `C-u`, choose the placement, defaulting to the queue's default. |
+| `org-iw-add-document` | Add the current file's document, from anywhere in it, as `org-iw-add` does; `C-u` likewise. |
+| `org-iw-add-files` | Add many files (or the Org files under a directory) to the end of a queue: the marked files in Dired, else one file or directory you name. |
 | `org-iw-visit-next` | Show the first entry of a queue and start a session on it. |
 | `org-iw-continue` | Put the session's entry back at the queue's default placement and visit the first entry; with `C-u`, choose the placement, or Remove. |
 | `org-iw-end-session` | End the session and remove it from the mode line. |
 | `org-iw-move` | Move the entry at point to a placement in its queue; with `C-u`, choose which of its queues. |
-| `org-iw-remove` | Remove the entry at point from a queue; with `C-u`, choose which of its queues. |
+| `org-iw-remove` | Remove the entry at point (or the document, before the first heading) from a queue; with `C-u`, choose which of its queues. |
 | `org-iw-list-queue` | Show a queue's entries in order, to reorder or remove them. |
 
 A typical round:
@@ -163,6 +169,86 @@ Bound to a key, a placement needs no prompt:
 (keymap-global-set "C-c i s" (lambda () (interactive) (org-iw-continue "Soon")))
 ```
 
+### Documents as entries
+
+A whole file can be an entry. Its membership is the file-level property
+drawer at the top of the file, before any heading:
+
+```org
+:PROPERTIES:
+:IW_JOURNAL: 1024
+:END:
+#+title: 2026-05-12 Tuesday
+```
+
+- The document's headings are not entries because of it, and do not
+  inherit it. They can be added on their own.
+- Run `org-iw-add` before the first heading, or `org-iw-add-document`
+  anywhere in the file (narrowing and indirect buffers make no
+  difference). The prefix argument chooses the placement, as for a
+  heading. A document already in the queue is left alone, and the file is
+  saved under the same rule as for a heading.
+- If the file starts with a heading, adding the document changes only the
+  inserted drawer; the heading and its own drawer are untouched.
+- The drawer must come first. A file with a property drawer after
+  `#+title:` is refused with "entry has a property drawer Org doesn't
+  recognise" and the file is left unchanged (in a batch, that file fails
+  and the rest proceed); move the drawer to the top.
+
+#### Document identity
+
+A queue entry is identified by its ID, and a document's is, in order:
+
+1. the `:ID:` in its file-level drawer, if it has one;
+2. else, if [Denote](https://protesilaos.com/emacs/denote) is available
+   and the file name follows Denote's naming scheme, the identifier in
+   the name;
+3. else none, and Add inserts an `:ID:` in the drawer.
+
+So a Denote note never gains an `:ID:` from org-iw. Denote is loaded if
+present and is not required; the name alone decides, so a note outside
+`denote-directory` still counts, and `#+identifier:` is never read. Headings
+always carry an `:ID:`; Add gives one if missing.
+
+Consequences:
+
+- In a session without Denote, a Denote-identified member cannot be
+  identified. It is skipped and reported as having no ID, and drops out
+  of the queue until Denote is available.
+- If a note later gains an `:ID:` (from org-roam, say), its identity
+  switches to that ID. Its membership survives, but a session naming the
+  old identity reports the entry gone.
+- Copies of a note sharing one identifier are duplicate-ID problems and
+  are skipped.
+
+### Adding many files
+
+`M-x org-iw-add-files` asks for a queue, then takes the files marked in
+Dired (the file at point if none is marked); elsewhere it reads one file
+or directory. A directory stands for the Org files under it, chosen as
+for `org-iw-sources`. Lisp callers pass a list of files and directories.
+
+- Files are added in the order of their true names, duplicates removed,
+  each after the last entry of the queue. Existing entries keep their
+  ranks.
+- A file outside `org-iw-sources` or matching `org-iw-exclude-regexp`
+  fails, as does one `org-iw-add-document` would refuse, and a second
+  file with the ID of one already added in the batch. The others go on.
+- It is not atomic. Quitting (`C-g`) or an unexpected error stops the
+  batch; files already added stay added, and the summary is still shown.
+- It reports in the echo area, for example `Added 70 to Journal, 3
+  already present, 1 failed, 0 unsaved (not atomic; see *org-iw batch*)`.
+  The `*org-iw batch*` buffer lists failed files, and files added but
+  left unsaved, with the reason. It appears only when there are any.
+- Buffers it opened are closed once done with, unless left modified (a
+  failed save, say). A buffer you already had open is never closed. An
+  open file with unsaved edits is added but reported unsaved.
+- The session is untouched. At the rank limit, that file and the rest
+  fail with "no room"; automatic redistribution is planned.
+
+Run over 74 journal files, `git diff` shows one drawer added to each
+(`:IW_JOURNAL: 1024`, `2048`, ...), and no `:ID:`.
+
 ### Moving and removing an entry
 
 `org-iw-move` and `org-iw-remove` act on the heading at point, or on the
@@ -175,7 +261,9 @@ and the session is left as it is.
 
 `org-iw-remove` deletes the entry's `IW_<QUEUE>` line and asks no
 confirmation: undo in the file's buffer brings the line back. The
-heading, its ID and its other queues stay.
+heading, its ID and its other queues stay. Removing a document's last
+queue also removes the drawer org-iw made, so the file is as it was
+before Add; undo restores it. A heading keeps its drawer.
 
 An entry can leave a queue in three places:
 
@@ -244,7 +332,9 @@ the rows.
 
 - Add, Continue, Move, Remove and the view's actions write. Each changes
   at most one `IW_` line, and Remove deletes it. Add may also give the
-  heading a property drawer and an ID. Nothing else writes.
+  entry a property drawer and an ID (a Denote note gets no ID), and
+  Remove may take a document's emptied drawer. `org-iw-add-files` writes
+  as Add does, once per file. Nothing else writes.
 - Writes go through the file's buffer, so undo works.
 - If that buffer was unmodified, it is saved; the message ends `(saved)`.
 - If it already had unsaved changes, it is left unsaved. The message
@@ -258,7 +348,7 @@ the rows.
 When something is off, a command refuses with an `org-iw refused: "…"`
 message and changes nothing. Examples: the file changed on disk, the
 heading's ID is shared with another heading, the entry has left the queue,
-there is no session for Continue, or there is no room at the chosen
+the file is not an Org source file, there is no session for Continue, or there is no room at the chosen
 placement.
 
 "No room" means the ranks around that placement are used up, and the
@@ -280,7 +370,12 @@ control:
    what org-iw changed.
 2. Point `org-iw-sources` at them and follow *A typical round* above,
    checking `git diff` after each Add and Continue.
-3. To undo everything, `git checkout` the files. To remove a heading from
+3. To try documents and batch add, mark a directory's files in Dired and
+   run `org-iw-add-files`. `git diff` should show one drawer added per
+   file. The batch closes the buffers it opened, so there is no undo for
+   them: revert with `git checkout` or `org-iw-remove` per document. (Undo
+   works only in a buffer that was already open.)
+4. To undo everything, `git checkout` the files. To remove a heading from
    a queue, run `org-iw-remove` on it, or delete its `IW_<QUEUE>` line by
    hand.
 

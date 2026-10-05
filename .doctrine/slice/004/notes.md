@@ -191,3 +191,23 @@ fresh-as-of: 2026-10-05 · design locked → plan · f5bd251
   buffers closed unless modified. PHASE-07 — time under the user's Org
   hooks; watch for prompts from `find-file-noselect` (file-local
   variables are not bound off); progress display unverified in batch.
+
+## PHASE-06 (README)
+
+- README now covers: documents as entries (file-level drawer, never inherited,
+  `org-iw-add` before the first heading, `org-iw-add-document`, drawer-first
+  rule), document identity (`:ID:`, then Denote name, else inserted `:ID:`;
+  no-Denote session drops Denote members; ID gained later; duplicates),
+  `org-iw-add-files` (Dired marks or prompt, canonical order, append only,
+  summary and `*org-iw batch*`, not atomic, buffers it opened closed),
+  last-membership removal restoring the file, write list, refusals, trial
+  step, Use table rows and suggested bindings (`C-c i d`, `C-c i f`).
+- Facts taken from docstrings and `org-iw--batch-summary`; no code/design
+  disagreement. The `org-iw-remove` docstring does not mention drawer
+  removal (design § 5.4 / I7 and write-layer docstring do); README follows those.
+- VA-1: all nine commands autoloaded `defun`s; `org-iw-sources` and
+  `org-iw-exclude-regexp` are `defcustom`s; buffer name `*org-iw batch*`
+  matches; every EX-1 item present.
+- Gate and test-each green, 397 tests, with and without ORG_IW_DENOTE_DIR
+  (unset skips the Denote tests on emacs-30).
+- Memory recorded: `mem.fact.emacs.features-not-special-lexical-let`.

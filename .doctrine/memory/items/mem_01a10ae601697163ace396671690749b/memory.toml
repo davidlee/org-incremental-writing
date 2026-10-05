@@ -1,0 +1,46 @@
+memory_uid = "mem_01a10ae601697163ace396671690749b"
+memory_key = "mem.fact.emacs.features-not-special-lexical-let"
+schema_version = 1
+memory_type = "fact"
+status = "active"
+title = "A let-binding of features in lexical code does not hide a feature"
+summary = "In lexical-binding code (tests included), (let ((features ...))) binds lexically and featurep still sees the feature; bind it with cl-progv."
+created = "2026-10-05"
+updated = "2026-10-05"
+
+[scope]
+paths = []
+globs = []
+commands = []
+tags = ["emacs", "testing", "denote"]
+workspace = "default"
+repo = "github.com/davidlee/org-incremental-writing"
+repo_id_kind = "remote"
+repo_id_confidence = "high"
+
+[git]
+anchor_kind = "checkout_state"
+commit = ""
+tree = "4ebc181e4d40e3f8ab5922bbb939f3d2d6cc6b35"
+ref_name = "refs/heads/main"
+checkout_state_id = "9d8a94d28d5e0fa598d797c0df8b30a0a5f9126b8d93e5e59e72c0a414e1e30d"
+base_commit = "312667409c066585e115efb21223a5940addef2c"
+verified_sha = ""
+normalizer = "forget.checkout.v1"
+
+[review]
+verification_state = "unverified"
+reviewed = ""
+review_by = ""
+
+[trust]
+trust_level = "medium"
+
+[ranking]
+severity = "none"
+weight = 0
+
+[[source]]
+kind = "slice"
+ref = "SL-004"
+
