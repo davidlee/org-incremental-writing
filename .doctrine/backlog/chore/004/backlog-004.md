@@ -11,3 +11,7 @@ SL-002 deleted `append-rank` (POL-002, RV-004), so the row has been
 stale since SL-002 closed. Fix: re-key the row by the append rule
 (STD-002 item 3), naming the tests that now cover its expectation, and
 waive the old row.
+
+Also (SL-004 audit, RV-013, 2026-10-06): SL-001 PHASE-07 VT-2 fails on
+keyword `already at end`, a message SL-002 removed in 126e91f (Continue
+at a placement). Same fix: re-key by the append rule, waive the old row.

@@ -6,30 +6,24 @@ disposable phase sheet (`.doctrine/state/.../phase-NN.md`) that must survive
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: 2026-10-05 · PHASE-07 (phases complete → audit) · 20b9a16
+fresh-as-of: 2026-10-06 · audit (RV-013 concluded → reconcile) · d65edcc
 
 ### Produced
 - plan: 7 phases (4558e2a, 931c551, 69117cf); research restamped
-- PHASE-01..06 implemented via capsule-driver (f8d72bf, 39b7b82, 3b32937, a9f0235, 3126674, 13b1348; friction ea521b8, d63cae9); gate + test-each green on 31/30, ORG_IW_DENOTE_DIR set and unset; verify-vt 4 clean; 327 → 397 tests
-- e14c071 — flake: denoteDir in projectPkgs so jails mount it (PHASE-01 defect found at jail restart; unverified until next restart)
-- PHASE-07 VH-1 passed (user trial on Git copy of ~/notes; batch effectively instant); 20b9a16
-- SL-001 PHASE-06 VT-2 waived per DEC-023 (user "fine"), 20b9a16
-- minted: ISS-004 — uncaught refusal shown as quoted string
-- adaptations to reconcile into design § 5.2: S1 public `org-iw-discovery-entry` (notes § PHASE-04); O1 PROGRESS takes (FILE . OUTCOME), command owns summary (notes § PHASE-05)
-- gate not re-run since e14c071 (flake only; no elisp change)
+- PHASE-01..06 via capsule-driver (f8d72bf, 39b7b82, 3b32937, a9f0235, 3126674, 13b1348; friction ea521b8, d63cae9); PHASE-07 VH-1 passed (20b9a16); e14c071 (jail mount, ineffective → ISS-005)
+- RV-013 audit: 20 findings verified, concluded; fix-now batch d65edcc (397 → 408 tests); user approved design-touching fixes F-1/F-8/F-9/F-15 (2026-10-05)
+- SL-001 PHASE-06 VT-2 waived per DEC-023 (20b9a16)
+- minted: ISS-004, ISS-005 (jail Denote dir), ISS-006 (stale Denote identity in slotless file); CHR-004 extended (SL-001 PHASE-07 VT-2)
 
 ### Learned
 - mem.fact.emacs.denote-api-and-test-emacsen — obsolete Denote predicate; 31 has Denote under -Q, 30 not
 - mem.fact.emacs.features-not-special-lexical-let — lexical let of features doesn't hide Denote; use cl-progv
+- a set-but-broken ORG_IW_DENOTE_DIR silently skipped 15 tests on emacs-30; guard test now fails it (RV-013 F-4)
 
 ### Open
-- REV at reconcile: REQ-002, REQ-007, REQ-011 identity wording (DEC-021; RV-012 F-11)
-- design § 5.2 reconcile: S1, O1 (above); plan PHASE-01/EX-1 "Denote 4.x" should read ≥ 4.1.0
-- IMP-010 / IMP-002 — scan cost at thousands of members
-- IDE-002 — CUSTOM_ID heading identity
-- ASM-001 — unique source file names (still held)
-- ISS-004 — refusal display
-- SL-001 PHASE-07 VT-2 (`already at end`) — pre-existing stale keyword, untouched
+- reconcile: RV-013 § Reconciliation Brief — design § 5.2/5.3/5.4/5.5/8/10 direct edits; REV for REQ-002/007/011 (F-20)
+- ISS-005 — jail mount; set ORG_IW_DENOTE_DIR by hand in the jail until fixed
+- ISS-006, IMP-010 / IMP-002, IDE-002, ASM-001, ISS-004, CHR-004
 
 ## PHASE-01 (2026-10-05, execute)
 
@@ -215,3 +209,16 @@ fresh-as-of: 2026-10-05 · PHASE-07 (phases complete → audit) · 20b9a16
 - Gate and test-each green, 397 tests, with and without ORG_IW_DENOTE_DIR
   (unset skips the Denote tests on emacs-30).
 - Memory recorded: `mem.fact.emacs.features-not-special-lexical-let`.
+
+## Audit (RV-013, 2026-10-06)
+
+- Roster: opus modelling, test (mutation), legibility; opus verifier.
+  Scratch under /home/scratch/sl-004/review/ and /home/scratch/sl-004/audit/.
+- Jail: ORG_IW_DENOTE_DIR names an unmounted path (ISS-005); gates ran
+  with it set by hand to the denote-4.2.3 site-lisp dir, and unset.
+- Fixes d65edcc: org-iw-discovery-document-marker (one owner),
+  --target-at-point → (MARKER . DOCUMENT), --batch-outcome (visit,
+  catch, kill, left-open), ON-OUTCOME sink, (stopped) outcomes, report
+  names a file once, "ID shared with another entry", --not-source,
+  --title private; 11 tests incl. Denote-dir guard.
+- Design deltas → reconcile per the RV-013 brief.

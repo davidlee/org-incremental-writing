@@ -1,0 +1,629 @@
+id    = 13
+slug  = "reconciliation-review-of-sl-004"
+title = "reconciliation review of SL-004"
+# no status — a review's status is DERIVED from its findings, so
+# it is never stored (the storage rule forbids derived data in authored files).
+
+[review]
+facet     = "reconciliation"     # scope|design|plan|phase-plan|implementation|code-review|reconciliation
+raiser    = "raiser"
+responder = "responder"
+rounds_base = 0
+contests_base = 0
+concluded = true
+
+[[review.turn]]
+act = "conclude"
+role = "raiser"
+note = """
+Conformance audit of SL-004 over 69117cf..HEAD (all of org-iw-discovery.el, org-iw-write.el, org-iw.el, the four test files, the justfile, flake.nix and the README), against the locked design, DEC-021..028, RV-012, ADR-001..004, POL-001..003 and STD-001..004. Evidence:
+- the STD-003 scaled-up roster (opus modelling, test with a mutation pass, legibility; opus verifier);
+- slice conformance (10 conformant, 0 undelivered);
+- the gate both ways (Denote dir set by hand, and unset);
+- test-each ×4;
+- verify-vt (11 PASS).
+20 findings, all verified: 13 fix-now (d65edcc), 4 design-wrong (brief), 2 follow-up (ISS-005, ISS-006), 1 tolerated. No blocker.
+"""
+
+[target]                   # the outbound `reviews` edge: RV-NNN ──reviews──▶ <ref>
+ref   = "SL-004"
+
+[[finding]]
+id = "F-1"
+status = "verified"
+severity = "minor"
+title = "Expected an interrupted batch to say it stopped (DEC-028 partial completion); observed the same summary as a complete run"
+detail = """
+org-iw.el:743 (unwind-protect cleanup) and org-iw--batch-summary (:597). Probe (modelling p2/d3, verifier rerun): a quit or wrong-type-argument on file 2 of 3 prints "Added 1 to J, 0 already present, 0 failed, 0 unsaved (not atomic)", with no report buffer. The files not attempted are invisible. Interactively, the command loop's Quit/error message then overwrites the echo area; *Messages* keeps the summary. Design § 5.4 step 4 / DEC-028.
+"""
+disposition = "fix-now"
+response = """
+d65edcc. After a quit or an uncaught error, org-iw-add-files gives every file without an outcome the outcome (stopped). The summary reads "…, N unsaved, stopped after K of M files (not atomic; see *org-iw batch*)", and the report lists the stopped files ("not added: the batch stopped"). Then the signal propagates. Test: org-iw-cmd-test-batch-summary-after-error. The quit message overwriting the echo area is accepted: the report buffer and *Messages* are the lasting record. User approved the design delta (2026-10-05). Design § 5.3/§ 5.4 step 4 go to reconcile.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+d65edcc. After a quit or an uncaught error, org-iw-add-files gives every file without an outcome the outcome (stopped). The summary reads "…, N unsaved, stopped after K of M files (not atomic; see *org-iw batch*)", and the report lists the stopped files ("not added: the batch stopped"). Then the signal propagates. Test: org-iw-cmd-test-batch-summary-after-error. The quit message overwriting the echo area is accepted: the report buffer and *Messages* are the lasting record. User approved the design delta (2026-10-05). Design § 5.3/§ 5.4 step 4 go to reconcile.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-2"
+status = "verified"
+severity = "minor"
+title = "Expected a buffer the batch opened and left modified to be reported (DEC-026, § 5.4 step 3.6); observed it kept silently for existing/failed outcomes"
+detail = """
+org-iw--batch-trouble-p (org-iw.el:593) flags only failed or added-and-unsaved; --call-in-file-buffer (:635) keeps a modified opened buffer. Probe h2/p6: an org-mode-hook dirties the opened buffer of an existing member → outcome (existing), buffer live and modified, no report buffer. Probe h1: a refused file's report line gives only the refusal, not that its buffer was left open. Conformance gap against the locked design.
+"""
+disposition = "fix-now"
+response = """
+d65edcc. org-iw--batch-outcome owns visiting the file, the catch, the kill rule and the mark. An outcome ends in `left-open` when the batch opened the buffer and left it modified, whatever the outcome. Such a file counts as unsaved and as trouble, and its report line says "buffer left open, modified". Test: org-iw-cmd-test-batch-reports-buffer-left-open. The outcome shape (§ 5.3) goes to reconcile.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+d65edcc. org-iw--batch-outcome owns visiting the file, the catch, the kill rule and the mark. An outcome ends in `left-open` when the batch opened the buffer and left it modified, whatever the outcome. Such a file counts as unsaved and as trouble, and its report line says "buffer left open, modified". Test: org-iw-cmd-test-batch-reports-buffer-left-open. The outcome shape (§ 5.3) goes to reconcile.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-3"
+status = "verified"
+severity = "major"
+title = "Expected a test of Add at a heading in a file with text before its first heading (PHASE-04 EX-3 'at a heading, unchanged'); observed none"
+detail = '''
+org-iw.el:551-554 decides DOCUMENT for Add. Every heading-Add fixture starts with a heading (e.g. test/org-iw-test.el:457, :1904). Mutant n3 (DOCUMENT from document-slot-p of the buffer rather than the target) survives on emacs+Denote, emacs-30+Denote and emacs-30 without; it is not equivalent: under it, Add at a heading of "#+title: A\n* H" signals "Document entry marker not at the start…". This is the commonest Add after SL-004 (a heading inside a Denote note). PHASE-04's M18 tried only the forced-nil direction.
+'''
+disposition = "fix-now"
+response = """
+d65edcc: org-iw-cmd-test-add-heading-below-preamble kills n3 on all three configurations.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+d65edcc: org-iw-cmd-test-add-heading-below-preamble kills n3 on all three configurations.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-4"
+status = "verified"
+severity = "minor"
+title = "Expected the gate to fail when ORG_IW_DENOTE_DIR is set but unloadable (PHASE-02 EX-8 'none skipped'); observed 15 skips and exit 0 on emacs-30"
+detail = """
+justfile:14-15 passes -L <dir> unchecked. In this jail the variable names /nix/store/h1l2…-org-iw-denote-dir, which does not exist: `just test emacs-30` → 382 pass, 15 skipped, exit 0. Emacs 31 has Denote in its own site-lisp, so the gate as a whole still runs every test once; the per-binary guarantee is what is lost. Some skipped tests carry Denote-free assertions: org-iw-discovery-test-document-id (a.org / copy.org nil cases) and org-iw-cmd-test-add-denote-name-without-denote-gets-id (which tests the Denote-absent case yet skips when Denote is absent). Mutants d5, c2 survive on emacs-30 without Denote.
+"""
+disposition = "fix-now"
+response = """
+d65edcc. org-iw-discovery-test-denote-dir-loads fails when ORG_IW_DENOTE_DIR is set but Denote cannot be loaded from it. It skips when the variable is unset. The nil cases moved to org-iw-discovery-test-document-id-none. add-denote-name-without-denote-gets-id builds its name with org-iw-test-denote-name, so it runs without Denote. Added: org-iw-discovery-test-document-id-file-level-everywhere and org-iw-cmd-test-add-document-refuses-shared-file-level-id. With the jail's broken path, the gate now fails on emacs-30 instead of skipping (checked).
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+d65edcc. org-iw-discovery-test-denote-dir-loads fails when ORG_IW_DENOTE_DIR is set but Denote cannot be loaded from it. It skips when the variable is unset. The nil cases moved to org-iw-discovery-test-document-id-none. add-denote-name-without-denote-gets-id builds its name with org-iw-test-denote-name, so it runs without Denote. Added: org-iw-discovery-test-document-id-file-level-everywhere and org-iw-cmd-test-add-document-refuses-shared-file-level-id. With the jail's broken path, the gate now fails on emacs-30 instead of skipping (checked).
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-5"
+status = "verified"
+severity = "minor"
+title = "Expected e14c071 (denoteDir in projectPkgs) to mount the Denote dir in the jails (PHASE-01 EX-1); observed the path absent in a jail started after it"
+detail = """
+The jail (pid 1 started 18:47, e14c071 committed 18:47:53) sets ORG_IW_DENOTE_DIR=/nix/store/h1l2f3v90hhxwxhr05kb6qzadij30gmz-org-iw-denote-dir; `ls` on it: no such file. The Denote package itself (/nix/store/xdf1…-emacs-denote-4.2.3) is mounted, through the user's Emacs closure. Whether this jail was built from the post-fix flake is not provable from inside; the bwrap command line binds no extraPkgs store path for denoteDir. Host-side check needed (nix build .#jailed-claude; grep the launcher for h1l2). Audit gate runs set the variable by hand.
+"""
+disposition = "follow-up"
+response = """
+ISS-005. The cause is in jail provisioning, outside the package. A fix needs a host-side nix build to verify, which the jail can't do. The F-4 guard now fails the gate loudly. Until then, the audit gate set the variable by hand.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "follow-up"
+response = """
+ISS-005. The cause is in jail provisioning, outside the package. A fix needs a host-side nix build to verify, which the jail can't do. The F-4 guard now fails the gate loudly. Until then, the audit gate set the variable by hand.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-6"
+status = "verified"
+severity = "minor"
+title = "Expected the batch fold's order/ID threading, symlinked pre-existing buffers, absent Denote and empty file-level :ID: pinned; observed five surviving mutants"
+detail = """
+Test reviewer's pass, 22 new mutants over the cross-phase surfaces (the per-phase passes' 118 not repeated), each run on three configurations: 15 killed, 1 equivalent, 6 survived. Besides n3 (raised separately), the survivors are:
+- b1/b2 (org-iw.el:690-693): added-ids / order extended only when saved. Effect: a duplicate rank or ID after an unsaved add. No test follows an unsaved add with more files.
+- b6 (org-iw.el:640): get-file-buffer for find-buffer-visiting. Effect: a pre-existing buffer visiting via a symlink is killed (I5).
+- d3 (org-iw-discovery.el:128): (require 'denote) without noerror. Effect: a spurious warning without Denote; design § 5.5 "not installed" is silent.
+- n12 (org-iw-discovery.el:160-169): an empty file-level :ID: becomes "".
+Ready probes are in /home/scratch/sl-004/review/tests/mut/org-iw-probe-test.el.
+"""
+disposition = "fix-now"
+response = """
+d65edcc: org-iw-cmd-test-batch-unsaved-add-claims-rank-and-id (b1, b2), org-iw-cmd-test-batch-keeps-buffer-visiting-via-symlink (b6), org-iw-discovery-test-denote-not-installed-is-silent (d3) and org-iw-discovery-test-document-id-empty-file-level-id (n12). All five mutants are now killed (re-run by the worker).
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+d65edcc: org-iw-cmd-test-batch-unsaved-add-claims-rank-and-id (b1, b2), org-iw-cmd-test-batch-keeps-buffer-visiting-via-symlink (b6), org-iw-discovery-test-denote-not-installed-is-silent (d3) and org-iw-discovery-test-document-id-empty-file-level-id (n12). All five mutants are now killed (re-run by the worker).
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-7"
+status = "verified"
+severity = "minor"
+title = "Expected a self-test for the shared batch-failure oracle (STD-001 item 2); observed none"
+detail = """
+org-iw-cmd-test--should-fail (test/org-iw-test.el:1091) decides pass/fail for 8 tests (1246-1328). It asserts the reason, that the file is unchanged on disk and I6 for the others. It has no self-test. Probe self-test passes on emacs and emacs-30.
+"""
+disposition = "fix-now"
+response = """
+d65edcc: org-iw-cmd-test-should-fail-self-test. It fails on a wrong reason, a failing file that was added, another file failing, and the file changing on disk.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+d65edcc: org-iw-cmd-test-should-fail-self-test. It fails on a wrong reason, a failing file that was added, another file failing, and the file changing on disk.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-8"
+status = "verified"
+severity = "minor"
+title = "Expected one owner of 'the document's start' (STD-004 item 5, POL-002); observed three helpers and Add deciding DOCUMENT twice"
+detail = """
+- discovery --at-document-start (org-iw-discovery.el:112-120): base buffer, widen, point-min.
+- write --document-start-p (org-iw-write.el:97-100): marker = widened point-min.
+- commands --document-marker (org-iw.el:169-176): base, widen, copy-marker.
+- org-iw-add recomputes DOCUMENT (org-iw.el:551-552) after --target-at-point decided it (:185). The two are equivalent today.
+- Related latent hazard (M4): put-rank :document depends on the caller's marker being insertion-type nil. With a type-t marker, the rank lands in the first heading's drawer and an empty file-level drawer is left (probe m1). Only --document-marker guarantees type nil, and the write docstring doesn't say so.
+"""
+disposition = "fix-now"
+response = """
+d65edcc. The public org-iw-discovery-document-marker is the one owner. --at-document-start is a thin org-with-point-at on it, the write's --document-start-p compares against it, and org-iw--document-marker is deleted. --target-at-point returns (MARKER . DOCUMENT), so org-iw-add no longer re-decides. M4: a new drawer's rank goes at point-min. org-iw-write-test-document-heading-first now also runs with an insertion-type-t marker. User approved (2026-10-05). The § 5.2 names go to reconcile.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+d65edcc. The public org-iw-discovery-document-marker is the one owner. --at-document-start is a thin org-with-point-at on it, the write's --document-start-p compares against it, and org-iw--document-marker is deleted. --target-at-point returns (MARKER . DOCUMENT), so org-iw-add no longer re-decides. M4: a new drawer's rank goes at point-min. org-iw-write-test-document-heading-first now also runs with an insertion-type-t marker. User approved (2026-10-05). The § 5.2 names go to reconcile.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-9"
+status = "verified"
+severity = "nit"
+title = "Expected one outcome sink for the batch (design § 5.2: PROGRESS gets files done); observed outcomes collected twice and the fold's return discarded"
+detail = """
+org-iw--batch-add returns outcomes (org-iw.el:679-695); org-iw-add-files collects them again through PROGRESS (:741-749) and discards the return (:745); only tests read it. The O1 ruling (notes § PHASE-05) changed PROGRESS to receive (FILE . OUTCOME), so 'progress' now names the outcome channel. Design § 5.2 still says PROGRESS is called with files done.
+"""
+disposition = "fix-now"
+response = """
+d65edcc. org-iw--batch-add takes ON-OUTCOME, the only sink, and returns nothing useful. The test helper collects through it, and the once-per-file test is org-iw-cmd-test-batch-on-outcome-once-per-file. User approved (2026-10-05). § 5.2 (O1) goes to reconcile.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+d65edcc. org-iw--batch-add takes ON-OUTCOME, the only sink, and returns nothing useful. The test helper collects through it, and the once-per-file test is org-iw-cmd-test-batch-on-outcome-once-per-file. User approved (2026-10-05). § 5.2 (O1) goes to reconcile.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-10"
+status = "verified"
+severity = "minor"
+title = "Expected README and design § 5.4 to say Remove restores the file only for a document Add gave no :ID:; observed both claim the file returns to its text before Add"
+detail = '''
+README.md:264-266 and design § 5.4 ("the file returns to its text before Add"). A non-Denote document gets an :ID: from Add (org-iw.el:487, ensure-id); delete-rank keeps a drawer holding other properties (org-iw-write.el:218-220). Probe m2: after Add then Remove on "#+title: A", ":PROPERTIES:\n:ID: …\n:END:" remains. I7 itself holds (no IW_ line remains); its wording 'of org-iw's making' is ambiguous about the inserted :ID:.
+'''
+disposition = "design-wrong"
+response = """
+README fixed in d65edcc. The drawer goes only if nothing else is in it, so a Denote note is restored, and any other document keeps its drawer with the :ID: Add gave it. Design § 5.4 ("returns to its text before Add") and I7's wording go to reconcile (brief).
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = """
+README fixed in d65edcc. The drawer goes only if nothing else is in it, so a Denote note is restored, and any other document keeps its drawer with the :ID: Add gave it. Design § 5.4 ("returns to its text before Add") and I7's wording go to reconcile (brief).
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-11"
+status = "verified"
+severity = "nit"
+title = "Expected refusals to name the concept accurately and once; observed 'ID shared with another heading' for documents and two 'not a source' texts"
+detail = """
+- org-iw.el:479: "ID shared with another heading" now fires when the other holder is a document (another file's Denote identifier, or a heading copying the file's). Pinned at test/org-iw-test.el:965, 977, 1721, 1741; README:350.
+- org-iw.el:166: "%s is not under org-iw-sources", which also fires for an excluded file.
+- org-iw.el:655-656: "not a source file (outside org-iw-sources or excluded)". README:351 paraphrases it a third way.
+"""
+disposition = "fix-now"
+response = """
+d65edcc. "ID shared with another entry" in the code, tests and README. One constant, org-iw--not-source ("not a source file (outside org-iw-sources or excluded)"), is used by --require-source (prefixed with the buffer name) and by the batch. The README matches.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+d65edcc. "ID shared with another entry" in the code, tests and README. One constant, org-iw--not-source ("not a source file (outside org-iw-sources or excluded)"), is used by --require-source (prefixed with the buffer name) and by the batch. The README matches.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-12"
+status = "verified"
+severity = "nit"
+title = "Expected one file name per batch report line; observed '/x/b.org: /x/b.org: not writable'"
+detail = """
+org-iw--batch-report prefixes the file, and org-iw-write's refusal text already names it (probe p5).
+"""
+disposition = "fix-now"
+response = """
+d65edcc. The batch's refusal catch strips a leading "FILE: " from the message, so a report line names the file once. The write layer keeps naming the file, because interactive Continue/Move write to other files. Test: org-iw-cmd-test-batch-fails-not-writable pins (failed "not writable").
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+d65edcc. The batch's refusal catch strips a leading "FILE: " from the message, so a report line names the file once. The write layer keeps naming the file, because interactive Continue/Move write to other files. Test: org-iw-cmd-test-batch-fails-not-writable pins (failed "not writable").
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-13"
+status = "verified"
+severity = "nit"
+title = "Expected docstrings and README to describe documents and the batch accurately; observed stale or incomplete wording"
+detail = """
+- org-iw-remove (org-iw.el:1098-1100), Continue's Remove (:953-954) and org-iw-view-remove (:1420) say the IW line "alone" is deleted. A document's emptied drawer goes too.
+- org-iw-add-files docstring and refusal (org-iw.el:723-724, :734) say "no Org files selected". A non-.org file named directly passes selection and fails per file.
+- org-iw.el:28 commentary says "queues of headings"; README:69 says "Add can enrol a heading". README:21 says "No other dependencies", which could say Denote is optional.
+- SOURCES is a list in --batch-add (org-iw.el:668/680) and a hash set in --batch-add-file (:650/654). The caller's local is already named source-set.
+"""
+disposition = "fix-now"
+response = """
+d65edcc. The docstrings of Remove, Continue's Remove and org-iw-view-remove now name the emptied document drawer. The org-iw-add-files docstring is rewritten, and its empty refusal is "no existing file selected" (design § 5.4 step 1 to reconcile). The commentary mentions documents. README:21 says Denote is optional, and README:71 says "an entry". The SOURCES/SOURCE-SET mismatch went with --batch-add-file, which is now deleted.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+d65edcc. The docstrings of Remove, Continue's Remove and org-iw-view-remove now name the emptied document drawer. The org-iw-add-files docstring is rewritten, and its empty refusal is "no existing file selected" (design § 5.4 step 1 to reconcile). The commentary mentions documents. README:21 says Denote is optional, and README:71 says "an entry". The SOURCES/SOURCE-SET mismatch went with --batch-add-file, which is now deleted.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-14"
+status = "verified"
+severity = "nit"
+title = "Expected test fixtures to own repeated setup (STD-001 items 1, 7); observed duplicated cleanup, constants and marker helpers"
+detail = """
+- Report-buffer cleanup: --kill-report plus unwind-protect at 5 sites (test/org-iw-test.el:1149/1179, 1372/1387, 1456, 1518/1544, 1557). A test that fails first leaks the buffer into the next test. The literal "*org-iw batch*" in assertions is a correct pin and stays.
+- Denote identifier "20260512T000000": two defconsts (org-iw-discovery-test.el:650, org-iw-test.el:854) plus literals at 708, 717, 1598, 3036, 3043, 3617.
+- A marker at a corpus file's start is built by two helpers: org-iw-test.el:611-617 (--at with nil title) and org-iw-write-test.el:700-703.
+- file-relative-name … org-iw-test-dir: helpers:70, discovery-test:40, org-iw-test:1013, 1033, 1945, 2442.
+"""
+disposition = "fix-now"
+response = """
+d65edcc. org-iw-test--release kills the batch report, so the per-test --kill-report and unwind-protect are gone. One constant, org-iw-test-denote-id, replaces the duplicates. org-iw-test-marker accepts a nil TITLE, replacing org-iw-cmd-test--at and org-iw-write-test--document-marker. org-iw-test-relative replaces the file-relative-name copies. The assertions still pin the literal "*org-iw batch*".
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+d65edcc. org-iw-test--release kills the batch report, so the per-test --kill-report and unwind-protect are gone. One constant, org-iw-test-denote-id, replaces the duplicates. org-iw-test-marker accepts a nil TITLE, replacing org-iw-cmd-test--at and org-iw-write-test--document-marker. org-iw-test-relative replaces the file-relative-name copies. The assertions still pin the literal "*org-iw batch*".
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-15"
+status = "verified"
+severity = "nit"
+title = "Expected org-iw-discovery-title public only if another layer uses it (STD-004 item 2); observed it used only inside discovery"
+detail = """
+Design § 5.2 made --title public so that --add-entry could build ENTRY. The S1 ruling (public org-iw-discovery-entry) removed that need: the only caller is org-iw-discovery.el:307.
+"""
+disposition = "fix-now"
+response = """
+d65edcc: org-iw-discovery-title is back to private org-iw-discovery--title. User approved (2026-10-05). § 5.2's "made public" goes to reconcile.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = """
+d65edcc: org-iw-discovery-title is back to private org-iw-discovery--title. User approved (2026-10-05). § 5.2's "made public" goes to reconcile.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-16"
+status = "verified"
+severity = "nit"
+title = "Expected a stale Denote document identity to resolve to the document; observed it resolves to the first heading in a slotless file"
+detail = """
+org-iw-discovery.el:285 adds point-min for any document identity, slot or not; org-iw-discovery-resolve (:544/:562) then backs to the heading at point-min. Probe m3: a stale scan, the user deleting the document drawer, and the first heading in J at the same rank → delete-rank removed the heading's IW_J. Without the equal rank, the preflight refuses with a misleading "changed since scan". This follows design § 5.2's --id-positions contract ("plus point-min when document-id is ID"), so a fix is a design change.
+"""
+disposition = "follow-up"
+response = """
+ISS-006. A fix changes the design § 5.2 --id-positions contract, so it is design work, not an audit patch. Reaching it takes a stale scan, the user deleting the drawer, and an equal rank in the first heading. Otherwise the preflight refuses safely.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "follow-up"
+response = """
+ISS-006. A fix changes the design § 5.2 --id-positions contract, so it is design work, not an audit patch. Reaching it takes a stale scan, the user deleting the drawer, and an equal rank in the first heading. Otherwise the preflight refuses safely.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-17"
+status = "verified"
+severity = "nit"
+title = "Expected no buffer leak or lost outcome on quit; observed a narrow window around find-file-noselect and save"
+detail = """
+org-iw-discovery-buffer runs in the let* before the unwind-protect (org-iw.el:640-641). A quit inside find-file-noselect can leave the opened buffer. A quit during save-buffer loses that file's outcome; its modified buffer is kept, so I5 holds. By reading only.
+"""
+disposition = "tolerated"
+response = """
+A quit inside find-file-noselect leaves a buffer org-iw has no handle to, and it may be half-initialised. Killing it after the fact would mean guessing it through get-file-buffer. A quit during save-buffer loses that file's outcome, but its modified buffer is kept, so I5 holds, and the summary now lists that file as stopped (F-1). The window is narrow and user-initiated; the cost is one extra open buffer at worst.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "tolerated"
+response = """
+A quit inside find-file-noselect leaves a buffer org-iw has no handle to, and it may be half-initialised. Killing it after the fact would mean guessing it through get-file-buffer. A quit during save-buffer loses that file's outcome, but its modified buffer is kept, so I5 holds, and the summary now lists that file as stopped (F-1). The window is narrow and user-initiated; the cost is one extra open buffer at worst.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-18"
+status = "verified"
+severity = "minor"
+title = "Expected design § 5.2 to describe how --add-entry builds ENTRY; observed the S1 adaptation (public org-iw-discovery-entry) not in the design"
+detail = """
+Notes § PHASE-04, S1 ruling: --add-entry builds ENTRY by calling the new public reader org-iw-discovery-entry (file) after the write. That reader shares the private constructor --entry with --read-entry, so ENTRY is equal to the rescanned member (other queues, outline). Design § 5.2 says ENTRY is built in the commands from entry-id, the title and the placed rank. That would be a second constructor (POL-002) and an incomplete entry. The modelling reviewer judged S1 sound and asked that § 5.2 also state that the identity --add-entry takes before the write agrees with the reader's after it, because the write guarantees a slot.
+"""
+disposition = "design-wrong"
+response = """
+S1 is sound, as the modelling reviewer and the verifier agree: it reuses the one entry constructor and gives the rescanned value. Design § 5.2 adopts it at reconcile (brief), including the note that the identity --add-entry takes before the write agrees with the reader's after it, because the write guarantees a slot.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = """
+S1 is sound, as the modelling reviewer and the verifier agree: it reuses the one entry constructor and gives the rescanned value. Design § 5.2 adopts it at reconcile (brief), including the note that the identity --add-entry takes before the write agrees with the reader's after it, because the write guarantees a slot.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-19"
+status = "verified"
+severity = "nit"
+title = "Expected the Denote version floor stated consistently; observed design A1 '4.x contracts' while § 5.2 relies on functions of Denote ≥ 4.1.0"
+detail = """
+Design § 5.2 says denote-filename-is-note-p became an obsolete alias of denote-file-has-denoted-filename-p in Denote 4.1.0. So org-iw needs Denote 4.1.0 or later, but A1 says "keep their 4.x contracts". PHASE-01/EX-1 says "a Denote 4.x derivation". It was met by 4.2.3. Plan criteria are immutable, so it stays as written.
+"""
+disposition = "design-wrong"
+response = """
+Design A1 and § 8 change to "Denote ≥ 4.1.0" at reconcile. PHASE-01/EX-1 is an immutable plan criterion, met by 4.2.3, and is left as written.
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = """
+Design A1 and § 8 change to "Denote ≥ 4.1.0" at reconcile. PHASE-01/EX-1 is an immutable plan criterion, met by 4.2.3, and is left as written.
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+[[finding]]
+id = "F-20"
+status = "verified"
+severity = "minor"
+title = "Expected REQ-002, REQ-007, REQ-011 to state document identity as DEC-021 settled it; observed :ID:-only wording"
+detail = """
+DEC-021 settles document identity in this order: the file-level :ID:, else Denote's filename identifier when Denote is available, else an inserted :ID:. The requirement texts still assume :ID: only. RV-012 F-11 deferred the revision to reconcile, and slice-004.md's scope says "REQ-002/REQ-007/REQ-011 wording revised at reconcile".
+"""
+disposition = "design-wrong"
+response = """
+A REV at reconcile revises the identity wording of REQ-002, REQ-007 and REQ-011 to DEC-021's order (brief).
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+response = """
+A REV at reconcile revises the identity wording of REQ-002, REQ-007 and REQ-011 to DEC-021's order (brief).
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+
+# Findings are append-only `[[finding]]` tables, added by `review raise`.
+# Empty here at creation — a fresh review is Active, awaiting the raiser.
