@@ -2609,6 +2609,34 @@ The hint is for the session's entry in the session's queue (I13)."
                       "a.org" ":IW_ESSAYS: 1024")
                      "Removed Doc from ESSAYS (saved)")))))
 
+(ert-deftest org-iw-cmd-test-remove-denote-document ()
+  "A Denote document leaving its last queue is as it was before joining.
+Its drawer, holding only the rank, goes with it, whether by Remove or
+by Continue with Remove; the heading stays."
+  (let* ((before (org-iw-test-org "#+title: Tuesday" "Intro." "* H"))
+         (drawer '(":PROPERTIES:" ":IW_ESSAYS: 1024" ":END:"))
+         (note (org-iw-test-denote-file
+                "20260512T000000" (concat (apply #'org-iw-test-org drawer)
+                                          before)
+                "tuesday"))
+         (name (car note)))
+    (pcase-dolist (`(,fn ,message)
+                   `((,(lambda ()
+                         (org-iw-cmd-test--call-at
+                          (org-iw-cmd-test--at name nil)
+                          #'org-iw-remove "ESSAYS"))
+                      "Removed Tuesday from ESSAYS (saved)")
+                     (,(lambda ()
+                         (org-iw-visit-next "ESSAYS")
+                         (org-iw-continue 'remove))
+                      ,(concat "Removed Tuesday from ESSAYS (saved). Queue"
+                               " ESSAYS is empty. " org-iw-cmd-test--hint))))
+      (org-iw-test-with-corpus (list note)
+        (should (equal (org-iw-cmd-test--should-change-lines
+                        fn name drawer nil)
+                       message))
+        (should (equal (org-iw-test-file-string name) before))))))
+
 (ert-deftest org-iw-cmd-test-remove-command-lowercase-key ()
   "A member by a lowercase key loses that line."
   (org-iw-test-with-corpus (org-iw-cmd-test--queue-of-three ":iw_essays: 2048")

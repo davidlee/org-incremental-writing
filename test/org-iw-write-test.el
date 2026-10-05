@@ -695,5 +695,213 @@ heading before has a drawer, which must not pass for the target's."
       (should (equal (org-iw-test-file-string "a.org")
                      org-iw-write-test--target)))))
 
+;;;; Document entries
+
+(defun org-iw-write-test--document-marker (name)
+  "Return a marker at the start of corpus file NAME, visiting it first."
+  (with-current-buffer (org-iw-test-visit name)
+    (point-min-marker)))
+
+(defconst org-iw-write-test--new-document-drawer
+  (concat "\\`:PROPERTIES:\n"
+          "\\(?::ID: +\\([^ \n]+\\)\n\\)?"
+          ":IW_ESSAYS: 1024\n:END:\n")
+  "A regexp for the drawer put-rank inserts for a new document entry.
+Its group 1 is the new ID, if the drawer has one.")
+
+(defun org-iw-write-test--should-put-new-document (text ensure-id)
+  "Assert put-rank :document makes the heading-first TEXT a member.
+TEXT is file a.org.  The rank 1024 and, with ENSURE-ID, a new ID go
+into a drawer inserted before the first heading; the file is saved,
+TEXT follows the drawer unchanged, the ID is the document's, and one
+undo restores TEXT."
+  (org-iw-test-with-corpus `(("a.org" . ,text))
+    (let ((marker (org-iw-write-test--document-marker "a.org")))
+      (should (eq (org-iw-write-put-rank marker "ESSAYS" 1024
+                                         :expected :absent
+                                         :ensure-id ensure-id
+                                         :document t)
+                  'saved))
+      (let ((disk (org-iw-test-file-string "a.org")))
+        (should (string-match org-iw-write-test--new-document-drawer disk))
+        (let ((id (match-string 1 disk))
+              (rest (substring disk (match-end 0))))
+          (should (equal rest text))
+          (should (eq (and id t) (and ensure-id t)))
+          (with-current-buffer (marker-buffer marker)
+            (should (equal (org-iw-discovery-document-id
+                            (buffer-file-name))
+                           id))))
+        (should (equal (org-iw-test-text marker) disk)))
+      (org-iw-write-test--undo-once (marker-buffer marker))
+      (should (equal (org-iw-test-text marker) text)))))
+
+(ert-deftest org-iw-write-test-document-heading-first ()
+  "With :document, a file with no text before its first heading joins.
+A drawer goes before the heading, holding the rank and, with
+:ensure-id, a new ID; the heading is untouched, its own ID and
+membership in the queue included."
+  (dolist (text (list (org-iw-test-org "* H" "Body.")
+                      (org-iw-test-heading "H" "h1")
+                      (org-iw-test-heading "H" "h1" ":IW_ESSAYS: 2048")))
+    (dolist (ensure-id '(nil t))
+      (org-iw-write-test--should-put-new-document text ensure-id))))
+
+(defun org-iw-write-test--should-fail-plainly (marker call)
+  "Assert calling CALL is a plain `error', changing nothing at MARKER.
+Such an error is a caller's mistake, not a refusal.  Return the
+error."
+  (let* ((before (org-iw-test-snapshot marker))
+         (err (should-error (funcall call))))
+    (should (eq (car err) 'error))
+    (should (equal (org-iw-test-snapshot marker) before))
+    err))
+
+(defun org-iw-write-test--should-misplace-document (marker)
+  "Assert put-rank :document at MARKER is a plain error, changing nothing.
+MARKER is not at the start of its buffer, widened."
+  (org-iw-write-test--should-fail-plainly
+   marker (lambda ()
+            (org-iw-write-test--put-4096 marker "ESSAYS"
+                                         :expected :absent :document t))))
+
+(ert-deftest org-iw-write-test-document-marker-is-checked ()
+  "With :document, a marker other than the widened start is an error.
+So it is at the first heading after a preamble, inside a heading, or
+at the start of a buffer narrowed to its last heading, with a
+preamble or without."
+  (let ((preamble (org-iw-test-org "#+title: X" "Intro." "* H" "Body."))
+        (heading-first (org-iw-test-org "* H" "Body." "* I" "More.")))
+    (org-iw-test-with-corpus `(("a.org" . ,preamble)
+                               ("b.org" . ,heading-first))
+      (let ((a (org-iw-test-visit "a.org"))
+            (b (org-iw-test-visit "b.org")))
+        (org-iw-write-test--should-misplace-document
+         (org-iw-test-marker "a.org" "H"))
+        (org-iw-write-test--should-misplace-document
+         (with-current-buffer b (copy-marker (1+ (length "* H\n")))))
+        (dolist (buffer (list a b))
+          (with-current-buffer buffer
+            (goto-char (point-max))
+            (re-search-backward "^\\* ")
+            (narrow-to-region (point) (point-max))
+            (org-iw-write-test--should-misplace-document (point-min-marker))
+            (widen)))))))
+
+(ert-deftest org-iw-write-test-document-new-drawer-expects-absent ()
+  "With :document and no text before the first heading, only :absent goes.
+The file has no document entry to hold a rank, whatever the first
+heading holds."
+  (org-iw-test-with-corpus
+      `(("a.org" . ,(org-iw-test-heading "H" "h1" ":IW_ESSAYS: 2048")))
+    (let ((marker (org-iw-write-test--document-marker "a.org")))
+      (org-iw-write-test--should-fail-plainly
+       marker (lambda ()
+                (org-iw-write-test--put-4096 marker "ESSAYS"
+                                             :expected 2048 :document t))))))
+
+(ert-deftest org-iw-write-test-document-new-drawer-checks-file ()
+  "With :document and no text before the first heading, file checks hold.
+A read-only buffer, a file changed on disk and an unwritable file
+refuse, changing nothing."
+  (let ((text (org-iw-test-org "* H" "Body.")))
+    (dolist (setup (list (lambda (marker)
+                           (with-current-buffer (marker-buffer marker)
+                             (setq buffer-read-only t))
+                           "buffer is read-only")
+                         (lambda (_marker)
+                           (org-iw-test-rewrite-behind "a.org" "* Other\n")
+                           "changed on disk")
+                         (lambda (_marker)
+                           (unless (zerop (user-uid))
+                             (org-iw-test-set-modes "a.org" #o444)
+                             "not writable"))))
+      (org-iw-test-with-corpus `(("a.org" . ,text))
+        (let* ((marker (org-iw-write-test--document-marker "a.org"))
+               (reason (funcall setup marker)))
+          (when reason
+            (should (string-search
+                     reason
+                     (org-iw-write-test--should-refuse
+                      marker "ESSAYS" :expected :absent :document t)))))))))
+
+(ert-deftest org-iw-write-test-document-with-slot-is-unchanged ()
+  "With text before the first heading, :document changes nothing.
+The file comes out as it does without :document."
+  (pcase-dolist (`(,text ,expected)
+                 `((,(org-iw-test-org "#+title: X" "Intro." "* H") :absent)
+                   (,(org-iw-test-org ":PROPERTIES:" ":ID: d1" ":END:" "* H")
+                    :absent)
+                   (,(org-iw-test-org ":PROPERTIES:" ":ID: d1"
+                                      ":IW_ESSAYS: 2048" ":END:" "* H")
+                    2048)))
+    (let ((results
+           (mapcar
+            (lambda (document)
+              (org-iw-test-with-corpus `(("a.org" . ,text))
+                (should (eq (org-iw-write-put-rank
+                             (org-iw-write-test--document-marker "a.org")
+                             "ESSAYS" 1024 :expected expected
+                             :document document)
+                            'saved))
+                (org-iw-test-file-string "a.org")))
+            '(nil t))))
+      (should-not (equal (car results) text))
+      (should (equal (car results) (cadr results))))))
+
+(defun org-iw-write-test--delete-document (marker)
+  "Delete the rank 1024 in ESSAYS of the document entry at MARKER."
+  (org-iw-write-delete-rank marker "ESSAYS" :expected 1024))
+
+(ert-deftest org-iw-write-test-delete-document-drawer ()
+  "A document entry's last line takes its emptied drawer with it.
+Joining and leaving restore the file, with text before the first
+heading or without; a drawer that was the only text before it goes
+too, and one undo brings it back.  Nothing deleted is still an error."
+  (pcase-dolist (`(,text ,document)
+                 `((,(org-iw-test-org "* H" "Body.") t)
+                   (,(org-iw-test-org "#+title: X" "Intro." "* H") nil)))
+    (org-iw-test-with-corpus `(("a.org" . ,text))
+      (let ((marker (org-iw-write-test--document-marker "a.org")))
+        (should (eq (org-iw-write-put-rank marker "ESSAYS" 1024
+                                           :expected :absent
+                                           :document document)
+                    'saved))
+        (should (eq (org-iw-write-test--delete-document marker) 'saved))
+        (should (equal (org-iw-test-file-string "a.org") text)))))
+  (let ((text (org-iw-test-org ":PROPERTIES:" ":IW_ESSAYS: 1024" ":END:"
+                               "* H")))
+    (org-iw-test-with-corpus `(("a.org" . ,text))
+      (let ((marker (org-iw-write-test--document-marker "a.org")))
+        (should (eq (org-iw-write-test--delete-document marker) 'saved))
+        (should (equal (org-iw-test-file-string "a.org") "* H\n"))
+        (org-iw-write-test--undo-once (marker-buffer marker))
+        (should (equal (org-iw-test-text marker) text)))))
+  (org-iw-test-with-corpus
+      `(("a.org" . ,(org-iw-test-org ":PROPERTIES:" ":IW_ESSAYS: 2048" ":END:"
+                                     "* H")))
+    (let ((marker (org-iw-write-test--document-marker "a.org")))
+      (should (equal (org-iw-write-test--should-fail-plainly
+                      marker
+                      (lambda ()
+                        (org-iw-write-test--delete-target-with-nothing-deleted
+                         marker)))
+                     '(error "IW_ESSAYS not deleted alone"))))))
+
+(ert-deftest org-iw-write-test-delete-rank-heading-rank-only-drawer ()
+  "A heading's drawer holding only the rank still may not go.
+So it is for a heading at the start of the file, and for one after
+text before it, where the file's document entry is."
+  (dolist (text (list (org-iw-test-heading "H" nil ":IW_ESSAYS: 2048")
+                      (concat (org-iw-test-org "#+title: X")
+                              (org-iw-test-heading "H" nil
+                                                   ":IW_ESSAYS: 2048"))))
+    (should (equal (org-iw-write-test--check-rollback
+                    text "H" nil 'error
+                    (lambda (marker)
+                      (org-iw-write-delete-rank marker "ESSAYS"
+                                                :expected 2048)))
+                   '(error "IW_ESSAYS not deleted alone")))))
+
 (provide 'org-iw-write-test)
 ;;; org-iw-write-test.el ends here

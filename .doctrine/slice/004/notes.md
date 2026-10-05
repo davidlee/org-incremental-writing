@@ -71,3 +71,33 @@ fresh-as-of: 2026-10-05 · design locked → plan · f5bd251
 - Mutation: 22 mutants, 20 killed, 2 equivalent (slot-p without base
   switch: indirect buffers share text; `--check-heading` nil FILE: heading
   branch only until PHASE-03). Table in the phase sheet.
+
+## PHASE-03 (2026-10-05, execute)
+
+- `org-iw-write-put-rank` gains `:document`: guard (plain `error`) that
+  MARKER is at its buffer's widened `point-min`; with no document slot,
+  EXPECTED must be `:absent` (plain `error`), only the file/buffer
+  checks run, and `--apply` inserts `:PROPERTIES:\n:END:\n` at
+  `point-min` (save-excursion) before ensure-id and the put — one change
+  group, one undo. With a slot, `:document` is a no-op.
+- `org-iw-write-delete-rank`: a document entry (`--document-entry-p`:
+  widened start AND `org-iw-discovery-document-slot-p`) may lose its
+  emptied drawer; classified *before* `--apply`, since a drawer that is
+  the only pre-heading text leaves the file slotless once deleted.
+  Heading rule unchanged; nothing deleted is an error either way.
+- Write internals: `--preflight` = `--check-file` + `--check-entry`;
+  `--document-start-p`, `--document-entry-p`. No change to `org-iw.el`
+  or discovery: Remove / Continue → Remove of a Denote document worked
+  through the PHASE-02 resolve path once the delete rule landed.
+- Org facts (both Org 9.8.10/Emacs 31 and 9.7.11/Emacs 30): deleting a
+  drawer's last property removes both drawer lines and nothing else;
+  `org-id-get-create` at point-min after an inserted empty drawer writes
+  into it, aligned (`:ID:       <uuid>`); it signals in a non-file
+  buffer.
+- PHASE-04 carry: the document marker must have insertion-type nil, or
+  it advances past the inserted drawer (sheet R3).
+- Tests 340 → 348. Gate green set and unset; test-each 348 all alone on
+  emacs and emacs-30, set and unset. Set: 0 skipped on both; unset,
+  emacs-30 skips 9 (PHASE-02's 8 + `remove-denote-document`).
+- Mutation: 14 targets (M8 split a/b), all killed, 0 equivalent. Table in
+  the phase sheet.
