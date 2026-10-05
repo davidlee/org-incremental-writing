@@ -1,0 +1,46 @@
+memory_uid = "mem_01a10e09b4907611b917decc7ed8cbb1"
+memory_key = "mem.fact.nix.jail-mounts-path-roots-only"
+schema_version = 1
+memory_type = "fact"
+status = "active"
+title = "jail.nix mounts closures of PATH roots only; bin-less extraPkgs are not mounted"
+summary = "A jail's store mounts are the closures of its PATH entries; an extraPkgs member with no bin/ (e.g. a runCommand dir) is silently not mounted"
+created = "2026-10-05"
+updated = "2026-10-05"
+
+[scope]
+paths = ["flake.nix"]
+globs = []
+commands = []
+tags = ["nix", "jail"]
+workspace = "default"
+repo = "github.com/davidlee/org-incremental-writing"
+repo_id_kind = "remote"
+repo_id_confidence = "high"
+
+[git]
+anchor_kind = "checkout_state"
+commit = ""
+tree = "e85d0b0f43eea192d2228d372a15c24b91455bc1"
+ref_name = "refs/heads/main"
+checkout_state_id = "ca02f3ef00d4bd5da198ec6c1609d61018849f3ce990bb817e562382db218fa0"
+base_commit = "edbaaaf81d79d310fe0b0424d2a69b9e6afbcfca"
+verified_sha = ""
+normalizer = "forget.checkout.v1"
+
+[review]
+verification_state = "unverified"
+reviewed = ""
+review_by = ""
+
+[trust]
+trust_level = "medium"
+
+[ranking]
+severity = "none"
+weight = 0
+
+[[source]]
+kind = "backlog"
+ref = "ISS-005"
+

@@ -11,7 +11,7 @@ kind = "functional"
 # it as the statement line — the storage rule forbids deriving it from prose).
 # Rationale and extended discussion stay in the sister `.md`. Add as:
 #   description = "…"
-description = "Both a whole Org document (file-level property drawer preceding the title) and an Org heading are valid entries, identified by their Org ID, and memberships are read locally without property inheritance."
+description = "Both a whole Org document (file-level property drawer preceding the title) and an Org heading are valid entries, and memberships are read locally without property inheritance. A heading is identified by its Org ID; a document by its file-level Org ID, else, when Denote is available, the identifier in its Denote file name (DEC-021)."
 tags = []
 acceptance_criteria = [
   "A document-level IW_<Q> property enrols the document only; its headings are not members.",

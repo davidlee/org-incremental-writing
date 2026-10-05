@@ -247,3 +247,61 @@ Where to look:
   when Denote is available, else none, and Add inserts an `:ID:`
   (DEC-021). A Denote note gains no `:ID:`. REQ-007's duplicate rule
   counts a document's identity once, at the document.
+
+## Reconciliation Outcome
+
+The user assented to the brief on 2026-10-06 ("handover to … 2.
+reconcile", with no items named for change).
+
+### Direct edits applied
+- design.md § 5.2 Discovery (F-8, F-15, F-18): added
+  `org-iw-discovery-document-marker` (the one owner of the document's
+  start) and public `org-iw-discovery-entry` over the one constructor
+  `--entry`, with the before/after identity agreement noted.
+  `--title` stays private; "made public (RV-012 F-7)" removed.
+- design.md § 5.2 Write (F-8, M4): `--document-start-p` compares with the
+  discovery owner. The new-drawer branch puts the rank at `point-min`.
+- design.md § 5.2 Commands (F-2, F-8, F-9, F-11, F-12, F-18):
+  - `--not-source`;
+  - `--target-at-point` returning `(MARKER . DOCUMENT)`;
+  - `--document-marker`, recorded as deleted;
+  - `--add-at`, the shared body of Add and Add-document (PHASE-04,
+    previously unlisted);
+  - `--add-entry` reads ENTRY through `org-iw-discovery-entry`;
+  - `--batch-add … on-outcome` as the only sink;
+  - `--batch-outcome`, which replaces `--call-in-file-buffer` and
+    `--batch-add-file`;
+  - `--batch-outcome-text` and the outcome predicates.
+- design.md § 5.3 (F-1, F-2): the outcome shapes, `(stopped)` and the
+  `left-open` tail; the example updated. Ownership names
+  `--batch-outcome` and the document-start owner.
+- design.md § 5.4 (F-1, F-2, F-10): Add step 1. Batch step 1 reads "no
+  existing file selected"; step 3 uses ON-OUTCOME and the discovery
+  marker; step 3.6 adds `left-open` on any outcome; step 4 covers
+  stopped files. The document-Remove passage is corrected.
+- design.md § 5.5 (F-10, F-19): I7 reworded; A1 reads "Denote ≥ 4.1.0".
+- design.md § 8 (F-19): **no edit; the item does not apply.** No risk row
+  says "4.x". Row 2 cites Denote 4.2.3, which is accurate. The only
+  "4.x" was A1, fixed above.
+- design.md § 10: lists the helpers above.
+- Selectors, slice-004.md, plan.toml: no edit, as briefed.
+- design.md was edited outside the design run, as at SL-001..SL-003
+  reconcile. `design show` notes it is behind run revision 40. It was
+  deliberately not materialised: that would overwrite the reconciled
+  prose.
+
+### REVs completed
+- REV-006 (`reconcile-sl-004`): done (F-20). REQ-002, REQ-007 and
+  REQ-011 now state DEC-021's document identity. REQ-007 AC3 counts a
+  document's identity once. REQ-011 AC3 means a Denote note gains no
+  `:ID:`. The before/after text and rationale are in revision-006.md.
+
+### Withdrawn / tolerated / follow-up
+- F-17 and part of F-1: tolerated, as the Synthesis records.
+- F-5 → ISS-005 (jail mount; diagnosed 2026-10-06, flake fix proposed
+  to the user). F-16 → ISS-006.
+- Found while reconciling, outside the brief: PRD-001's prose still says
+  Org-ID-only identity (spec-001.md:32, :97) → CHR-005. It was not
+  edited here.
+
+Reconcile pass complete; handoff to /close.

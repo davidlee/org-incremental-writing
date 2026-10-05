@@ -11,11 +11,11 @@ kind = "functional"
 # it as the statement line — the storage rule forbids deriving it from prose).
 # Rationale and extended discussion stay in the sister `.md`. Add as:
 #   description = "…"
-description = "Entries are resolved by Org ID so refiled entries remain members, and missing targets, invalid rank values and duplicate IDs produce actionable diagnostics rather than arbitrary writes."
+description = "Entries are resolved by their identity (REQ-002) so refiled entries remain members, and missing targets, invalid rank values and duplicate identities produce actionable diagnostics rather than arbitrary writes."
 tags = []
 acceptance_criteria = [
   "An entry refiled to another configured file is still found in its queue.",
   "A non-integer rank (e.g. IW_ESSAYS: soon) is reported with its location and excluded from ordering; it is not rewritten.",
-  "Two entries sharing an Org ID are reported as an ambiguity; no operation writes to either until resolved.",
+  "Two entries sharing an identity are reported as an ambiguity; no operation writes to either until resolved. A document's identity counts once, at the document, so a heading that copies it is a duplicate.",
   "An operation whose target cannot be resolved reports that and does not recreate it.",
 ]

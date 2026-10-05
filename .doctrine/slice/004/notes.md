@@ -6,7 +6,7 @@ disposable phase sheet (`.doctrine/state/.../phase-NN.md`) that must survive
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: 2026-10-06 · audit (RV-013 concluded → reconcile) · d65edcc
+fresh-as-of: 2026-10-06 · close (reconciled → done) · edbaaaf+
 
 ### Produced
 - plan: 7 phases (4558e2a, 931c551, 69117cf); research restamped
@@ -14,16 +14,18 @@ fresh-as-of: 2026-10-06 · audit (RV-013 concluded → reconcile) · d65edcc
 - RV-013 audit: 20 findings verified, concluded; fix-now batch d65edcc (397 → 408 tests); user approved design-touching fixes F-1/F-8/F-9/F-15 (2026-10-05)
 - SL-001 PHASE-06 VT-2 waived per DEC-023 (20b9a16)
 - minted: ISS-004, ISS-005 (jail Denote dir), ISS-006 (stale Denote identity in slotless file); CHR-004 extended (SL-001 PHASE-07 VT-2)
+- reconcile: design § 5.2/5.3/5.4/5.5/10 edited (§ 8 item inapplicable), REV-006 done (REQ-002/007/011 per DEC-021), RV-013 § Reconciliation Outcome; CHR-005 minted (PRD-001 prose identity drift)
+- ISS-005 diagnosed (body); flake fix proposed, awaiting user
 
 ### Learned
 - mem.fact.emacs.denote-api-and-test-emacsen — obsolete Denote predicate; 31 has Denote under -Q, 30 not
 - mem.fact.emacs.features-not-special-lexical-let — lexical let of features doesn't hide Denote; use cl-progv
 - a set-but-broken ORG_IW_DENOTE_DIR silently skipped 15 tests on emacs-30; guard test now fails it (RV-013 F-4)
+- mem.fact.nix.jail-mounts-path-roots-only — jail mounts PATH-root closures; bin-less extraPkgs unmounted (ISS-005)
 
 ### Open
-- reconcile: RV-013 § Reconciliation Brief — design § 5.2/5.3/5.4/5.5/8/10 direct edits; REV for REQ-002/007/011 (F-20)
 - ISS-005 — jail mount; set ORG_IW_DENOTE_DIR by hand in the jail until fixed
-- ISS-006, IMP-010 / IMP-002, IDE-002, ASM-001, ISS-004, CHR-004
+- ISS-006, IMP-010 / IMP-002, IDE-002, ASM-001, ISS-004, CHR-004, CHR-005
 
 ## PHASE-01 (2026-10-05, execute)
 

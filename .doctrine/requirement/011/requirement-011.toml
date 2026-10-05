@@ -11,12 +11,12 @@ kind = "functional"
 # it as the statement line — the storage rule forbids deriving it from prose).
 # Rationale and extended discussion stay in the sister `.md`. Add as:
 #   description = "…"
-description = "The user can enrol the current heading, or the document when point is before the first heading, or explicitly the whole document from anywhere, into a chosen queue, appending by default or at another chosen placement, ensuring the target has an Org ID."
+description = "The user can enrol the current heading, or the document when point is before the first heading, or explicitly the whole document from anywhere, into a chosen queue, appending by default or at another chosen placement, ensuring the target has an identity: an Org ID is inserted only when it has none (DEC-021)."
 tags = []
 acceptance_criteria = [
   "Add with point in a heading enrols that heading; before the first heading enrols the document.",
   "An explicit document command/prefix enrols the document from anywhere in the file.",
-  "An entry lacking an ID receives one on enrolment.",
+  "An entry with no identity receives an Org ID on enrolment; a document identified by its Denote file name gains no :ID:.",
   "Adding an existing membership is a reported no-op, not a move.",
   "Adding to queue A never alters membership in queue B.",
 ]

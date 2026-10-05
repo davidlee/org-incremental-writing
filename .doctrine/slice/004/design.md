@@ -151,9 +151,19 @@ at `point-min` (research T2-3).
   `:ID:` if the buffer has a slot and its drawer has one; else
   `org-iw-discovery--denote-identifier` of FILE; else nil. The one owner
   of document identity (DEC-021); it reads widened, wherever point is.
-- `org-iw-discovery-title (file)` — *made public* (was
-  `org-iw-discovery--title`): the title of the entry at point, so
-  `--add-entry` can build its ENTRY through discovery (RV-012 F-7).
+- `org-iw-discovery-document-marker ()` — *new (RV-013 F-8).* A marker
+  at the widened `point-min` of the base buffer, insertion type nil, so
+  a drawer inserted for the document leaves it at the drawer. The one
+  owner of the document's start: `--at-document-start`, the write's
+  `--document-start-p` and the commands use it.
+- `org-iw-discovery-entry (file)` — *new, public (RV-013 F-18, S1).*
+  The entry at point as a scan reads it, or nil if it has no ID or no
+  membership; no uniqueness check. It and `--read-entry` build entries
+  through the one private constructor `--entry`. `--add-entry` reads
+  ENTRY here after the write; the identity it took before the write
+  agrees with this reader's, because the write guarantees a slot.
+- `org-iw-discovery--title (file)` — *unchanged, private* (RV-013
+  F-15): only discovery uses it.
 - `org-iw-discovery-entry-id (file)` — *changed signature.* The ID of the
   entry at point in FILE: at a heading, its `:ID:` (unchanged); before
   the first heading, `org-iw-discovery-document-id`. The scan passes its
@@ -184,7 +194,6 @@ at `point-min` (research T2-3).
   the document's identity, so a heading whose `:ID:` equals the file's
   Denote identifier is a `duplicate-id`, and in a slotless file the first
   heading's `:ID:` is never mistaken for the document's.
-  `--title` becomes public `org-iw-discovery-title`.
   `--drop-shared-ids` is unchanged: two member files with one Denote
   identifier are dropped and reported, as for `:ID:`.
 
@@ -192,13 +201,16 @@ at `point-min` (research T2-3).
 
 - `org-iw-write-put-rank (marker queue rank &key expected ensure-id
   document)` — *new key.* With DOCUMENT non-nil, MARKER must be at the
-  base buffer's widened `point-min` (else an error: F-6). When the buffer
+  base buffer's widened `point-min` (else an error: F-6);
+  `org-iw-write--document-start-p` compares MARKER with
+  `org-iw-discovery-document-marker` (RV-013 F-8). When the buffer
   has no document slot, EXPECTED must be `:absent` (else an error), the
   preflight's queue-line and drawer checks hold trivially, and the atomic
   edit inserts `:PROPERTIES:\n:END:\n` at `point-min` under
   `save-excursion`, then runs `org-id-get-create` (if ENSURE-ID) with
-  point at `point-min`, then puts the rank at the marker (F-2). Without
-  DOCUMENT, behaviour is unchanged. Save policy and results unchanged.
+  point at `point-min`, then puts the rank at `point-min`, not at the
+  caller's marker, which may have moved past the drawer (F-2; RV-013
+  M4). Without DOCUMENT, behaviour is unchanged. Save policy and results unchanged.
 - `org-iw-write-delete-rank (marker queue &key expected)` — *changed
   rule.* For a document entry (MARKER at the widened `point-min` and
   `org-iw-discovery-document-slot-p`), the deletion may remove the
@@ -218,16 +230,21 @@ at `point-min` (research T2-3).
   not, having checked each FILE against its `sources` set once and
   calling `org-iw-discovery-require-org-mode` itself (RV-012 F-14: a
   per-file `org-iw--files` walk would cost minutes at 3,000 files).
-- `org-iw--document-marker ()` — *new.* A marker at the widened
-  `point-min` of the current buffer's base buffer; no checks (F-6).
-  `org-iw--target-at-point` and Add-document compose it with
-  `--require-source`.
+- `org-iw--not-source` — *new constant (RV-013 F-11).* The one
+  not-a-source refusal text, used by `--require-source` and the batch.
+- `org-iw--target-at-point ()` — *changed.* Returns `(MARKER .
+  DOCUMENT)`: before the first heading, `org-iw-discovery-document-marker`
+  and t; else the heading's marker and nil. Add decides DOCUMENT here
+  once (RV-013 F-8). Add-document composes `--require-source` with
+  `org-iw-discovery-document-marker` (F-6). The commands-layer
+  `--document-marker` is deleted (d65edcc): discovery owns the
+  document's start.
 - `org-iw--add-entry (scan order marker queue placement document)` —
   *new, replaces the body of `org-iw-add` and `org-iw--check-heading`.*
   Checks the target, places it, writes it. Returns plain data:
   `(existing POSITION)`, or `(added DEPTH STATUS ENTRY)`, ENTRY an
-  `org-iw-entry` for the new member built after the write from
-  `org-iw-discovery-entry-id`, the title and the placed rank. The checks
+  `org-iw-entry` for the new member, read after the write by
+  `org-iw-discovery-entry` (RV-013 F-18). The checks
   read only through discovery: identity via `entry-id`
   (`document-id` for documents), queue lines only when the target has a
   slot or is a heading. Refuses as Add does today: excluded, ID shared,
@@ -236,39 +253,59 @@ at `point-min` (research T2-3).
 - `org-iw-add (queue &optional label)` — *changed.* Before the first
   heading it enrols the document; `org-iw--heading-or-refuse` is
   deleted. Docstring updated.
+- `org-iw--add-at (marker document queue label)` — *new.* The body
+  Add and Add-document share: validate QUEUE and LABEL, scan, call
+  `--add-entry`, and return the message.
 - `org-iw-add-document (queue &optional label)` — *new, autoloaded.* As
   `org-iw-add`, the target from `org-iw--require-source` then
-  `org-iw--document-marker`. Prefix
+  `org-iw-discovery-document-marker`. Prefix
   argument as Add's (DEC-011).
 - `org-iw-add-files (queue files)` — *new, autoloaded.* FILES is a list
   of files and directories. Interactively: QUEUE as Add's; FILES from
   `dired-get-marked-files` in a dired buffer, else one file or directory
   from `read-file-name`. Runs the fold under `unwind-protect`, so the
   summary and report appear even after `C-g` (F-7). Returns the summary.
-- `org-iw--batch-add (scan queue files sources progress)` — *new.* The
-  fold. PROGRESS is a function of one argument (files done), called after
-  each file; the command passes a progress reporter's update, tests pass
-  `ignore` (F-10). Returns `(FILE . OUTCOME)` in canonical order, OUTCOME
-  `(added STATUS)`, `(existing)` or `(failed REASON)`. It catches only
-  `org-iw-refusal` and `file-error` per file (F-7); anything else is a
-  bug and propagates after the outcomes so far are reported.
+- `org-iw--batch-add (scan queue files sources on-outcome)` — *new.*
+  The fold. ON-OUTCOME is called after each file with its `(FILE .
+  OUTCOME)`, in canonical order, and is the only sink (RV-013 F-9, O1):
+  the command collects the outcomes and updates its progress reporter
+  there; tests collect them (F-10). The fold's return value is not
+  used. OUTCOME is as in § 5.3. Anything other than a refusal or a
+  file error is a bug and propagates; the command then reports the
+  outcomes so far.
+- `org-iw--batch-outcome (file fn)` — *new (RV-013 F-2).* One file's
+  step: visits FILE, calls FN in its buffer, and catches only
+  `org-iw-refusal` and `file-error` as `(failed REASON)` (F-7), a leading
+  "FILE: " stripped from a refusal so the report names the file once
+  (RV-013 F-12). It owns the kill rule (DEC-026) and appends `left-open`
+  when it opened the buffer and left it modified, whatever the outcome.
+  It replaces execution's `--call-in-file-buffer` and `--batch-add-file`.
 - `org-iw--batch-summary (queue outcomes)` and
   `org-iw--batch-report (queue outcomes)` — *new.* The echo summary
-  text, and the `*org-iw batch*` buffer listing failed and unsaved files
-  (a `special-mode` buffer), displayed only when there are any (DEC-028).
+  text, and the `*org-iw batch*` buffer listing failed, unsaved and
+  stopped files (a `special-mode` buffer), displayed only when there are
+  any (DEC-028). `org-iw--batch-outcome-text` is the text of one file's
+  outcome in the report; `--batch-left-open-p`, `--batch-unsaved-p` and
+  `--batch-trouble-p` classify an outcome for both.
 
 <!-- doctrine:section sec-05-3-data -->
 ### 5.3 Data, State & Ownership
 
-- **Batch outcomes** are plain data, built by the fold and consumed by
-  the summary and report. Example:
+- **Batch outcomes** are plain data, built per file by the fold and
+  consumed by the summary and report. OUTCOME is `(added STATUS)`,
+  `(existing)`, `(failed REASON)` or `(stopped)` (a file not reached
+  because the batch stopped: RV-013 F-1). Each ends in `left-open` when
+  the batch opened the file's buffer and left it modified (RV-013 F-2).
+  Example:
 
   ```elisp
   (("/n/journal/20260512T000000--tuesday__journal.org" added saved)
    ("/n/journal/20260513T000000--wednesday__journal.org" existing)
-   ("/n/inbox.org" failed "not a source file")
+   ("/n/inbox.org" failed
+    "not a source file (outside org-iw-sources or excluded)")
    ("/n/journal/20260514T000000--thursday__journal.org"
-    added (save-failed . (file-error …))))
+    added (save-failed . (file-error …)) left-open)
+   ("/n/journal/20260515T000000--friday__journal.org" stopped))
   ```
 
 - **New state:** `org-iw-discovery--denote-tried`, a private boolean in
@@ -279,17 +316,19 @@ at `point-min` (research T2-3).
   document slot → `org-iw-discovery-document-slot-p`; drawer insertion
   and the document drawer-removal rule → write apply; file selection and
   canonical order → `org-iw-discovery-files`; ranks → core; the batch's
-  in-run identity set and buffer opening/killing → the batch fold
-  (DEC-026).
+  in-run identity set → the batch fold; buffer opening/killing and the
+  `left-open` mark → `org-iw--batch-outcome` (DEC-026); the document's
+  start → `org-iw-discovery-document-marker`.
 
 <!-- doctrine:section sec-05-4-dynamics -->
 ### 5.4 Lifecycle, Operations & Dynamics
 
 **Add / Add-document**
 
-1. Target: `org-iw--target-at-point` (Add) or `--require-source` +
-   `--document-marker` (Add-document). DOCUMENT is non-nil when the target is the widened
-   `point-min` and not a heading (Add), or always (Add-document).
+1. Target: `org-iw--target-at-point` (Add), which returns `(MARKER .
+   DOCUMENT)`, or `--require-source` + `org-iw-discovery-document-marker`
+   (Add-document). DOCUMENT is non-nil when point is before the first
+   heading (Add), or always (Add-document).
 2. Queue and label are validated before the scan (unchanged).
 3. One scan in the body; order; `org-iw--add-entry`; message as today
    (`Added to J at 3/3 (saved)` / `Already in J at 2/5`).
@@ -298,18 +337,17 @@ at `point-min` (research T2-3).
 
 1. Validate QUEUE. `sources` ← `(org-iw--files)` as a set (which applies
    `org-iw-exclude-regexp`). `files` ← `(org-iw-discovery-files FILES
-   nil)`: expanded, deduplicated, truename-sorted. Empty → "no Org files
-   selected", nothing else.
+   nil)`: expanded, deduplicated, truename-sorted. Empty → refuse "no
+   existing file selected", nothing else (RV-013).
 2. One scan; `order` ← QUEUE's order; `added-ids` ← empty set.
-3. For each FILE, then PROGRESS:
-   1. Not in `sources` → `(failed "not a source file (outside
-      org-iw-sources or excluded)")` (F-9).
+3. For each FILE, then ON-OUTCOME:
+   1. Not in `sources` → `(failed org-iw--not-source)` (F-9).
    2. `had` ← `find-buffer-visiting`; buffer ← `org-iw-discovery-buffer`.
    3. In the buffer: `org-iw-discovery-require-org-mode`; the
       document's identity, if any, is in `added-ids` →
       `(failed "same ID as a file added in this batch")` (F-5); else
-      `org-iw--add-entry scan order (org-iw--document-marker) queue 'end
-      t`.
+      `org-iw--add-entry scan order (org-iw-discovery-document-marker)
+      queue 'end t`.
    4. `(added DEPTH STATUS ENTRY)` → outcome `(added STATUS)`;
       `order` ← `(append order (list ENTRY))`; ENTRY's ID into
       `added-ids`. `(existing _)` → `(existing)`.
@@ -318,11 +356,15 @@ at `point-min` (research T2-3).
    6. If the buffer was opened here (`had` nil) and is unmodified (saved,
       or untouched after a refusal or an existing membership), kill it. A
       modified opened buffer (save failed, or an Org hook dirtied it)
-      stays open and its outcome says so (DEC-026).
+      stays open, on any outcome, which ends in `left-open` and counts
+      as unsaved (DEC-026; RV-013 F-2).
 4. Summary in the echo area, also after `C-g` or an unexpected error:
    `Added 70 to Journal, 3 already present, 1 failed, 0 unsaved (not
-   atomic; see *org-iw batch*)`. The report buffer is shown only when
-   something failed or is unsaved. The session is untouched.
+   atomic; see *org-iw batch*)`. After a quit or an error, the files
+   without an outcome are `(stopped)`, the summary adds `, stopped after
+   K of M files`, and the report lists them (RV-013 F-1). The report
+   buffer is shown only when something failed, is unsaved or stopped.
+   The session is untouched.
 
 Only the first of two selected copies sharing an identity is added; the
 second is refused, so the queue keeps one valid member (a non-member
@@ -331,8 +373,10 @@ copy is never scanned, so it causes no `duplicate-id`).
 **Remove a document's last membership**
 
 `org-iw-write-delete-rank` deletes the `IW_` line; Org deletes the
-emptied drawer; for a document that is accepted, so the file returns to
-its text before Add (undo restores it).
+drawer only if that empties it, which for a document is accepted (undo
+restores it). A Denote note thus returns to its text before Add; any
+other document keeps the `:ID:` Add gave it, and its drawer (RV-013
+F-10).
 
 Example over the user's journal: 74 files without drawers gain
 
@@ -364,13 +408,15 @@ Invariants:
   left modified.
 - **I6** One file's failure leaves the others' outcomes as they would be
   alone.
-- **I7** A document that leaves its last queue keeps no `IW_` drawer of
-  org-iw's making; a heading keeps its drawer.
+- **I7** A document that leaves its last queue keeps no `IW_` line; its
+  drawer is removed when that empties it (RV-013 F-10). A heading keeps
+  its drawer.
 
 Assumptions:
 
-- **A1** Denote's `denote-file-has-denoted-filename-p` and
-  `denote-retrieve-filename-identifier` keep their 4.x contracts.
+- **A1** Denote ≥ 4.1.0: `denote-file-has-denoted-filename-p` and
+  `denote-retrieve-filename-identifier` keep their contracts (RV-013
+  F-19).
 
 Edge cases:
 
@@ -482,11 +528,15 @@ document add.
 
 - `org-iw-discovery.el` — identity (`document-id`, `entry-id`,
   `--id-positions`, `id-count`, `shared-id-p`, tally), `document-slot-p`,
-  `--denote-identifier`.
+  `--denote-identifier`, `document-marker` and `--at-document-start`,
+  public `entry` over the one constructor `--entry`.
 - `org-iw-write.el` — `:document` key, drawer insertion, the document
-  drawer-removal rule in delete, commentary.
-- `org-iw.el` — `--require-source`, `--document-marker`, `--add-entry`, Add, Add-document,
-  Add-files, batch fold,
+  drawer-removal rule in delete, `--document-start-p` over the
+  discovery owner, commentary.
+- `org-iw.el` — `--not-source`, `--require-source`, `--target-at-point`
+  returning `(MARKER . DOCUMENT)`, `--add-entry`, `--add-at`, Add,
+  Add-document, Add-files, the batch fold with its ON-OUTCOME sink,
+  `--batch-outcome`, `--batch-outcome-text`, the outcome predicates,
   summary and report; delete `--heading-or-refuse`, fold
   `--check-heading` into `--add-entry`; callers of `entry-id` pass FILE.
 - `test/org-iw-discovery-test.el`, `test/org-iw-write-test.el`,

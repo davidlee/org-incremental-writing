@@ -21,3 +21,21 @@ launcher binds the denoteDir store path. jail.nix may mount only the
 `bin/` of `extraPkgs`, or their closure through PATH. A fix may be to
 export the Denote package's own directory (its closure is already
 mounted), or to bind the path explicitly with a jail option.
+
+## Diagnosis (2026-10-06, in-jail, no nix)
+
+The jail mounts **full closures**, not just `bin/`: 689 per-path store
+mounts. The roots are the launcher's runtime-closure list
+(`…-jailed-claude-runtime-closure`, 39 entries), and that list holds exactly
+the `PATH` entries: every `extraPkgs` member that has a `bin/` (`just`,
+`emacs-30`, `doctrine`, the wrapped Emacs, …). `denoteDir` has no `bin/`, so
+jail.nix never makes it a root and never mounts it. Adding it to
+`projectPkgs` (e14c071) was therefore a no-op. The Denote package is mounted
+only because it is in the wrapped Emacs closure, by coincidence.
+
+Proposed fix: add `denoteDir`'s closure through a jail combinator next to
+the `set-env` (e.g. `(add-pkg-deps [denoteDir])` in `orgIwJailOptions`;
+check the combinator name in the agents flake's jail.nix), and drop it from
+`projectPkgs`. That keeps the variable and its mount together, and SL-004
+PHASE-01 EX-1 (located from the derivation) still holds. Verify on the host:
+rebuild the jail, then `ls $ORG_IW_DENOTE_DIR/denote.el` inside it.
