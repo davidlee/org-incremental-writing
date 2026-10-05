@@ -87,12 +87,67 @@ Assumptions:
 - User scale is under 200 files (DEC-027), so two scans per
   redistribution are acceptable (IMP-002 and IMP-010 stay open).
 
+## Design inquiry leanings (2026-10-06, inquiring, run rev 9)
+
+Agent proposals, not yet put to the user. The user's "agreed" covered
+governance and the inquiry graph only. Verified the same session:
+`org-iw-discovery-scan` never visits a file (`org-iw-discovery.el:399-416`,
+`:452-458`). It reads a live buffer's text, else the disk. File checks
+work unvisited (`file-writable-p`); `buffer-read-only` and
+`verify-visited-file-modtime` only concern existing buffers
+(`org-iw-write.el:63-76`). So **the preview need not open any buffer**,
+which keeps "cancel changes nothing" literal (PRD-001 § 4). Only the
+apply opens buffers.
+
+- inq-1: refuse approval while an affected buffer is dirty. The preview
+  lists them. The user resolves with Emacs tools and retries; org-iw
+  never saves or reverts on their behalf.
+- inq-2: unwritable, read-only and changed-on-disk targets block
+  approval in the same way, and are listed.
+- inq-3: the apply opens buffers and kills them when clean, reusing the
+  DEC-026 rule extracted from `org-iw--batch-outcome`. The preview opens
+  none (above).
+- inq-4: Continue, Move and the view moves hand off. Labelled Add hands
+  off too (EVD-002: ~11 adds at one label exhaust it); the target is not
+  yet a member, so the plan places the new entry at DEPTH, or normalises
+  and then retries the add. Design to choose. Batch add stays a refusal:
+  the end limit needs ~8.8e12 appends.
+- inq-5: re-lay the valid members; the preview counts the excluded
+  (REQ-007: never rewritten).
+- inq-6: on approval, rebuild the preview data from a fresh scan and
+  compare it as plain data with what was shown. On a difference,
+  re-preview and re-ask. The per-entry `expected` compare-and-set stays
+  as the write-time guard.
+- inq-7: one of two forms.
+  - (A) synchronous: display a special-mode preview with file buttons,
+    then a y-or-n-p (or yes-or-no-p) prompt; browse after a cancel.
+    Recommended for simplicity: the pending operation needs no stored
+    continuation.
+  - (B) a buffer with approve and cancel keys and a stored continuation.
+  - The prompt recorder has no `yes-or-no-p` (research).
+- inq-8: on success, Continue's message includes the redistribution
+  summary, then the usual head visit. On cancel: "nothing changed", no
+  visit, session unchanged. On failure: the partition report, no visit
+  (REQ-020).
+- inq-9: `org-iw-normalise`, its queue read as for other commands
+  (session default). An empty changed set means "already normal", with
+  no preview.
+- inq-10: ranks k·1024, k = 1..N, over the target order; members
+  already at their rank are skipped (fewer files touched).
+- inq-11 (non-blocking): defer to the VH trial or close.
+
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: <yyyy-mm-dd> · <PHASE-NN | stage> · <head-commit>
+fresh-as-of: 2026-10-06 · design inquiring (run rev 9) · 12f6109+
 
 ### Produced
+- research round (b0fc4d9): research.md, raw/governance.md, raw/code-map.md; `governed_by` ADR-004 added
+- design run dr-01a10e37…: explore discharged; governance-confirmed + graph-reviewed (user "agreed."); stage inquiring; inq-1..inq-11 declared (12f6109)
 
 ### Learned
+- preview can be visit-free (§ Design inquiry leanings)
 
 ### Open
+- inq-1..inq-11 (leanings above); DEC-009 revisit (inq-11)
+- governance likely touched at reconcile: ADR-004 rule 5, REQ-019, PRD-001 OQ-2/OQ-3, DEC-012/013, SL-002 I10 (research.md § Design-input deltas)
+- related backlog: IDE-001, ISS-002, ISS-004, IMP-002, IMP-003, IMP-006, IMP-007, CHR-001..003
