@@ -146,3 +146,48 @@ fresh-as-of: 2026-10-05 · design locked → plan · f5bd251
 - PHASE-05 carries: the batch bypasses `--require-source` and must pass
   a `--document-marker`-style marker (type nil, base, widened) with
   DOCUMENT t; WHERE nil gives "at the end".
+
+## PHASE-05 (2026-10-05, execute)
+
+- Batch add in `org-iw.el` § Batch add: `org-iw-add-files (queue
+  files)` (autoloaded; Dired marks else one `read-file-name`), the fold
+  `org-iw--batch-add (scan queue files sources progress)`, the per-file
+  step `org-iw--batch-add-file` (non-source, Org mode, F-5 and the
+  `--add-entry` call; every "fail" is a refusal), the buffer rule
+  `org-iw--call-in-file-buffer (file fn)` (kill in the unwind form
+  unless pre-existing or modified), `--batch-summary`,
+  `--batch-report`, predicates `--batch-unsaved-p` / `--batch-trouble-p`.
+  Per file the fold catches only `org-iw-refusal` (`cadr`) and
+  `file-error` (`error-message-string`).
+- O1 ruled option E: PROGRESS gets `(FILE . OUTCOME)` after each file;
+  the command collects through it and summarises in its
+  `unwind-protect` cleanup. Adaptation of design § 5.2's "PROGRESS ...
+  (files done)" — reconcile.
+- Order: validate → selection → empty refuses → one `org-iw--files` →
+  `(org-iw-discovery-scan sources)` (not `org-iw--scan`, which walks
+  again). Order extended in memory with each added ENTRY; no rescan.
+- Report: canonical order, one line per failed/unsaved file (sheet A8
+  grouped them; simplified). Summary through `org-iw--report`.
+- Gotchas: `org-iw-discovery-files` keeps an explicitly named non-.org
+  file (only directories filter), so it fails as a non-source rather
+  than counting as "no Org files"; an uncaught `org-iw-refusal` prints
+  as `org-iw refused: "..."` (pre-existing; backlog candidate).
+- Tests 370 → 397 (+27, `;;;; Batch add` sections in
+  `test/org-iw-test.el`; helpers `--batch`, `--ranks`, `--counting`
+  (advice-add), `--diverting`, `--should-fail`, `--last-message`).
+  Gate green set and unset; test-each 397 all alone on emacs and
+  emacs-30, set and unset. Set: 0 skipped. Unset, emacs-30 skips 15:
+  PHASE-04's 13 + `batch-denote-notes-gain-no-id`,
+  `batch-second-denote-copy-fails`.
+- Mutation: 57 mutants, 55 killed, 2 equivalent (progress-reporter
+  done/update: display only). Five unplanned survivors closed by new or
+  tightened tests (M3, M37, M43, M44, M51). Table in the phase sheet.
+- Timing (T11, -Q, 74 Denote-named files, not committed): first batch
+  0.61 s Emacs 31.1 / 0.24 s Emacs 30.2; rerun (all existing) 0.08 /
+  0.10 s; walk+scan 5 ms; fold ≈ all (visiting + Org mode). 74 drawers,
+  ranks 1024…75776, no `:ID:`, no buffers left.
+- Carries: PHASE-06 README — Dired/prompt, canonical order, append only,
+  non-sources and excluded fail, not atomic, report buffer, opened
+  buffers closed unless modified. PHASE-07 — time under the user's Org
+  hooks; watch for prompts from `find-file-noselect` (file-local
+  variables are not bound off); progress display unverified in batch.

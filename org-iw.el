@@ -576,6 +576,184 @@ Return the message shown."
   (org-iw--require-source)
   (org-iw--add-at (org-iw--document-marker) t queue label))
 
+;;;; Batch add
+
+;; A batch's outcomes are a list of (FILE . OUTCOME), OUTCOME being
+;; (added STATUS), STATUS a result of `org-iw-write-put-rank';
+;; (existing); or (failed REASON), REASON a string.
+
+(defconst org-iw--batch-report-name "*org-iw batch*"
+  "The name of the buffer listing a batch's failed and unsaved files.")
+
+(defun org-iw--batch-unsaved-p (outcome)
+  "Return non-nil if OUTCOME is an added file left unsaved."
+  (pcase outcome
+    (`(added ,status) (not (eq status 'saved)))))
+
+(defun org-iw--batch-trouble-p (outcome)
+  "Return non-nil if OUTCOME is a failed file or an unsaved one."
+  (or (eq (car outcome) 'failed) (org-iw--batch-unsaved-p outcome)))
+
+(defun org-iw--batch-summary (queue outcomes)
+  "Return the summary of a batch's OUTCOMES in QUEUE, a canonical queue ID.
+It counts the added, existing, failed and unsaved files, the unsaved
+being added too, and names the report when any failed or are unsaved."
+  (let* ((outcomes (mapcar #'cdr outcomes))
+         (kinds (mapcar #'car outcomes))
+         (count (lambda (kind) (seq-count (apply-partially #'eq kind) kinds))))
+    (format "Added %d to %s, %d already present, %d failed, %d unsaved (%s)"
+            (funcall count 'added) (org-iw--queue-name queue)
+            (funcall count 'existing) (funcall count 'failed)
+            (seq-count #'org-iw--batch-unsaved-p outcomes)
+            (if (seq-some #'org-iw--batch-trouble-p outcomes)
+                (format "not atomic; see %s" org-iw--batch-report-name)
+              "not atomic"))))
+
+(defun org-iw--batch-report (queue outcomes)
+  "Show the failed and unsaved files of a batch's OUTCOMES in QUEUE.
+QUEUE is a canonical queue ID.  They are listed, one per line with
+the reason or save status, in a `special-mode' buffer, which is
+returned.  If there are none, return nil and make no buffer."
+  (when-let* ((trouble (seq-filter (lambda (outcome)
+                                     (org-iw--batch-trouble-p (cdr outcome)))
+                                   outcomes)))
+    (with-current-buffer (get-buffer-create org-iw--batch-report-name)
+      (special-mode)
+      (let ((inhibit-read-only t))
+        (erase-buffer)
+        (insert (format "Batch add to %s: files failed or not saved\n\n"
+                        (org-iw--queue-name queue)))
+        (pcase-dolist (`(,file . ,outcome) trouble)
+          (insert file ": "
+                  (pcase outcome
+                    (`(failed ,reason) reason)
+                    (`(added ,status) (org-iw--save-status status)))
+                  "\n")))
+      (display-buffer (current-buffer))
+      (current-buffer))))
+
+(defun org-iw--call-in-file-buffer (file fn)
+  "Call FN with no arguments in a buffer visiting FILE; return its value.
+FILE is visited if no buffer visits it.  However FN exits, a buffer
+visited here is killed afterwards, unless it is left modified."
+  (let* ((had (find-buffer-visiting file))
+         (buffer (org-iw-discovery-buffer file)))
+    (unwind-protect
+        (with-current-buffer buffer
+          (funcall fn))
+      (unless (or had (buffer-modified-p buffer))
+        (kill-buffer buffer)))))
+
+(defun org-iw--batch-add-file (scan order queue file sources added-ids)
+  "Add the document of FILE to the end of QUEUE, for a batch; or refuse.
+SCAN, ORDER and QUEUE are as for `org-iw--add-entry', whose result is
+returned.  SOURCES is a hash table of the source files, and ADDED-IDS
+one of the IDs the batch has added.  Refuse if FILE is not a source,
+not in Org mode, or has an ID in ADDED-IDS, or if the add step
+refuses."
+  (unless (gethash file sources)
+    (org-iw-core-refuse
+     "not a source file (outside org-iw-sources or excluded)"))
+  (org-iw--call-in-file-buffer
+   file
+   (lambda ()
+     (org-iw-discovery-require-org-mode file)
+     (when (gethash (org-iw-discovery-document-id file) added-ids)
+       (org-iw-core-refuse "same ID as a file added in this batch"))
+     (org-iw--add-entry scan order (org-iw--document-marker) queue 'end
+                        t))))
+
+(defun org-iw--batch-add (scan queue files sources progress)
+  "Add the documents of FILES to the end of QUEUE, one at a time.
+SCAN is a scan of SOURCES, the source files; QUEUE is a canonical
+queue ID; FILES are truenames in canonical order.  Each file is added
+after the last, so ranks increase in the order of FILES.  A refusal
+or file error fails that file only; any other error propagates.
+After each file, call PROGRESS with (FILE . OUTCOME).
+
+Return the outcomes, (FILE . OUTCOME) in the order of FILES, OUTCOME
+being (added STATUS), (existing) or (failed REASON)."
+  (let ((order (org-iw--order scan queue))
+        (source-set (make-hash-table :test #'equal))
+        (added-ids (make-hash-table :test #'equal))
+        (outcomes nil))
+    (dolist (source sources)
+      (puthash source t source-set))
+    (dolist (file files (nreverse outcomes))
+      (let ((outcome
+             (pcase (condition-case err
+                        (org-iw--batch-add-file scan order queue file
+                                                source-set added-ids)
+                      (org-iw-refusal (list 'failed (cadr err)))
+                      (file-error (list 'failed (error-message-string err))))
+               (`(added ,_ ,status ,entry)
+                (setq order (append order (list entry)))
+                (puthash (org-iw-entry-id entry) t added-ids)
+                (list 'added status))
+               (`(existing ,_) '(existing))
+               (failure failure))))
+        (push (cons file outcome) outcomes)
+        (funcall progress (car outcomes))))))
+
+(declare-function dired-get-marked-files "dired"
+                  (&optional localp arg filter distinguish-one-marked error))
+
+;;;###autoload
+(defun org-iw-add-files (queue files)
+  "Add the documents of FILES to the end of QUEUE.
+QUEUE is a queue ID in any case, read as for `org-iw-add'
+interactively.  FILES are files and directories, a directory standing
+for the Org files under it, chosen as for `org-iw-sources'.
+Interactively, FILES are the marked files in a Dired buffer, else one
+file or directory read from the user.
+
+The files are added in the order of their true names, each after the
+last of the queue, as `org-iw-add-document' would add them.  A file
+that is not a source file, or is excluded by `org-iw-exclude-regexp',
+fails, as does one Add-document would refuse, or a second file with
+the ID of one added before it; the rest are added all the same.  The
+batch is not atomic.  A file's buffer that the batch opened is killed
+once it is done with, unless it is left modified, as after a failed
+save.  The session is untouched.
+
+The summary counts the files added, already present, failed and
+unsaved.  Failed and unsaved files are listed in the *org-iw batch*
+buffer, shown only when there are any.  An error other than a refusal
+or a file error stops the batch, as does a quit; the summary of the
+files done is shown first.  Refuse, changing nothing, if QUEUE is not
+a valid ID or FILES hold no Org file.
+
+Return the summary."
+  (interactive
+   (list (org-iw--read-known-queue)
+         (if (derived-mode-p 'dired-mode)
+             (dired-get-marked-files)
+           (list (read-file-name "Add files or directory: " nil nil t)))))
+  (let* ((queue-id (org-iw--queue-id queue))
+         (files (or (org-iw-discovery-files files nil)
+                    (org-iw-core-refuse "no Org files selected")))
+         (sources (org-iw--files))
+         (scan (org-iw-discovery-scan sources))
+         (reporter (make-progress-reporter
+                    (format "Adding files to %s..."
+                            (org-iw--queue-name queue-id))
+                    0 (length files)))
+         (outcomes nil)
+         (summary nil))
+    (unwind-protect
+        (progn
+          (org-iw--batch-add scan queue-id files sources
+                             (lambda (outcome)
+                               (push outcome outcomes)
+                               (progress-reporter-update reporter
+                                                         (length outcomes))))
+          (progress-reporter-done reporter))
+      (setq outcomes (reverse outcomes))
+      (org-iw--batch-report queue-id outcomes)
+      (setq summary (org-iw--report scan "%s" (org-iw--batch-summary
+                                                queue-id outcomes))))
+    summary))
+
 ;;;; Visit
 
 (defun org-iw--visit (scan entry queue pos total &optional other-window)
