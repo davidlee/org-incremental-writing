@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 32
+slug = "redistribution-re-lays-valid-members-and-reports-excluded-ones"
+title = "Redistribution re-lays valid members and reports excluded ones"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-05"
+updated = "2026-10-05"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "REQ-007: entries with an invalid rank or a duplicate ID are never rewritten (SL-006 research X8)."
+choice = "Excluded members are left untouched; the valid members are re-laid; the preview reports the excluded count."
+alternatives = ["refuse redistribution while any member is excluded"]
+rationale = "Surface, don't repair; refusing would block any queue with one bad entry."
+consequences = ["Preview carries an excluded count"]
+decided_by = "user"
+decided_on = "2026-10-06"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-006"

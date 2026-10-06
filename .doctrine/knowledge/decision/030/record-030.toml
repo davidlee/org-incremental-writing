@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 30
+slug = "redistribution-refuses-approval-while-any-target-is-unwritable-read-only-or-changed-on-disk"
+title = "Redistribution refuses approval while any target is unwritable, read-only or changed on disk"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-05"
+updated = "2026-10-05"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "REQ-019 AC4/AC5 require unwritable targets to be reported before any write; org-entry-put silently ignores read-only buffers."
+choice = "The preview lists every unwritable file, read-only buffer and changed-on-disk buffer alongside the unsaved buffers (DEC-029). Approval is refused while any remains; the user resolves and re-previews."
+alternatives = ["write the writable subset and report the rest", "refuse at apply time only"]
+rationale = "Same mechanism and report as DEC-029; no partial redistribution that would leave the queue half re-laid."
+consequences = ["The shared write preflight becomes reason-returning (preview) and refusing (apply), one implementation (POL-002, research X2)", "The buffer-read-only check stays load-bearing"]
+decided_by = "user"
+decided_on = "2026-10-06"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-006"

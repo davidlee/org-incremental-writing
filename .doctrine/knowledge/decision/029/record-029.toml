@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 29
+slug = "redistribution-refuses-approval-while-an-affected-buffer-is-unsaved"
+title = "Redistribution refuses approval while an affected buffer is unsaved"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-05"
+updated = "2026-10-05"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "REQ-019 requires unsaved affected buffers to be resolved before redistribution; PRD-001 § 4 says a blocked or cancelled operation leaves every file and buffer unchanged and a modified buffer is never saved without explicit resolution (SL-006 research X5)."
+choice = "The redistribution preview lists every affected buffer that is modified. Approval is refused while any remains; the user resolves with ordinary Emacs tools (save or revert) and re-previews. org-iw never saves or reverts on the user's behalf, so the apply only ever meets clean buffers."
+alternatives = ["org-iw offers save/revert per buffer from the preview", "save all affected buffers on approval"]
+rationale = "The only reading where 'cancel changes nothing' and 'never save without explicit resolution' both hold literally; no authority sanctions org-iw saving on the user's behalf."
+consequences = ["The preview collects dirty-buffer reasons from the shared write preflight (no parallel check, POL-002)", "REQ-019 resolve semantics may be clarified at reconcile"]
+decided_by = "user"
+decided_on = "2026-10-06"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-006"

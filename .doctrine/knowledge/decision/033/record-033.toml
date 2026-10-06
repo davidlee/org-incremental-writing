@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 33
+slug = "redistribution-rechecks-on-approval-by-fresh-scan-compared-as-plain-data"
+title = "Redistribution rechecks on approval by fresh scan compared as plain data"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-05"
+updated = "2026-10-05"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "REQ-019 AC2 requires a stale plan to be re-previewed; DEC-027 is one scan per operation (SL-006 research X6)."
+choice = "On approval org-iw rescans and compares each member's (ID, file, rank) with what the preview showed; any difference re-previews and re-asks. The per-entry expected-value compare-and-set remains the write-time guard."
+alternatives = ["rely on write-time compare-and-set only", "file modtime comparison"]
+rationale = "Plain-data equality needs no new mechanism and catches order changes the per-entry guard would only meet mid-apply."
+consequences = ["Two scans per redistribution (acceptable under DEC-027 scale)"]
+decided_by = "user"
+decided_on = "2026-10-06"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-006"

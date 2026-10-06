@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 31
+slug = "redistribution-preview-opens-no-buffer-apply-kills-the-clean-buffers-it-opened"
+title = "Redistribution preview opens no buffer; apply kills the clean buffers it opened"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-05"
+updated = "2026-10-05"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "DEC-004 (single-entry: keep) and DEC-026 (batch: kill clean opened buffers) conflict for redistribution; PRD-001 OQ-2 open for it. org-iw-discovery-scan reads a live buffer's text else the disk and never visits a file (org-iw-discovery.el:399-416)."
+choice = "The preview opens no buffer, so cancel changes nothing literally. The apply opens what it needs and kills each buffer it opened that ends clean, reusing the DEC-026 rule extracted from org-iw--batch-outcome; pre-existing buffers are left as they were; an opened buffer left modified is kept and reported."
+alternatives = ["keep all opened buffers (DEC-004)", "kill every touched buffer"]
+rationale = "A redistribution may touch many files; DEC-026 anticipated SL-006 reusing its helper (POL-002: one open-write-kill owner)."
+consequences = ["Settles PRD-001 OQ-2 for redistribution (reconcile)", "Preview file checks use file-writable-p on unvisited files"]
+decided_by = "user"
+decided_on = "2026-10-06"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-006"

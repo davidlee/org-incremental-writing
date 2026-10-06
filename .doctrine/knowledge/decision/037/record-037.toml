@@ -1,0 +1,37 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 37
+slug = "redistribution-preview-is-a-special-mode-buffer-followed-by-y-or-n-p"
+title = "Redistribution preview is a special-mode buffer followed by y-or-n-p"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-05"
+updated = "2026-10-05"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "PRD-001 § 6: the preview shows counts, browsable affected files, the pending operation, unsaved and unwritable targets, non-atomicity and a strong recommendation to commit to Git first; the user resolves, then approves or cancels. DEC-029/DEC-030 make blocked previews unapprovable. DEC-028 set the special-mode report precedent."
+choice = "Synchronous: display a special-mode *org-iw redistribution* buffer with the § 6 content; each affected file is a button that visits it (the user's act, so the preview itself opens nothing, DEC-031). When blockers exist, no prompt: the buffer lists them and the message says to resolve and repeat. Otherwise y-or-n-p asks to approve; cancel leaves the buffer for browsing and changes nothing. The command completes or cancels within one call."
+alternatives = ["a dedicated preview mode with approve/cancel keys and a stored continuation (backlogged as IMP-011)", "reuse the queue view"]
+rationale = "Simplest form meeting PRD-001 § 6: no stored continuation or buffer-local state; reuses the DEC-028 report idiom and the y-or-n-p prompt recorder already used by Remove."
+consequences = ["After resolving blockers the user re-runs the triggering command", "IMP-011 records the keyed-mode alternative for the VH trial to weigh", "Preview content is built as plain data so tests assert it without reading the buffer (DEC-028 pattern)"]
+decided_by = "user"
+decided_on = "2026-10-06"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-006"
+
+[[relation]]
+label = "spawns"
+target = "IMP-011"

@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 38
+slug = "continue-reports-before-it-visits-redistribution-outcomes-set-navigation"
+title = "Continue reports before it visits; redistribution outcomes set navigation"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-05"
+updated = "2026-10-05"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "org-iw--continue-place writes, visits the head, then reports, so a refused head visit hides the write's save status (ISS-002). After a multi-file redistribution that would hide the REQ-020 report. PRD-001 § 6 and REQ-020 fix navigation per outcome."
+choice = "Every Continue (place and remove, ordinary or after a redistribution handoff) builds its write report first, then visits the head; a refused visit appends its reason to the report instead of replacing it. After a handoff: cancelled or blocked → message, no visit, session unchanged; write failure → REQ-020 partition report (DEC-028 buffer), no visit, session stays on the entry; success → move text plus redistribution summary, then the head visit from a fresh scan (rank text length changes invalidate the prior scan's positions)."
+alternatives = ["report-first on the redistribution path only, leaving ISS-002 open", "keep visit-then-report everywhere"]
+rationale = "One Continue reporting path (POL-002); the fix sits in the function this slice already changes; a multi-file write report must never be swallowed."
+consequences = ["SL-006 scope grows to resolve ISS-002", "--move returns a distinguishable no-gap/handoff result instead of signalling (research X7)", "Post-redistribution head visit rescans"]
+decided_by = "user"
+decided_on = "2026-10-06"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-006"

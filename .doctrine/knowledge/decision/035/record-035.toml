@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 35
+slug = "redistribution-ranks-are-k1024-from-k1-members-already-at-target-are-skipped"
+title = "Redistribution ranks are k*1024 from k=1; members already at target are skipped"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-05"
+updated = "2026-10-05"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "ADR-004 rules 2 and 5 fix the spacing; the sequence start and whether to rewrite unchanged members were open."
+choice = "The plan assigns k*1024, k = 1..N, over the target order and returns only members whose rank changes."
+alternatives = ["start at 0", "rewrite every member"]
+rationale = "Fewer files touched, fewer failure points; literals pinned in tests (STD-001 item 4)."
+consequences = ["ADR-004 rule 5 wording may be tightened at reconcile"]
+decided_by = "user"
+decided_on = "2026-10-06"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-006"

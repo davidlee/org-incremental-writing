@@ -87,67 +87,52 @@ Assumptions:
 - User scale is under 200 files (DEC-027), so two scans per
   redistribution are acceptable (IMP-002 and IMP-010 stay open).
 
-## Design inquiry leanings (2026-10-06, inquiring, run rev 9)
+## Design inquiry outcomes (2026-10-06, run rev 18 → drafting)
 
-Agent proposals, not yet put to the user. The user's "agreed" covered
-governance and the inquiry graph only. Verified the same session:
-`org-iw-discovery-scan` never visits a file (`org-iw-discovery.el:399-416`,
-`:452-458`). It reads a live buffer's text, else the disk. File checks
-work unvisited (`file-writable-p`); `buffer-read-only` and
-`verify-visited-file-modtime` only concern existing buffers
-(`org-iw-write.el:63-76`). So **the preview need not open any buffer**,
-which keeps "cancel changes nothing" literal (PRD-001 § 4). Only the
-apply opens buffers.
+The leanings recorded at rev 9 went to the user. Each became an accepted
+DEC that shapes SL-006 (`doctrine design tree SL-006`):
 
-- inq-1: refuse approval while an affected buffer is dirty. The preview
-  lists them. The user resolves with Emacs tools and retries; org-iw
-  never saves or reverts on their behalf.
-- inq-2: unwritable, read-only and changed-on-disk targets block
-  approval in the same way, and are listed.
-- inq-3: the apply opens buffers and kills them when clean, reusing the
-  DEC-026 rule extracted from `org-iw--batch-outcome`. The preview opens
-  none (above).
-- inq-4: Continue, Move and the view moves hand off. Labelled Add hands
-  off too (EVD-002: ~11 adds at one label exhaust it); the target is not
-  yet a member, so the plan places the new entry at DEPTH, or normalises
-  and then retries the add. Design to choose. Batch add stays a refusal:
-  the end limit needs ~8.8e12 appends.
-- inq-5: re-lay the valid members; the preview counts the excluded
-  (REQ-007: never rewritten).
-- inq-6: on approval, rebuild the preview data from a fresh scan and
-  compare it as plain data with what was shown. On a difference,
-  re-preview and re-ask. The per-entry `expected` compare-and-set stays
-  as the write-time guard.
-- inq-7: one of two forms.
-  - (A) synchronous: display a special-mode preview with file buttons,
-    then a y-or-n-p (or yes-or-no-p) prompt; browse after a cancel.
-    Recommended for simplicity: the pending operation needs no stored
-    continuation.
-  - (B) a buffer with approve and cancel keys and a stored continuation.
-  - The prompt recorder has no `yes-or-no-p` (research).
-- inq-8: on success, Continue's message includes the redistribution
-  summary, then the usual head visit. On cancel: "nothing changed", no
-  visit, session unchanged. On failure: the partition report, no visit
-  (REQ-020).
-- inq-9: `org-iw-normalise`, its queue read as for other commands
-  (session default). An empty changed set means "already normal", with
-  no preview.
-- inq-10: ranks k·1024, k = 1..N, over the target order; members
-  already at their rank are skipped (fewer files touched).
-- inq-11 (non-blocking): defer to the VH trial or close.
+- inq-1 → DEC-029: unsaved affected buffers block approval; the user
+  resolves.
+- inq-2 → DEC-030: unwritable, read-only and changed-on-disk targets
+  block approval.
+- inq-3 → DEC-031: the preview opens no buffer; the apply kills the clean
+  buffers it opened.
+- inq-4 → DEC-036: Move, Continue, the view moves and labelled Add hand
+  off; the add sits inside the plan; batch add keeps its refusal. (User
+  chose B over A and C.)
+- inq-5 → DEC-032: re-lay the valid members; report the excluded.
+- inq-6 → DEC-033: on approval, rescan and compare as plain data.
+- inq-7 → DEC-037: special-mode preview, then `y-or-n-p`. The keyed mode
+  is backlogged as IMP-011 (user).
+- inq-8 → DEC-038: Continue reports before it visits; this resolves
+  ISS-002 in SL-006 (scope grew, user "A."). The post-redistribution head
+  visit rescans.
+- inq-9 → DEC-034: normalise reads its queue like other commands; an
+  already-normal queue is a no-op.
+- inq-10 → DEC-035: k·1024. Spacing reviewed and kept at 1024 (user);
+  see the DEC-035 body.
+- inq-11 deferred to the VH trial or close.
+
+Scope prose was updated to match (inquire.scope). Sufficiency was
+accepted (user "accepted"). Next: draft the sections, then record the
+`draft.selectors` design-target selectors, `drafting-ready`, and
+materialise.
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
-fresh-as-of: 2026-10-06 · design inquiring (run rev 9) · 12f6109+
+fresh-as-of: 2026-10-06 · design drafting (run rev 18)
 
 ### Produced
 - research round (b0fc4d9): research.md, raw/governance.md, raw/code-map.md; `governed_by` ADR-004 added
-- design run dr-01a10e37…: explore discharged; governance-confirmed + graph-reviewed (user "agreed."); stage inquiring; inq-1..inq-11 declared (12f6109)
+- design run dr-01a10e37…: explore discharged; governance-confirmed + graph-reviewed (user "agreed."); inq-1..inq-11 declared (12f6109)
+- inquiry settled: DEC-029..DEC-038; IMP-011; SL-006 related ISS-002; scope updated; sufficiency-accepted; stage drafting
 
 ### Learned
-- preview can be visit-free (§ Design inquiry leanings)
+- preview can be visit-free (DEC-031 context)
 
 ### Open
-- inq-1..inq-11 (leanings above); DEC-009 revisit (inq-11)
+- inq-11 deferred (DEC-009 revisit, VH trial); IMP-011 (keyed preview mode)
 - governance likely touched at reconcile: ADR-004 rule 5, REQ-019, PRD-001 OQ-2/OQ-3, DEC-012/013, SL-002 I10 (research.md § Design-input deltas)
-- related backlog: IDE-001, ISS-002, ISS-004, IMP-002, IMP-003, IMP-006, IMP-007, CHR-001..003
+- ISS-002 now in SL-006 scope (DEC-038)
+- related backlog: IDE-001, ISS-004, IMP-002, IMP-003, IMP-006, IMP-007, CHR-001..003

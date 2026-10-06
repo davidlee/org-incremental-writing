@@ -1,0 +1,33 @@
+schema = "doctrine.knowledge"
+version = 1
+
+id = 36
+slug = "no-gap-hands-off-to-redistribution-from-move-continue-view-moves-and-labelled-add"
+title = "No-gap hands off to redistribution from Move, Continue, view moves and labelled Add"
+record_kind = "decision"
+status = "accepted"
+created = "2026-10-05"
+updated = "2026-10-05"
+tags = []
+
+[facet]                         # every field typed; seeded empty (captured later)
+context = "Every no-gap refusal funnels through org-iw--move (Move, Continue, view moves) and org-iw--add-entry (labelled Add, batch add) (SL-006 research X3). SL-006 scope names blocked moves and Continue; labelled Add exhausts a gap after ~10 same-label adds, as EVD-002 showed for Continue. ADR-004 rule 5: redistribution re-lays every member including the pending placement."
+choice = "The no-gap branches of org-iw--move and org-iw--add-entry hand off to the redistribution preview instead of refusing, for Move, Continue, the view moves and labelled Add. For Add the target order includes the not-yet-member at its placement, so one preview and one approval cover the add; the grouped apply carries per-entry write options (expected :absent, ensure-id, document) as put-rank does. Batch add keeps the refusal: it only appends at End, whose limit needs ~8.8e12 appends."
+alternatives = ["hand off from the named surfaces only; labelled Add refuses and points at org-iw-normalise", "labelled Add normalises existing members, then retries the ordinary add after approval"]
+rationale = "Literal reading of ADR-004 rule 5 (pending placement inside the plan); one approval for the user; the extra cost sits in the write layer this slice already generalises."
+consequences = ["The grouped apply accepts per-entry expected/ensure-id/document options, reusing put-rank's semantics (no parallel write path, POL-002)", "The redistribution plan's input order may contain an entry with no rank in the queue", "Under the fallback split, all handoffs incl. labelled Add move together into part (b)"]
+decided_by = "user"
+decided_on = "2026-10-06"
+
+[evidence]                      # free-text citations (supports / contradicts / notes)
+supports    = []
+contradicts = []
+notes       = []
+
+[relationships]                 # verb-written edges (set by doctrine supersede)
+supersedes    = []   # record ids this one replaces (set by doctrine supersede)
+superseded_by = []   # set on superseded predecessor (verb-written)
+
+[[relation]]
+label = "shapes"
+target = "SL-006"
