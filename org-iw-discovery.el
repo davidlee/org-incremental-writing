@@ -266,7 +266,7 @@ other invalid name are an `invalid-property'; a bad rank is an
       (cons (nreverse memberships)
             (append (nreverse invalid) (nreverse problems))))))
 
-(defun org-iw-discovery--title (file)
+(defun org-iw-discovery-entry-title (file)
   "Return the title of the entry at point in FILE.
 A heading's title is its text; the document's is its #+title, else
 the base name of FILE."
@@ -311,7 +311,7 @@ MEMBERSHIPS is the alist of `org-iw-discovery--classify-lines'; nil
 gives nil.  This is the one constructor of scanned entries."
   (and memberships
        (org-iw-entry-create
-        :id id :title (org-iw-discovery--title file)
+        :id id :title (org-iw-discovery-entry-title file)
         :file file :memberships memberships
         :outline (mapcar #'string-clean-whitespace (org-get-outline-path)))))
 

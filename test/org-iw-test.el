@@ -64,6 +64,12 @@ Return the result."
   (org-iw-cmd-test--call-at (org-iw-test-marker name title)
                             #'org-iw-add queue label))
 
+(defun org-iw-cmd-test--add-h (&optional label)
+  "Add H, in a.org, to ESSAYS at LABEL with `org-iw-add'; return the message.
+Point is at H.  Prompts are left to the caller."
+  (org-iw-cmd-test--at (org-iw-test-marker "a.org" "H") #'org-iw-add
+                       "ESSAYS" label))
+
 (defvar org-iw-cmd-test--prompts nil
   "The `completing-read' calls seen by `org-iw-cmd-test--with-prompt'.")
 
@@ -602,6 +608,30 @@ the document."
       (should (equal (org-iw-entry-outline nested) '("New")))
       (should (equal (org-iw-entry-title document) "a")))))
 
+(ert-deftest org-iw-cmd-test-add-entry-no-gap ()
+  "At no gap the add step writes nothing and returns the joining token.
+The token holds the entry's marker, document flag, ID (nil without
+one), file, title and placement."
+  (org-iw-test-with-corpus
+      `(("a.org" . ,(concat (org-iw-test-heading
+                             "Last" "l1" ":IW_ESSAYS: 9007199254740991")
+                            (org-iw-test-org "* H"))))
+    (org-iw-cmd-test--open-all)
+    (let ((marker (org-iw-test-marker "a.org" "H")))
+      (pcase-let ((`(,kind ,depth ,joining)
+                   (org-iw-cmd-test--should-write-nothing
+                    (lambda () (org-iw-cmd-test--add-entry marker nil)))))
+        (should (eq kind 'no-gap))
+        (should (eql depth 1))
+        (should (org-iw--joining-p joining))
+        (should (eq (org-iw--joining-marker joining) marker))
+        (should-not (org-iw--joining-document joining))
+        (should-not (org-iw--joining-id joining))
+        (should (equal (org-iw--joining-file joining)
+                       (org-iw-test-path "a.org")))
+        (should (equal (org-iw--joining-title joining) "H"))
+        (should (eq (org-iw--joining-placement joining) 'end))))))
+
 (ert-deftest org-iw-cmd-test-add-entry-existing ()
   "The add step finds a member at its 1-based position; nothing changes."
   (org-iw-test-with-corpus (org-iw-cmd-test--queue-of-three ":IW_ESSAYS: 2048")
@@ -617,6 +647,38 @@ the document."
   `(("a.org" . ,(concat (org-iw-test-heading "A" "a1" ":IW_ESSAYS: 1024")
                         (org-iw-test-heading "Target" "t1" target-line)))
     ("c.org" . ,(org-iw-test-heading "C" "c1" ":IW_ESSAYS: 3072"))))
+
+(ert-deftest org-iw-cmd-test-check-joinable ()
+  "The joinability check reads the entry at its marker, wherever called.
+A member gives its 0-based index in the order and an entry that may
+join gives nil, document or heading; an excluded IW_ line or a shared
+ID refuses.  Nothing changes."
+  (org-iw-test-with-corpus
+      `(,@(org-iw-cmd-test--queue-of-three ":IW_ESSAYS: 2048")
+        ("d.org" . ,(concat (org-iw-test-heading "Plain" "p1")
+                            (org-iw-test-heading "Bad" "x1" ":IW_ESSAYS: soon")
+                            (org-iw-test-heading "Twin" "w1")
+                            (org-iw-test-heading "Twin2" "w1"))))
+    (org-iw-cmd-test--open-all)
+    (let* ((scan (org-iw--scan))
+           (order (org-iw--order scan "ESSAYS"))
+           (check (lambda (name title)
+                    (let ((marker (org-iw-test-marker name title)))
+                      (with-temp-buffer
+                        (org-iw--check-joinable scan order "ESSAYS" marker
+                                                (null title)))))))
+      (org-iw-cmd-test--should-write-nothing
+       (lambda ()
+         (should (equal (funcall check "a.org" "Target") 1))
+         (should (equal (funcall check "c.org" "C") 2))
+         (should-not (funcall check "d.org" "Plain"))
+         (should-not (funcall check "d.org" nil))
+         (should (equal (org-iw-cmd-test--refusal
+                         (lambda () (funcall check "d.org" "Bad")))
+                        "entry at point is excluded (invalid-rank)"))
+         (should (equal (org-iw-cmd-test--refusal
+                         (lambda () (funcall check "d.org" "Twin")))
+                        "ID shared with another entry")))))))
 
 (defun org-iw-cmd-test--should-be-no-op (target-line)
   "Assert Add of a member by TARGET-LINE reports it and changes nothing."
@@ -743,11 +805,15 @@ Nothing changes and no Org parsing runs, so no warnings appear."
                               "H")))
 
 (ert-deftest org-iw-cmd-test-add-refuses-at-rank-limit ()
-  "Add refuses when the last rank leaves no room below the limit."
-  (org-iw-cmd-test--refuses
-   (concat (org-iw-test-heading "Last" "l1" ":IW_ESSAYS: 9007199254740991")
-           (org-iw-test-heading "H" "h1"))
-   "ESSAYS" (org-iw-cmd-test--no-room "at the end") "H"))
+  "Add at the rank limit offers to redistribute; answered no, it refuses.
+Nothing changes; the preview names the add at the end."
+  (org-iw-test-with-corpus
+      `(("a.org" . ,(concat (org-iw-test-heading "Last" "l1"
+                                                 ":IW_ESSAYS: 9007199254740991")
+                            (org-iw-test-heading "H" "h1"))))
+    (org-iw-cmd-test--open-all)
+    (org-iw-cmd-test--should-cancel-handoff "add H at the end"
+                                            #'org-iw-cmd-test--add-h)))
 
 (ert-deftest org-iw-cmd-test-add-refusal-order ()
   "When two refusals apply, the earlier in the design's order wins."
@@ -1010,14 +1076,19 @@ identifiers."
                                     #'org-iw-add-document)))
 
 (ert-deftest org-iw-cmd-test-add-document-refuses-at-rank-limit ()
-  "Add-document refuses when the last rank leaves no room below the limit."
+  "Add-document at the rank limit offers to redistribute; no refuses.
+Nothing changes; the preview names the document, by its file, at the
+end."
   (org-iw-test-with-corpus
       `(("a.org" . ,org-iw-cmd-test--intro)
         ("b.org" . ,(org-iw-test-heading "Last" "l1"
                                          ":IW_ESSAYS: 9007199254740991")))
-    (org-iw-cmd-test--should-refuse (org-iw-test-marker "a.org" nil) "ESSAYS"
-                                    (org-iw-cmd-test--no-room "at the end")
-                                    #'org-iw-add-document)))
+    (org-iw-cmd-test--open-all)
+    (org-iw-cmd-test--should-cancel-handoff
+     "add a at the end"
+     (lambda ()
+       (org-iw-cmd-test--at (org-iw-test-marker "a.org" nil)
+                            #'org-iw-add-document "ESSAYS")))))
 
 ;;;; Batch add: helpers
 
@@ -1432,14 +1503,17 @@ The file's writability is stubbed, so the test holds as root too."
                                      '("a.org" "b.org" "sub"))))))
 
 (ert-deftest org-iw-cmd-test-batch-no-room-fails-rest ()
-  "At the rank limit, the first file takes the last rank; the rest fail."
+  "At the rank limit, the first file takes the last rank; the rest fail.
+They fail with the no-room refusal: batch add never offers to
+redistribute, so nothing prompts (DEC-036)."
   (org-iw-test-with-corpus (org-iw-cmd-test--batch-files
                             `("m.org" . ,(org-iw-test-heading
                                           "M" "m1"
                                           ":IW_ESSAYS: 9007199254739967")))
-    (org-iw-cmd-test--should-fail '("b.org" "sub/c.org")
-                                  (org-iw-cmd-test--no-room "at the end")
-                                  '("a.org" "b.org" "sub"))
+    (org-iw-cmd-test--with-prompt nil
+      (org-iw-cmd-test--should-fail '("b.org" "sub/c.org")
+                                    (org-iw-cmd-test--no-room "at the end")
+                                    '("a.org" "b.org" "sub")))
     (should (equal (cdr (assoc "a.org" (org-iw-cmd-test--ranks "ESSAYS")))
                    9007199254740991))))
 
@@ -2382,20 +2456,17 @@ queue, which defaults to the queue's default."
                      "queue ESSAYS has no placement \"Nope\"")))))
 
 (ert-deftest org-iw-cmd-test-add-refuses-without-gap ()
-  "Add at a label between neighbours ranked 5 and 6 refuses."
+  "Add at a label between neighbours ranked 5 and 6 offers to redistribute.
+Answered no, it refuses, changing nothing; the preview names the add
+at the label."
   (org-iw-test-with-corpus
       `(("a.org" . ,(concat (org-iw-test-heading "B" "b1" ":IW_ESSAYS: 5")
                             (org-iw-test-heading "C" "c1" ":IW_ESSAYS: 6")
                             (org-iw-test-heading "H" "h1"))))
     (let ((org-iw-queues '(("essays" :placements (("Second" (after 1)))))))
       (org-iw-cmd-test--open-all)
-      (should (equal (cadr (org-iw-cmd-test--should-write-nothing
-                            (lambda ()
-                              (should-error
-                               (org-iw-cmd-test--add "a.org" "H" "ESSAYS"
-                                                     "Second")
-                               :type 'org-iw-refusal))))
-                     (org-iw-cmd-test--no-room "at Second"))))))
+      (org-iw-cmd-test--should-cancel-handoff
+       "add H at Second" (lambda () (org-iw-cmd-test--add-h "Second"))))))
 
 ;;;; Visit next (EX-2, VT-1, I1)
 
@@ -4793,6 +4864,69 @@ Nothing is visited."
         (should (equal (org-iw--redistribution-files record)
                        `((,a 2 modified))))))))
 
+(defconst org-iw-cmd-test--uneven-and-h
+  `(("a.org" . ,(concat (alist-get "a.org" org-iw-cmd-test--uneven
+                                   nil nil #'equal)
+                        "* H\n"))
+    ,@(cdr org-iw-cmd-test--uneven))
+  "`org-iw-cmd-test--uneven' with a heading H, no drawer, ending a.org.")
+
+(defun org-iw-cmd-test--change-ids (changes)
+  "Return CHANGES as (ID . RANK), ID `joining' for the joining token."
+  (mapcar (pcase-lambda (`(,element . ,rank))
+            (cons (if (org-iw--joining-p element)
+                      'joining
+                    (org-iw-entry-id element))
+                  rank))
+          changes))
+
+(defun org-iw-cmd-test--new-id (text)
+  "Return TEXT with each generated ID, a UUID, made NEW."
+  (replace-regexp-in-string "^:ID: +[[:xdigit:]-]\\{36\\}$" ":ID: NEW" text))
+
+(ert-deftest org-iw-cmd-test-redistribution-includes-joining ()
+  "A joining token is planned, previewed and written with the members.
+H, in a.org, joins at depth 2 through an indirect buffer.  Its file
+counts it, and has its problems read through the token's buffer, so
+that buffer being read-only blocks.  The file's one grouped write,
+through the base buffer, gives H an ID and its rank and re-lays B
+and C; every other line is untouched."
+  (org-iw-test-with-corpus org-iw-cmd-test--uneven-and-h
+    (let ((a (org-iw-test-path "a.org"))
+          (b (org-iw-test-path "b.org")))
+      (org-iw-test-call-with-indirect
+       (org-iw-test-marker "a.org" "H")
+       (lambda (marker)
+         (let* ((joining (org-iw--joining-at marker nil 'end))
+                (intend (lambda (scan)
+                          (org-iw-core-reorder
+                           (append (org-iw--order scan "ESSAYS")
+                                   (list joining))
+                           joining 2)))
+                (scan (org-iw--scan))
+                (record (org-iw--redistribution-build scan "ESSAYS" intend
+                                                      "add H at Third")))
+           (should (equal (org-iw-cmd-test--change-ids
+                           (org-iw--redistribution-changes record))
+                          '(("b1" . 2048) (joining . 3072) ("c1" . 4096)
+                            ("d1" . 5120))))
+           (should (equal (org-iw--redistribution-files record)
+                          `((,a 3) (,b 1))))
+           (setq buffer-read-only t)
+           (should (equal (org-iw--redistribution-files
+                           (org-iw--redistribution-build scan "ESSAYS" intend
+                                                         nil))
+                          `((,a 3 read-only) (,b 1))))
+           (setq buffer-read-only nil)
+           (with-current-buffer (org-iw-test-visit "a.org")
+             (should (equal (org-iw--redistribution-write scan record a)
+                            '(written saved 3)))))))
+      (should (equal (org-iw-cmd-test--new-id (org-iw-test-file-string "a.org"))
+                     (concat (org-iw-test-heading "B" "b1" ":IW_ESSAYS: 2048")
+                             (org-iw-test-heading "C" "c1" ":IW_ESSAYS: 4096")
+                             (org-iw-test-heading "H" "NEW"
+                                                  ":IW_ESSAYS: 3072")))))))
+
 ;;;; Redistribution: the preview
 
 (defun org-iw-cmd-test--preview-buttons ()
@@ -5608,6 +5742,196 @@ mark."
                        "C is no longer in queue ESSAYS")))
       (should (equal (org-iw-test-state) edited))
       (should (equal (org-iw-cmd-test--view-tags view) '(("d1" . ">")))))))
+
+;;;; Redistribution: the Add handoff
+
+(defconst org-iw-cmd-test--h-joined-text
+  (concat (org-iw-test-heading "B" "b1" ":IW_ESSAYS: 2048")
+          (org-iw-test-heading "C" "c1" ":IW_ESSAYS: 4096")
+          (org-iw-test-heading "H" "NEW" ":IW_ESSAYS: 3072"))
+  "The text of a.org in `org-iw-cmd-test--uneven-and-h' once H joins Third.
+Its new ID reads NEW; see `org-iw-cmd-test--new-id'.")
+
+(defconst org-iw-cmd-test--third-relaid
+  '(("c.org" . 1024) ("a.org" . 2048) ("a.org" . 3072) ("a.org" . 4096)
+    ("b.org" . 5120))
+  "ESSAYS's ranks once an entry of a.org joins it Third, re-laid.")
+
+(defconst org-iw-cmd-test--joined-third
+  (concat "Added to ESSAYS at Third, 3/5; redistributed 4 entries in 2"
+          " files, saved [1 source problems ignored]")
+  "The message of an approved Add at Third in `org-iw-cmd-test--uneven'.")
+
+(defun org-iw-cmd-test--should-have-joined-third (a-text)
+  "Assert an entry of a.org joined ESSAYS Third, a.org reading A-TEXT.
+Every rank is re-laid; generated IDs in a.org read NEW.  b.org holds D
+alone, its rank changed, and no buffer is left modified."
+  (should (equal (org-iw-cmd-test--ranks "ESSAYS")
+                 org-iw-cmd-test--third-relaid))
+  (should (equal (org-iw-cmd-test--new-id (org-iw-test-file-string "a.org"))
+                 a-text))
+  (should (equal (org-iw-test-file-string "b.org")
+                 (org-iw-test-heading "D" "d1" ":IW_ESSAYS: 5120")))
+  (should-not (cl-some #'buffer-modified-p
+                       (delq nil (mapcar #'org-iw-cmd-test--visited
+                                         '("a.org" "b.org" "c.org"))))))
+
+(ert-deftest org-iw-cmd-test-add-handoff-joins ()
+  "A labelled Add at no gap re-lays the queue with the entry in its slot.
+H, with no ID, goes Third, between B and C at 1536 and 1537.  One
+approval: H gains an ID and its rank, the members are re-laid, and
+only their IW_ lines and H's drawer change.  Add-document does the
+same for a.org's document, which has no drawer and starts with a
+heading: its drawer goes in at the top, in the same group as B's and
+C's ranks."
+  (pcase-dolist (`(,add ,a-text)
+                 `((,(lambda () (org-iw-cmd-test--add-h "Third"))
+                    ,org-iw-cmd-test--h-joined-text)
+                   (,(lambda ()
+                       (org-iw-cmd-test--at (org-iw-test-marker "a.org" "C")
+                                            #'org-iw-add-document
+                                            "ESSAYS" "Third"))
+                    ,(concat (org-iw-test-org ":PROPERTIES:" ":ID: NEW"
+                                              ":IW_ESSAYS: 3072" ":END:")
+                             (org-iw-test-heading "B" "b1" ":IW_ESSAYS: 2048")
+                             (org-iw-test-heading "C" "c1" ":IW_ESSAYS: 4096")
+                             "* H\n"))))
+    (org-iw-test-with-corpus org-iw-cmd-test--uneven-and-h
+      (let ((org-iw-queues org-iw-cmd-test--uneven-placements))
+        (org-iw-cmd-test--with-prompt :yes
+          (should (equal (funcall add) org-iw-cmd-test--joined-third))
+          (should (equal (org-iw-cmd-test--prompted :prompt)
+                         '("Redistribute 4 entries in 2 files of ESSAYS? "))))
+        (org-iw-cmd-test--should-have-joined-third a-text)))))
+
+(defconst org-iw-cmd-test--at-limit
+  `(("a.org" . ,(concat (org-iw-test-heading "Last" "l1"
+                                             ":IW_ESSAYS: 9007199254740991")
+                        "* H\n")))
+  "ESSAYS's one member, Last, at the rank limit, and H, with no drawer.")
+
+(ert-deftest org-iw-cmd-test-add-handoff-unlabelled-end ()
+  "An unlabelled Add at the rank limit offers the end, then re-lays.
+Answered no, it refuses as cancelled, changing nothing, the preview
+naming the add at the end; answered yes, Last and H, which gains an
+ID, are re-laid with H last."
+  (org-iw-test-with-corpus org-iw-cmd-test--at-limit
+    (org-iw-cmd-test--open-all)
+    (org-iw-cmd-test--should-cancel-handoff "add H at the end"
+                                            #'org-iw-cmd-test--add-h)
+    (org-iw-cmd-test--with-prompt :yes
+      (should (equal (org-iw-cmd-test--add-h)
+                     (concat "Added to ESSAYS at 2/2; redistributed 2"
+                             " entries in 1 files, saved"))))
+    (should (equal (org-iw-cmd-test--new-id (org-iw-test-file-string "a.org"))
+                   (concat (org-iw-test-heading "Last" "l1" ":IW_ESSAYS: 1024")
+                           (org-iw-test-heading "H" "NEW"
+                                                ":IW_ESSAYS: 2048"))))))
+
+(ert-deftest org-iw-cmd-test-add-handoff-indirect ()
+  "An Add handoff from an indirect buffer writes through the base buffer.
+H joins Third with B and C, in the same file, re-laid in one group,
+with no error.  The same indirect buffer read-only blocks the run
+before any prompt, changing nothing."
+  (org-iw-test-with-corpus org-iw-cmd-test--uneven-and-h
+    (let ((org-iw-queues org-iw-cmd-test--uneven-placements))
+      (org-iw-test-call-with-indirect
+       (org-iw-test-marker "a.org" "H")
+       (lambda (marker)
+         (org-iw-cmd-test--with-prompt :yes
+           (should (equal (org-iw-cmd-test--at marker #'org-iw-add
+                                               "ESSAYS" "Third")
+                          org-iw-cmd-test--joined-third)))))
+      (org-iw-cmd-test--should-have-joined-third
+       org-iw-cmd-test--h-joined-text)))
+  (org-iw-test-with-corpus org-iw-cmd-test--uneven-and-h
+    (let ((org-iw-queues org-iw-cmd-test--uneven-placements))
+      (org-iw-test-call-with-indirect
+       (org-iw-test-marker "a.org" "H")
+       (lambda (marker)
+         (setq buffer-read-only t)
+         (org-iw-cmd-test--with-prompt nil
+           (org-iw-cmd-test--refuses-cleanly
+            org-iw-cmd-test--block-text
+            (lambda ()
+              (org-iw-cmd-test--at marker #'org-iw-add "ESSAYS" "Third"))))
+         (should (string-search
+                  (format "Blocking:\n%s: buffer is read-only\n"
+                          (org-iw-test-path "a.org"))
+                  (org-iw-cmd-test--preview-text))))))))
+
+(ert-deftest org-iw-cmd-test-add-handoff-narrowed ()
+  "An Add handoff from a buffer narrowed to the heading keeps the narrowing.
+H joins Third with B and C, in the same file, re-laid in one group,
+with no error.  The narrowing still starts at H; H's new drawer,
+inserted at its end, extends it."
+  (org-iw-test-with-corpus org-iw-cmd-test--uneven-and-h
+    (let ((org-iw-queues org-iw-cmd-test--uneven-placements))
+      (with-current-buffer (org-iw-test-visit "a.org")
+        (org-iw-cmd-test--narrow-to-line "* H")
+        (let ((start (point-min)))
+          (org-iw-cmd-test--with-prompt :yes
+            (should (equal (org-iw-add "ESSAYS" "Third")
+                           org-iw-cmd-test--joined-third)))
+          (should (buffer-narrowed-p))
+          (should (= (point-min) start))))
+      (org-iw-cmd-test--should-have-joined-third
+       org-iw-cmd-test--h-joined-text))))
+
+(defconst org-iw-cmd-test--two-thirds
+  '(("essays" :placements (("TwoThirds" (fraction 2 3)))))
+  "A fraction placement for ESSAYS: among 4 others, between B and C.")
+
+(defun org-iw-cmd-test--enrol-h-by-hand ()
+  "Give H, in a.org's buffer, an ID and a rank in ESSAYS, unsaved."
+  (with-current-buffer (org-iw-test-visit "a.org")
+    (org-with-wide-buffer
+     (goto-char (org-iw-test-marker "a.org" "H"))
+     (forward-line)
+     (insert (org-iw-test-org ":PROPERTIES:" ":ID: h9" ":IW_ESSAYS: 5000"
+                              ":END:")))))
+
+(ert-deftest org-iw-cmd-test-add-reshow-recomputes ()
+  "An Add re-shown after a change while asking places by the fresh count.
+H goes two thirds back, between B and C among four.  While asking, E
+joins by hand at the end: the plan is shown again, and the one
+applied puts H two thirds back among five, after C.  If H itself is
+enrolled by hand while asking, the Add refuses as already in the
+queue, writing nothing beyond the user's edit."
+  (org-iw-test-with-corpus org-iw-cmd-test--uneven-and-h
+    (let ((org-iw-queues org-iw-cmd-test--two-thirds))
+      (org-iw-cmd-test--with-prompt
+          (list (lambda ()
+                  (org-iw-test-rewrite-behind
+                   "b.org"
+                   (concat (org-iw-test-heading "D" "d1" ":IW_ESSAYS: 4096")
+                           (org-iw-test-heading "E" "e1" ":IW_ESSAYS: 5000")))
+                  :yes)
+                :yes)
+        (should (equal (org-iw-cmd-test--add-h "TwoThirds")
+                       (concat "Added to ESSAYS at TwoThirds, 4/6;"
+                               " redistributed 5 entries in 2 files, saved"
+                               " [1 source problems ignored]")))
+        (should (length= org-iw-cmd-test--prompts 2)))
+      (should (equal (cl-subseq (org-iw-cmd-test--order "ESSAYS") 0 3)
+                     '("a1" "b1" "c1")))
+      (should (equal (cl-subseq (org-iw-cmd-test--order "ESSAYS") 4)
+                     '("d1" "e1")))
+      (should (equal (mapcar #'cdr (org-iw-cmd-test--ranks "ESSAYS"))
+                     '(1024 2048 3072 4096 5120 6144)))))
+  (org-iw-test-with-corpus org-iw-cmd-test--uneven-and-h
+    (let ((org-iw-queues org-iw-cmd-test--two-thirds)
+          (edited nil))
+      (org-iw-cmd-test--open-all)
+      (org-iw-cmd-test--with-prompt
+          (lambda ()
+            (org-iw-cmd-test--enrol-h-by-hand)
+            (setq edited (org-iw-test-state))
+            :yes)
+        (should (equal (org-iw-cmd-test--refusal
+                        (lambda () (org-iw-cmd-test--add-h "TwoThirds")))
+                       "H is already in ESSAYS")))
+      (should (equal (org-iw-test-state) edited)))))
 
 ;;;; Normalise
 

@@ -333,6 +333,12 @@ refuses before the prompt.  The prompt names the queue."
 
 ;;;; Messages
 
+(defun org-iw--at-text (where depth total)
+  "Return the text placing an entry at DEPTH among TOTAL, after WHERE.
+That is \"WHERE, D/N\", D being DEPTH's 1-based position and N TOTAL,
+or \"D/N\" if WHERE, the placement's name, is nil."
+  (format "%s%d/%d" (if where (concat where ", ") "") (1+ depth) total))
+
 (defun org-iw--save-error-text (err)
   "Return the text of ERR, why a save failed.
 ERR is the error the save signalled, or `still-modified' when a save
@@ -463,69 +469,154 @@ it: return SCAN's problem types for ID, as text.  Else return nil."
   (and (org-iw-discovery-queue-lines queue)
        (org-iw--problem-types-text (org-iw-discovery-problem-types scan id))))
 
-(defun org-iw--add-entry (scan order marker queue placement document
-                               &optional where)
+(defun org-iw--identity-at (marker document)
+  "Return (ID . FILE) of the entry at MARKER, read afresh.
+MARKER is at a heading or, with DOCUMENT non-nil, at the document's
+entry (see `org-iw-discovery-document-marker').  ID is nil if the
+entry has none; FILE is the truename of MARKER's buffer's file."
+  (org-with-point-at marker
+    (let ((file (org-iw--buffer-truename)))
+      (cons (if document
+                (org-iw-discovery-document-id file)
+              (org-iw-discovery-entry-id file))
+            file))))
+
+(defun org-iw--check-joinable (scan order queue marker document)
+  "Check that the entry at MARKER may join QUEUE; return its index if a member.
+ORDER is QUEUE's members in SCAN, and QUEUE a canonical queue ID.
+MARKER and DOCUMENT are as for `org-iw--identity-at'; the entry is
+read there afresh.  Return the entry's 0-based index in ORDER if it
+is a member, else nil.  Refuse if the entry has an IW_ line for QUEUE
+that SCAN excluded, or another entry has its ID.  This is the one
+owner of those checks.  Nothing changes."
+  (pcase-let ((`(,id . ,file) (org-iw--identity-at marker document)))
+    (or (cl-position (org-iw--find-entry order id file) order)
+        (org-with-point-at marker
+          ;; A file starting with a heading has no document drawer yet:
+          ;; the lines at its start are the heading's.
+          (when-let* ((types (and (or (not document)
+                                      (org-iw-discovery-document-slot-p))
+                                  (org-iw--excluded-types scan queue id))))
+            (org-iw--refuse-excluded types))
+          (when (and id (org-iw-discovery-shared-id-p scan id file))
+            (org-iw-core-refuse "ID shared with another entry"))
+          nil))))
+
+(cl-defstruct (org-iw--joining (:constructor org-iw--joining-create)
+                               (:copier nil))
+  "An entry about to join a queue: where it is and what it lacks.
+It stands for the entry in an intended order, as the one element
+that is not a member (see `org-iw-core-redistribution')."
+  marker     ; at the entry, in its buffer, which may be indirect
+  document   ; non-nil for the document's entry
+  id         ; its ID, or nil: the write gives it one
+  file       ; truename of its file
+  title      ; as a scan would read it
+  placement) ; the Add's placement, recomputed against each scan
+
+(defun org-iw--joining-at (marker document placement)
+  "Return an `org-iw--joining' for the entry at MARKER, to go at PLACEMENT.
+MARKER and DOCUMENT are as for `org-iw--identity-at'."
+  (pcase-let ((`(,id . ,file) (org-iw--identity-at marker document)))
+    (org-iw--joining-create
+     :marker marker :document document :id id :file file
+     :title (org-with-point-at marker (org-iw-discovery-entry-title file))
+     :placement placement)))
+
+(defun org-iw--add-entry (scan order marker queue placement document)
   "Add the entry at MARKER to QUEUE at PLACEMENT, unless it is a member.
 ORDER is QUEUE's members in SCAN, and QUEUE a canonical queue ID.
 MARKER is at a heading or, with DOCUMENT non-nil, at the document's
 entry (see `org-iw-discovery-document-marker').
 
 If the entry is in ORDER, write nothing and return (existing
-POSITION), POSITION being 1-based.  Else write its rank, giving it an
-ID only if it has no identity, and return (added DEPTH STATUS ENTRY):
-DEPTH is its index in the new order, STATUS the result of
-`org-iw-write-put-rank', and ENTRY the entry as a scan now reads it.
+POSITION), POSITION being 1-based.  If there is no room at
+PLACEMENT, write nothing and return (no-gap DEPTH JOINING), DEPTH
+being the entry's index in the new order and JOINING an
+`org-iw--joining' for it; the caller chooses to redistribute or
+refuse.  Else write its rank, giving it an ID only if it has no
+identity, and return (added DEPTH STATUS ENTRY): STATUS is the result
+of `org-iw-write-put-rank', and ENTRY the entry as a scan now reads
+it.
 
-Refuse, writing nothing, if the entry has an IW_ line for QUEUE that
-SCAN excluded, another entry has its ID, or there is no room at
-PLACEMENT, WHERE being its text, with its preposition (by default,
-\"at the end\"), or if the write refuses."
-  (org-with-point-at marker
-    (let* ((file (org-iw--buffer-truename))
-           (id (if document
-                   (org-iw-discovery-document-id file)
-                 (org-iw-discovery-entry-id file))))
-      (if-let* ((index (cl-position (org-iw--find-entry order id file) order)))
-          (list 'existing (1+ index))
-        ;; A file starting with a heading has no document drawer yet:
-        ;; the lines at its start are the heading's.
-        (when-let* ((types (and (or (not document)
-                                    (org-iw-discovery-document-slot-p))
-                                (org-iw--excluded-types scan queue id))))
-          (org-iw--refuse-excluded types))
-        (when (and id (org-iw-discovery-shared-id-p scan id file))
-          (org-iw-core-refuse "ID shared with another entry"))
-        (pcase (org-iw-core-place order nil queue placement)
-          (`(no-gap ,_)
-           (org-iw--refuse-no-room (or where "at the end")
-                                   (org-iw--queue-name queue)))
-          (`(moved ,depth ,rank)
-           (let ((status (org-iw-write-put-rank marker queue rank
-                                                :expected :absent
-                                                :ensure-id (null id)
-                                                :document document)))
-             (list 'added depth status (org-iw-discovery-entry file)))))))))
+Refuse, writing nothing, as `org-iw--check-joinable' does, or if the
+write refuses."
+  (if-let* ((index (org-iw--check-joinable scan order queue marker document)))
+      (list 'existing (1+ index))
+    (pcase (org-iw-core-place order nil queue placement)
+      (`(no-gap ,depth)
+       (list 'no-gap depth (org-iw--joining-at marker document placement)))
+      (`(moved ,depth ,rank)
+       (pcase-let* ((`(,id . ,file) (org-iw--identity-at marker document))
+                    (status (org-iw-write-put-rank marker queue rank
+                                                   :expected :absent
+                                                   :ensure-id (null id)
+                                                   :document document)))
+         (list 'added depth status
+               (org-with-point-at marker (org-iw-discovery-entry file))))))))
+
+(defun org-iw--add-redistributing (queue joining pending)
+  "Offer to redistribute QUEUE with JOINING joining it, for PENDING.
+QUEUE is a canonical queue ID, JOINING an `org-iw--joining' and
+PENDING the text of the add.  Each fresh scan checks the entry afresh
+at its marker (see `org-iw--check-joinable'), refreshes its ID, and
+puts it at its placement among that scan's members.  Return
+\(redistributed DEPTH OUTCOMES TOTAL), OUTCOMES being as from
+`org-iw--redistribute', DEPTH the entry's index in the plan applied
+and TOTAL that plan's length.  Refuse if the entry became a member
+while asking, or as the check or the redistribution refuses."
+  (let* ((marker (org-iw--joining-marker joining))
+         (document (org-iw--joining-document joining))
+         (depth nil)
+         (total nil)
+         (outcomes
+          (org-iw--redistribute
+           queue
+           (lambda (scan)
+             (let ((order (org-iw--order scan queue)))
+               (when (org-iw--check-joinable scan order queue marker document)
+                 (org-iw-core-refuse "%s is already in %s"
+                                     (org-iw--joining-title joining)
+                                     (org-iw--queue-name queue)))
+               (setf (org-iw--joining-id joining)
+                     (car (org-iw--identity-at marker document)))
+               ;; The last plan intended is the one applied.
+               (setq depth (org-iw-core-placement-depth
+                            (org-iw--joining-placement joining) (length order))
+                     total (1+ (length order)))
+               (org-iw-core-reorder (append order (list joining))
+                                    joining depth)))
+           pending)))
+    (list 'redistributed depth outcomes total)))
 
 (defun org-iw--add-at (marker document queue label)
   "Add the entry at MARKER, the DOCUMENT or not, to QUEUE at LABEL.
 See `org-iw--add-entry' and `org-iw-add', which documents QUEUE and
-LABEL.  Return the message shown."
+LABEL.  If there is no room at LABEL, offer to redistribute, see
+`org-iw--add-redistributing'.  Return the message shown."
   (pcase-let* ((queue-id (org-iw--queue-id queue))
                (`(,where . ,placement)
                 (if label (org-iw--placement queue-id label) '(nil . end)))
                (scan (org-iw--scan))
                (order (org-iw--order scan queue-id))
                (name (org-iw--queue-name queue-id)))
-    (pcase (org-iw--add-entry scan order marker queue-id placement document
-                              (and where (format "at %s" where)))
+    (pcase (org-iw--add-entry scan order marker queue-id placement document)
       (`(existing ,position)
        (org-iw--report scan "Already in %s at %d/%d"
                        name position (length order)))
       (`(added ,depth ,status ,_)
-       (org-iw--report scan "Added to %s at %s%d/%d %s"
-                       name (if where (concat where ", ") "")
-                       (1+ depth) (1+ (length order))
-                       (org-iw--save-status status))))))
+       (org-iw--report scan "Added to %s at %s %s"
+                       name (org-iw--at-text where depth (1+ (length order)))
+                       (org-iw--save-status status)))
+      (`(no-gap ,_ ,joining)
+       (pcase-let ((`(,_ ,depth ,outcomes ,total)
+                    (org-iw--add-redistributing
+                     queue-id joining
+                     (format "add %s at %s" (org-iw--joining-title joining)
+                             (or where "the end")))))
+         (org-iw--report scan "Added to %s at %s; %s"
+                         name (org-iw--at-text where depth total)
+                         (org-iw--redistributed-text outcomes)))))))
 
 (defun org-iw--read-add-args ()
   "Read the arguments of `org-iw-add' and `org-iw-add-document'.
@@ -557,9 +648,16 @@ derived mode counts), QUEUE is not a valid ID, LABEL is given and is
 not one of the queue's labels or the queue's placements are
 misconfigured (checked before any scan), the entry has a property
 drawer Org does not see, its IW property for QUEUE was excluded by
-the scan, another entry has its ID, there is no room for a rank at
-the placement, or the write refuses (the file changed on disk or is
-not writable, or its buffer is read-only).
+the scan, another entry has its ID, or the write refuses (the file
+changed on disk or is not writable, or its buffer is read-only).
+
+If there is no room for a rank at the placement, the queue's
+redistribution is offered instead: a preview, in the *org-iw
+redistribution* buffer, of the members re-laid at the standard
+spacing with the entry in its slot, applied only if approved (see
+`org-iw-normalise').  Add then refuses if a file blocks it, the
+answer is no, the entry joined the queue while asking, or the run
+stops.
 
 Return the message shown."
   ;; Called for its refusals: a buffer Add cannot use fails before
@@ -583,7 +681,8 @@ in its name; the document is given an ID only if it has neither.
 The file is saved unless its buffer already had unsaved changes.
 
 A document already in QUEUE is left alone.  Add-document refuses as
-`org-iw-add' does, changing nothing.
+`org-iw-add' does, changing nothing, and offers the same
+redistribution when there is no room at the placement.
 
 Return the message shown."
   ;; Called for its refusals: a buffer it cannot use fails before the
@@ -763,7 +862,10 @@ ON-OUTCOME with (FILE . OUTCOME)."
                    (setq order (append order (list entry)))
                    (puthash (org-iw-entry-id entry) t added-ids)
                    (list 'added status))
-                  (`(existing ,_) '(existing)))))
+                  (`(existing ,_) '(existing))
+                  (`(no-gap ,_ ,_)
+                   (org-iw--refuse-no-room "at the end"
+                                           (org-iw--queue-name queue))))))
       (dolist (file files)
         (funcall on-outcome
                  (cons file (if (gethash file source-set)
@@ -787,8 +889,10 @@ the user.
 The files are added in the order of their true names, each after the
 last of the queue, as `org-iw-add-document' would add them.  A file
 that is not a source file, or is excluded by `org-iw-exclude-regexp',
-fails, as does one Add-document would refuse, or a second file with
-the ID of one added before it; the rest are added all the same.  The
+fails, as does one Add-document would refuse, a second file with the
+ID of one added before it, or one finding no room for a rank at the
+end (no redistribution is offered; see `org-iw-normalise'); the rest
+are added all the same.  The
 batch is not atomic.  A file's buffer that the batch opened is killed
 once it is done with, unless it is left modified, as after a failed
 save; it is then reported.  The session is untouched.
@@ -864,9 +968,23 @@ Return the summary."
   problems   ; number of the scan's problems (never rewritten)
   key)       ; plain data compared by the recheck
 
+(defun org-iw--element-file (element)
+  "Return the file of ELEMENT, a member or an `org-iw--joining'."
+  (if (org-iw--joining-p element)
+      (org-iw--joining-file element)
+    (org-iw-entry-file element)))
+
+(defun org-iw--joining-buffer (joining file)
+  "Return the buffer of JOINING's marker if JOINING is in FILE, else nil.
+JOINING is an `org-iw--joining' or nil.  The buffer, which may be
+indirect, is the one Add took the entry in."
+  (and joining
+       (equal file (org-iw--joining-file joining))
+       (marker-buffer (org-iw--joining-marker joining))))
+
 (defun org-iw--change-file (change)
   "Return the file of CHANGE, an element of `org-iw-core-redistribution'."
-  (org-iw-entry-file (car change)))
+  (org-iw--element-file (car change)))
 
 (defun org-iw--file-changes (changes file)
   "Return the elements of CHANGES that are in FILE.
@@ -878,12 +996,17 @@ CHANGES are as from `org-iw-core-redistribution'."
   "Return the redistribution of QUEUE in SCAN, as an `org-iw--redistribution'.
 INTEND, called with SCAN, returns the intended order, or refuses (as
 when the pending entry has left the queue).  PENDING is as the slot.
-Nothing is visited or changed."
+The problems of the file of a joining entry in the order, an
+`org-iw--joining', are those of a write through its marker's buffer,
+which may be indirect.  Nothing is visited or changed."
   (let* ((changes (org-iw-core-redistribution (funcall intend scan) queue))
+         (joining (seq-find #'org-iw--joining-p (mapcar #'car changes)))
          (files (mapcar (lambda (file)
                           (cl-list* file
                                     (length (org-iw--file-changes changes file))
-                                    (org-iw-write-file-problems file)))
+                                    (org-iw-write-file-problems
+                                     file (org-iw--joining-buffer joining
+                                                                  file))))
                         (sort (seq-uniq (mapcar #'org-iw--change-file changes))
                               #'string<)))
          (members (mapcar (lambda (entry)
@@ -989,10 +1112,26 @@ Refuse without asking if any of its files blocks it."
       (org-iw-core-refuse "Redistribution of %s cancelled; nothing changed"
                           name))))
 
+(defun org-iw--joining-put (joining queue rank)
+  "Return the change of `org-iw-write-put-ranks' giving JOINING RANK in QUEUE.
+JOINING is an `org-iw--joining'.  Its marker is re-homed to its base
+buffer, where the members' markers are, so that one file's changes
+share one buffer.  The entry is given an ID if it had none, as Add
+gives it."
+  (let ((marker (org-iw--joining-marker joining)))
+    (list (with-current-buffer (org-iw-discovery-base-buffer
+                                (marker-buffer marker))
+            (copy-marker (marker-position marker)))
+          queue rank
+          :expected :absent
+          :ensure-id (null (org-iw--joining-id joining))
+          :document (org-iw--joining-document joining))))
+
 (defun org-iw--redistribution-write (scan record file)
   "Write the ranks RECORD changes in FILE through one grouped put.
 Each entry is found afresh from SCAN, the scan RECORD was built from,
-and must still hold its scanned rank.  Return (written STATUS COUNT),
+and must still hold its scanned rank; a joining entry must still have
+no rank, see `org-iw--joining-put'.  Return (written STATUS COUNT),
 STATUS being the result of `org-iw-write-put-ranks' and COUNT the
 number of ranks written."
   (let ((queue (org-iw--redistribution-queue record))
@@ -1000,9 +1139,11 @@ number of ranks written."
                                        file)))
     (list 'written
           (org-iw-write-put-ranks
-           (mapcar (pcase-lambda (`(,entry . ,rank))
-                     (list (org-iw--entry-marker scan entry) queue rank
-                           :expected (org-iw-core-rank entry queue)))
+           (mapcar (pcase-lambda (`(,element . ,rank))
+                     (if (org-iw--joining-p element)
+                         (org-iw--joining-put element queue rank)
+                       (list (org-iw--entry-marker scan element) queue rank
+                             :expected (org-iw-core-rank element queue))))
                    changes))
           (length changes))))
 
@@ -1347,8 +1488,7 @@ WHERE by the position ENTRY would take, as \"at position 2/3\"."
 WHERE names the placement, as \"Soon\" or \"Soon in ESSAYS\", or is nil
 to give only the position.  TOTAL is the number of the queue's members."
   (pcase-let* ((`(,outcome ,depth ,detail) result)
-               (at (format "%s%d/%d" (if where (concat where ", ") "")
-                           (1+ depth) total)))
+               (at (org-iw--at-text where depth total)))
     (pcase outcome
       ('moved (format "Moved %s to %s %s" title at
                       (org-iw--save-status detail)))
