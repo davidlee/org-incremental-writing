@@ -520,7 +520,8 @@ MARKER and DOCUMENT are as for `org-iw--identity-at'."
   (pcase-let ((`(,id . ,file) (org-iw--identity-at marker document)))
     (org-iw--joining-create
      :marker marker :document document :id id :file file
-     :title (org-with-point-at marker (org-iw-discovery-entry-title file))
+     :title (org-with-point-at marker
+              (org-iw-discovery-entry-title file document))
      :placement placement)))
 
 (defun org-iw--add-entry (scan order marker queue placement document)
@@ -564,7 +565,8 @@ puts it at its placement among that scan's members.  Return
 \(redistributed DEPTH OUTCOMES TOTAL), OUTCOMES being as from
 `org-iw--redistribute', DEPTH the entry's index in the plan applied
 and TOTAL that plan's length.  Refuse if the entry became a member
-while asking, or as the check or the redistribution refuses."
+or its buffer was killed while asking, or as the check or the
+redistribution refuses."
   (let* ((marker (org-iw--joining-marker joining))
          (document (org-iw--joining-document joining))
          (depth nil)
@@ -574,6 +576,10 @@ while asking, or as the check or the redistribution refuses."
            queue
            (lambda (scan)
              (let ((order (org-iw--order scan queue)))
+               (unless (marker-buffer marker)
+                 (org-iw-core-refuse
+                  "%s's buffer was killed while asking; nothing changed"
+                  (org-iw--joining-title joining)))
                (when (org-iw--check-joinable scan order queue marker document)
                  (org-iw-core-refuse "%s is already in %s"
                                      (org-iw--joining-title joining)
@@ -1435,11 +1441,13 @@ one, called with SCAN, ORDER and ENTRY."
 QUEUE is a canonical queue ID, ENTRY a member, found by ID in each
 fresh scan, PLACEMENT as for `org-iw--move' and PENDING the text of
 the move.  DEPTH is ENTRY's index in the new order in the scan that
-found no room.  Return (redistributed DEPTH OUTCOMES), OUTCOMES being as from
-`org-iw--redistribute', or (unchanged DEPTH) if no rank had to
-change; DEPTH is that of the plan applied.  Otherwise refuse."
+found no room.  Return (redistributed DEPTH OUTCOMES TOTAL), OUTCOMES
+being as from `org-iw--redistribute', or (unchanged DEPTH) if no rank
+had to change.  DEPTH is ENTRY's index in the plan applied and TOTAL
+that plan's length.  Otherwise refuse."
   (let* ((id (org-iw-entry-id entry))
          (title (org-iw-entry-title entry))
+         (total nil)
          (outcomes
           (org-iw--redistribute
            queue
@@ -1449,11 +1457,12 @@ change; DEPTH is that of the plan applied.  Otherwise refuse."
                ;; The last plan intended is the one applied.
                (setq depth (org-iw-core-placement-depth
                             (org-iw--placement-in placement scan order entry)
-                            (1- (length order))))
+                            (1- (length order)))
+                     total (length order))
                (org-iw-core-reorder order entry depth)))
            pending)))
     (if outcomes
-        (list 'redistributed depth outcomes)
+        (list 'redistributed depth outcomes total)
       (list 'unchanged depth))))
 
 (defun org-iw--move (scan order entry queue placement &optional where)
@@ -1486,9 +1495,10 @@ WHERE by the position ENTRY would take, as \"at position 2/3\"."
 (defun org-iw--moved-text (result title where total)
   "Return the text reporting RESULT of `org-iw--move' for the entry TITLE.
 WHERE names the placement, as \"Soon\" or \"Soon in ESSAYS\", or is nil
-to give only the position.  TOTAL is the number of the queue's members."
-  (pcase-let* ((`(,outcome ,depth ,detail) result)
-               (at (org-iw--at-text where depth total)))
+to give only the position.  TOTAL is the number of the queue's members,
+unless RESULT is a redistribution, which carries that of its plan."
+  (pcase-let* ((`(,outcome ,depth ,detail ,plan-total) result)
+               (at (org-iw--at-text where depth (or plan-total total))))
     (pcase outcome
       ('moved (format "Moved %s to %s %s" title at
                       (org-iw--save-status detail)))
@@ -1557,7 +1567,7 @@ message shown."
                                    (format "at %s" label)))
              (text (org-iw--moved-text result title label total))
              (new-order (pcase result
-                          (`(,(or 'moved 'redistributed) ,depth ,_)
+                          (`(,(or 'moved 'redistributed) ,depth . ,_)
                            (org-iw-core-reorder order entry depth))
                           (_ order))))
         (org-iw--report scan "%s" (org-iw--head-visited-text

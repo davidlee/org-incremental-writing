@@ -266,11 +266,13 @@ other invalid name are an `invalid-property'; a bad rank is an
       (cons (nreverse memberships)
             (append (nreverse invalid) (nreverse problems))))))
 
-(defun org-iw-discovery-entry-title (file)
+(defun org-iw-discovery-entry-title (file &optional document)
   "Return the title of the entry at point in FILE.
 A heading's title is its text; the document's is its #+title, else
-the base name of FILE."
-  (if (org-at-heading-p)
+the base name of FILE.  DOCUMENT non-nil says the entry is the
+document's, even where a heading starts the file, and so is at
+point."
+  (if (and (not document) (org-at-heading-p))
       (org-get-heading t t t t)
     (or (cadr (assoc "TITLE" (org-collect-keywords '("TITLE"))))
         (file-name-base file))))

@@ -2468,6 +2468,40 @@ at the label."
       (org-iw-cmd-test--should-cancel-handoff
        "add H at Second" (lambda () (org-iw-cmd-test--add-h "Second"))))))
 
+(ert-deftest org-iw-cmd-test-add-document-preview-names-file-title ()
+  "The preview of adding a heading-first document names the file, not its heading."
+  (org-iw-test-with-corpus
+      `(("b.org" . ,(concat (org-iw-test-heading "B" "b1" ":IW_ESSAYS: 5")
+                            (org-iw-test-heading "C" "c1" ":IW_ESSAYS: 6")))
+        ("e.org" . ,(org-iw-test-org "* Heading" "Body.")))
+    (let ((org-iw-queues '(("essays" :placements (("Second" (after 1)))))))
+      (org-iw-cmd-test--open-all)
+      (org-iw-cmd-test--with-prompt :no
+        (should-error
+         (org-iw-cmd-test--at (org-iw-test-marker "e.org" "Heading")
+                              #'org-iw-add-document "ESSAYS" "Second")
+         :type 'org-iw-refusal))
+      (should (string-search "Pending: add e at Second"
+                             (org-iw-cmd-test--preview-text))))))
+
+(ert-deftest org-iw-cmd-test-add-refuses-when-buffer-killed-while-asking ()
+  "Killing the entry's buffer while the redistribution prompt is up refuses.
+The refusal is clean, not a raw type error, and no file is written."
+  (org-iw-test-with-corpus
+      `(("a.org" . ,(concat (org-iw-test-heading "B" "b1" ":IW_ESSAYS: 5")
+                            (org-iw-test-heading "C" "c1" ":IW_ESSAYS: 6")
+                            (org-iw-test-heading "H" "h1"))))
+    (let ((org-iw-queues '(("essays" :placements (("Second" (after 1)))))))
+      (org-iw-cmd-test--open-all)
+      (let* ((buffer (find-buffer-visiting (org-iw-test-path "a.org")))
+             (name (buffer-name buffer))
+             (before (org-iw-test-state)))
+        (org-iw-cmd-test--with-prompt
+            (lambda () (kill-buffer buffer) :yes)
+          (should-error (org-iw-cmd-test--add-h "Second") :type 'user-error))
+        (should (equal (org-iw-test-changed-files before (org-iw-test-state))
+                       (list name)))))))
+
 ;;;; Visit next (EX-2, VT-1, I1)
 
 (defun org-iw-cmd-test--open-all ()
@@ -5651,6 +5685,24 @@ The message is the move's, then the redistribution's."
       (should-not (cl-some #'buffer-modified-p
                            (delq nil (mapcar #'org-iw-cmd-test--visited
                                              '("a.org" "b.org" "c.org"))))))))
+
+(ert-deftest org-iw-cmd-test-handoff-move-total-is-the-plan-applied ()
+  "A member added while asking counts in the Move's reported total.
+The total is that of the plan applied, not of the first scan."
+  (org-iw-test-with-corpus org-iw-cmd-test--uneven
+    (let ((org-iw-queues org-iw-cmd-test--uneven-placements))
+      (org-iw-cmd-test--with-prompt
+          (list (lambda ()
+                  (org-iw-test-rewrite-behind
+                   "c.org" (concat (org-iw-test-heading "A" "a1"
+                                                        ":IW_ESSAYS: 1024")
+                                   (org-iw-test-heading "E" "e1"
+                                                        ":IW_ESSAYS: 9000")))
+                  :yes)
+                :yes)
+        (should (string-search
+                 "Moved D to Third in ESSAYS, 3/5;"
+                 (org-iw-cmd-test--move-d-at-third)))))))
 
 (ert-deftest org-iw-cmd-test-continue-redistributes-then-visits-new-head ()
   "An approved Continue at no gap visits the new head, not the moved entry.
