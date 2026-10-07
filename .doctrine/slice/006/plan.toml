@@ -88,17 +88,39 @@ exit_criteria = [
   { id = "EX-3", text = "Cancel and blockers (R1, REQ-019 AC1/AC4, DEC-030): answering no, and each blocker (read-only, unwritable, changed on disk, not-org), leave org-iw-test-state equal; blockers record no prompt; refusal texts as design § 5.2.3." },
   { id = "EX-4", text = "Consent (DEC-029, R8): a modified affected buffer is named in the one prompt; no leaves it modified and the state equal; yes saves exactly the named buffers, after the recheck, before any rank; an unaffected modified buffer stays modified. Same-named files in two directories are named by their unique buffer names; more than three gives the count form, the preview listing all." },
   { id = "EX-5", text = "Recheck (R7, DEC-033): a function answer changing MEMBERS (unvisited file on disk; live-buffer edit) re-asks, and the second yes applies ranks in the fresh order; rewriting a visited file on disk re-shows with the changed-on-disk blocker and no second prompt. The apply runs the rebuilt record (RV-014 F-2)." },
-  { id = "EX-6", text = "Apply (R2..R5, REQ-020): two files change only the planned IW_ lines (org-iw-test-changed-files); a failing save on the second of three files gives saved/modified/untouched exactly, the third not opened; a consent save failure, or a re-dirtied consent save, stops before any rank; the report's fourth group lists consent-saved files and the refusal text counts them; clean buffers the run opened are killed, existing ones kept (DEC-031)." },
-  { id = "EX-7", text = "Quit (D7): a quit from after-save-hook on the second of three files → first saved, second interrupted (modified group), third stopped and unopened, the quit propagates after the report; a quit inside the second file's change group → second stopped (untouched); a quit during a consent save → no rank written, the report lists buffers already saved. Batch add's loop and its stopped rule are unchanged (org-iw-cmd-test-batch-summary-after-error green)." },
+  { id = "EX-6", text = "Clean apply (R2, R3, R5): two files change only the planned IW_ lines (org-iw-test-changed-files); the order equals the intended order with every rank k × 1024; files go in files order, one put-ranks call each; clean buffers the run opened are killed, existing ones kept (DEC-031). Failure paths are PHASE-07." },
   { id = "EX-8", text = "Normalise (DEC-034): reads its queue with org-iw--read-session-queue; an already normal or empty queue reports \"already normal\" with no preview buffer (--redistribute returns nil); otherwise it relays and reports org-iw--redistributed-text." },
   { id = "EX-9", text = "Renames (D6): --batch-outcome → --file-outcome, --batch-report → --outcome-report (buffer heading groups); batch add renders one group and its tests pass with the renames; --refuse-no-room's text names org-iw-normalise; org-iw-cmd-test-refuse-no-room and org-iw-cmd-test-batch-no-room-fails-rest updated for it." },
 ]
 verification = [
   { id = "VT-1", expects = "helper self-tests: changed-files and function answer", test_file = "test/org-iw-discovery-test.el", keywords = ["org-iw-test-changed-files", "org-iw-discovery-test-fixture-changed-files"], waived = false },
   { id = "VT-2", expects = "cancel, blockers, consent, naming, recheck", test_file = "test/org-iw-test.el", keywords = ["org-iw--redistribute", "org-iw-cmd-test-with-prompt-function-answer", "org-iw-cmd-test-redistribute-cancel-changes-nothing", "org-iw-cmd-test-redistribute-blocked-not-org", "org-iw-cmd-test-redistribute-modified-consent", "org-iw-cmd-test-redistribute-prompt-names", "org-iw-cmd-test-redistribute-stale-reshows"], waived = false },
-  { id = "VT-3", expects = "apply minimal, partition, consent-save failure, report groups, quit, kill opened", test_file = "test/org-iw-test.el", keywords = ["org-iw--outcome-partition", "org-iw-cmd-test-redistribute-applies-minimal", "org-iw-cmd-test-redistribute-failure-partition", "org-iw-cmd-test-redistribute-consent-save-fails", "org-iw-cmd-test-redistribute-quit-mid-apply", "org-iw-cmd-test-apply-kills-opened-clean"], waived = false },
+  { id = "VT-3", expects = "clean apply minimal; kill opened", test_file = "test/org-iw-test.el", keywords = ["org-iw-cmd-test-redistribute-applies-minimal", "org-iw-cmd-test-apply-kills-opened-clean"], waived = false },
   { id = "VT-4", expects = "normalise relays and already-normal; preview content", test_file = "test/org-iw-test.el", keywords = ["org-iw-normalise", "org-iw-cmd-test-normalise-relays", "org-iw-cmd-test-normalise-already-normal", "org-iw-cmd-test-preview-content"], waived = false },
   { id = "VA-1", text = "Agent greps org-iw.el: org-iw-core-redistribution and the file loop are called only from org-iw--redistribute; no --batch-outcome or --batch-report remains; no rank arithmetic in the Redistribution section (ADR-004 rule 6)." },
+]
+specs        = []
+requirements = []
+
+[[phase]]
+id        = "PHASE-07"
+name      = "Flow failure paths"
+objective = "Complete --redistribute's unhappy paths after a yes (design § 5.2.3 'The apply' and refusal table, § 5.5; REQ-020; D7; RV-014 F-5, F-6, F-14, F-17): stop at first trouble, the saved/modified/untouched partition, consent-save failure and re-dirtying, the fourth report group, the interrupted rule, and the reporting unwind-protect over consent saves and apply. Placed after PHASE-03 in execution order (ids are immutable; PHASE-03 was split at plan revision)."
+entrance_criteria = [
+  { id = "EN-1", text = "PHASE-03 completed; just gate green." },
+]
+exit_criteria = [
+  { id = "EX-1", text = "Partition (REQ-020 AC1, R4, R5): a failing save (write-file-functions) on the second of three files gives saved / modified / untouched exactly; the third is not opened; the preview buffer becomes the report listing all groups; the refusal text as design § 5.2.3." },
+  { id = "EX-2", text = "Consent-save failures: a failing save of a named buffer, and an after-save-hook that re-dirties it, each stop before any rank is written anywhere; the report names the file and the buffers already saved." },
+  { id = "EX-3", text = "Fourth group (F-6): a consent save on the first file, then the second file fails → the report lists the consent-saved file under 'saved at your request before writing', and the refusal text counts it." },
+  { id = "EX-4", text = "Quit (D7, F-14, F-17): a quit from after-save-hook on the second of three files → first saved, second interrupted (modified group), third stopped and unopened, and the quit propagates after the report; a quit inside the second file's change group → second stopped (untouched); a quit during a consent save → no rank written and the report lists buffers already saved. The interrupted rule compares the on-disk modtime noted before --file-outcome. Tests catch the quit with condition-case's quit handler: ert's should-error does not catch quit (it is not an error; verified in batch Emacs 31, 2026-10-07)." },
+  { id = "EX-5", text = "Batch add's loop and its stopped rule are unchanged: org-iw-cmd-test-batch-summary-after-error and the batch-report tests pass (ISS-007 stays open)." },
+]
+verification = [
+  { id = "VT-1", expects = "partition, stop at first trouble, report groups", test_file = "test/org-iw-test.el", keywords = ["org-iw--outcome-partition", "org-iw-cmd-test-redistribute-failure-partition", "org-iw-cmd-test-redistribute-report-consent-saves"], waived = false },
+  { id = "VT-2", expects = "consent-save failure and re-dirtied", test_file = "test/org-iw-test.el", keywords = ["org-iw-cmd-test-redistribute-consent-save-fails", "org-iw-cmd-test-redistribute-consent-save-dirtied"], waived = false },
+  { id = "VT-3", expects = "quit mid-apply: interrupted, rolled back, during consent save", test_file = "test/org-iw-test.el", keywords = ["org-iw-cmd-test-redistribute-quit-mid-apply", "interrupted"], waived = false },
+  { id = "VA-1", text = "Agent reads --redistribute: the consent saves and the apply loop sit inside one unwind-protect that renders the report; (interrupted) is assigned only when the in-flight file's buffer is modified or its on-disk modtime changed." },
 ]
 specs        = []
 requirements = []
@@ -108,7 +130,7 @@ id        = "PHASE-04"
 name      = "Move, view and Continue handoffs"
 objective = "Hand off from --move at no gap (design § 5.2.3 'The handoff'): INTEND by ID, placement functions for the view moves (D8), (redistributed DEPTH OUTCOMES) and nil → (unchanged DEPTH), --moved-text's redistributed case, --continue-place reordering after redistributed (RV-014 F-8), and Continue reporting before it visits via --visit-head (DEC-038, ISS-002). Docstrings of Move, Continue and the view moves name the handoff."
 entrance_criteria = [
-  { id = "EN-1", text = "PHASE-03 completed; just gate green." },
+  { id = "EN-1", text = "PHASE-07 completed; just gate green." },
 ]
 exit_criteria = [
   { id = "EX-1", text = "Move, Continue and each view move (place before/after, up, down) at no gap reach the prompt; approval relays the queue with the entry at its intended slot and reports the moved text plus the redistribution summary; cancel and blockers leave state equal and do not navigate." },
