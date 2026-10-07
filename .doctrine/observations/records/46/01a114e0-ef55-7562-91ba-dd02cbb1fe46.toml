@@ -1,0 +1,18 @@
+schema = "doctrine.observation"
+schema_version = 1
+uid = "01a114e0-ef55-7562-91ba-dd02cbb1fe46"
+recorded_at = "2026-10-07T05:40:48.085325411Z"
+kind = "friction"
+summary = "just test-each takes a bin arg, not the emacs30 variable name"
+detail = "SL-006 fix-up worker: 'just test-each emacs30' exits 127 because the recipe's arg is a binary; 'just test-each emacs-30' works; only test-all goes through $EMACS30."
+
+[facets.execution]
+schema_version = 1
+interface = "cli"
+interface_origin = "automatic"
+product_surface = "doctrine"
+product_surface_origin = "automatic"
+command = "observation record"
+command_origin = "automatic"
+repository_context = "primary"
+repository_context_origin = "automatic"

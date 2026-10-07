@@ -1,0 +1,18 @@
+schema = "doctrine.observation"
+schema_version = 1
+uid = "01a114e5-4a58-7350-8547-1f7287fb3b0c"
+recorded_at = "2026-10-07T05:45:33.528885645Z"
+kind = "friction"
+summary = "doctrine memory retrieve takes no positional query"
+detail = "SL-006 PHASE-06 planner: free-text positional query not accepted; --query returned nothing, only --path-scope surfaced a memory."
+
+[facets.execution]
+schema_version = 1
+interface = "cli"
+interface_origin = "automatic"
+product_surface = "doctrine"
+product_surface_origin = "automatic"
+command = "observation record"
+command_origin = "automatic"
+repository_context = "primary"
+repository_context_origin = "automatic"

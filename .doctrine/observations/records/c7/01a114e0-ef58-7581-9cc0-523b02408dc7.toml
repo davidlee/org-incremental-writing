@@ -1,0 +1,18 @@
+schema = "doctrine.observation"
+schema_version = 1
+uid = "01a114e0-ef58-7581-9cc0-523b02408dc7"
+recorded_at = "2026-10-07T05:40:48.088407814Z"
+kind = "friction"
+summary = "org-iw--continue-place builds new-order from first-scan order"
+detail = "SL-006 fix-up worker: same class as the Move N-from-first-scan fix — the head Continue visits can be stale if members changed while asking. Out of fix-up scope; candidate for reconcile/backlog."
+
+[facets.execution]
+schema_version = 1
+interface = "cli"
+interface_origin = "automatic"
+product_surface = "doctrine"
+product_surface_origin = "automatic"
+command = "observation record"
+command_origin = "automatic"
+repository_context = "primary"
+repository_context_origin = "automatic"

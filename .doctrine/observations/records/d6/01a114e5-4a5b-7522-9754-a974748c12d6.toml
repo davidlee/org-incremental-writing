@@ -1,0 +1,18 @@
+schema = "doctrine.observation"
+schema_version = 1
+uid = "01a114e5-4a5b-7522-9754-a974748c12d6"
+recorded_at = "2026-10-07T05:45:33.531493245Z"
+kind = "friction"
+summary = "Phase sheet cites stale README line numbers"
+detail = "SL-006 PHASE-06 worker: sheet cited README :254 / :151-ish; close but stale, worker edited by content match. Sheets should anchor by heading/text, not line."
+
+[facets.execution]
+schema_version = 1
+interface = "cli"
+interface_origin = "automatic"
+product_surface = "doctrine"
+product_surface_origin = "automatic"
+command = "observation record"
+command_origin = "automatic"
+repository_context = "primary"
+repository_context_origin = "automatic"
