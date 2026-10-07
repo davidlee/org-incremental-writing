@@ -143,6 +143,20 @@ A further (adversarial) pass would probe:
 - **Cohesion.** Size and cohesion of the new `;;;; Redistribution`
   section in a ~1,500-line `org-iw.el`.
 
+Second pass (2026-10-07): main session raised F-3..F-7, a fresh Opus
+subagent pass raised F-8..F-17; all disposed and verified by the raiser
+(three contests, F-5/F-10/F-14, accepted and re-fixed). Outcomes:
+- F-3: consent-save conflicts with ADR-002 save policy and REQ-021 AC2;
+  user chose to amend governance → REV-007 (proposed; approve and apply
+  at reconcile).
+- F-8 (blocker): Continue must reorder after `redistributed`.
+- F-9: joining marker re-homed to the base buffer (D9).
+- D8: relative placements recomputed per scan; D10: DEC-038 wording.
+- `not-org` blocker; `interrupted` outcome; consent saves inside the
+  reporting unwind-protect; ~9 existing no-room tests to rewrite (§ 10).
+- Reconcile also updates DEC-036 ("labelled Add" → Add, F-12).
+- ISS-007: batch-add sibling of F-14.
+
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
 fresh-as-of: 2026-10-06 · design drafting (run rev 18)

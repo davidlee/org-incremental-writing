@@ -1,0 +1,36 @@
+id      = 7
+slug    = "save-policy-consented-save-of-modified-buffers-in-redistribution"
+title   = "Save policy: consented save of modified buffers in redistribution"
+status  = "proposed"   # work lifecycle: proposed | started | done | abandoned
+approval = "none"      # SEPARATE axis, orthogonal to status: none | requested | approved | rejected
+updated = "2026-10-07"
+tags    = []
+
+# A Revision (REV) is a first-class change-axis entity: a pending
+# revise-intent against authored governance/spec truth plus a staged delta payload.
+# Lifecycle (proposed→started→done; abandoned from any non-terminal) is moved by
+# `revision status REV-N <state>`. `approval` is orthogonal — lifecycle transitions
+# are approval-blind; the apply checkpoint consults it. The prose
+# rationale + before/after excerpts live in the sister `revision-NNN.md`.
+
+# change rows — the typed `revises` payload (the touched-entity set; the rows ARE
+# the edges, members.toml precedent). Authored by `revision change add`,
+# NOT by hand and NEVER by `doctrine link`. A fresh `revision new` writes none:
+#   [[change]]
+#   target  = "ADR-006"   # durable peer id (the FK / anchor)
+#   action  = "modify"    # modify | retire | move | status | introduce | create
+#   primary = true        # display/headline hint; at most one, optional
+
+[relationships]
+needs = []
+after = []
+
+[[change]]
+target = "ADR-002"
+action = "modify"
+primary = true
+
+[[change]]
+target = "REQ-021"
+action = "modify"
+primary = false

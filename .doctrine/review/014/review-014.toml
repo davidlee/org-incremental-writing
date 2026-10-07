@@ -72,5 +72,430 @@ act = "verify"
 role = "raiser"
 note = "5.2.3 'Which record' bullet present."
 
+[[finding]]
+id = "F-3"
+status = "verified"
+severity = "blocker"
+title = "Consent-save contradicts ADR-002 save policy and REQ-021"
+detail = "Amended DEC-029 saves affected buffers that were already modified, on the approval prompt's yes. ADR-002 save policy: 'A buffer that was already modified is left unsaved, and the user is told the queue change is unsaved.' REQ-021 AC2: 'Operating on a dirty buffer leaves it modified'; AC4: 'Batch operations apply the same policy per file.' Consent satisfies REQ-021 AC3 (never saved silently) but not AC2, AC4 or the ADR rule as written. The F-1 response claims compliance with PRD-001 § 4, REQ-019 AC3 and § 6 only. The design's governance follow-ups (sec-07) omit ADR-002 and REQ-021, and the design still cites ADR-002 save policy as a constraint (lines 65, 92, 266). Two binding sources contradict an accepted decision: either amend ADR-002/REQ-021 through a revision, with the follow-up named in the design, or revisit DEC-029. This needs the user's decision."
+disposition = "design-wrong"
+route = "review"
+response = "User chose option (a), 2026-10-07: keep consent-save and amend governance. REV-007 (proposed, modify ADR-002 + REQ-021) carries before/after text: an already-modified buffer is left unsaved unless the operation's approval prompt named it and the user agreed. PRD-001 § 4 and REQ-019 AC3 already permit it; unchanged. design.md sec-01, sec-03 (ADR-002 and REQ-021 bullet), sec-06 follow-ups and sec-07 DEC-029 row updated; DEC-029 body cites REV-007. REV-007 is approved and applied at reconcile."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+route = "review"
+response = "User chose option (a), 2026-10-07: keep consent-save and amend governance. REV-007 (proposed, modify ADR-002 + REQ-021) carries before/after text: an already-modified buffer is left unsaved unless the operation's approval prompt named it and the user agreed. PRD-001 § 4 and REQ-019 AC3 already permit it; unchanged. design.md sec-01, sec-03 (ADR-002 and REQ-021 bullet), sec-06 follow-ups and sec-07 DEC-029 row updated; DEC-029 body cites REV-007. REV-007 is approved and applied at reconcile."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "REV-007 (proposed) has two modify rows, ADR-002 and REQ-021, with before/after text. The ADR-002 save-policy bullet, the REQ-021 description and AC2 gain the consent exception, and AC4 applies it per file. sec-03, sec-06 follow-ups and the sec-07 DEC-029 row name REV-007, and DEC-029's body cites it. The binding conflict now has a governance path that the design names. It lands at reconcile, so close depends on REV-007 being approved and applied."
+
+[[finding]]
+id = "F-4"
+status = "verified"
+severity = "minor"
+title = "Consent prompt names buffers ambiguously and unboundedly"
+detail = "sec-05-3: 'Redistribute N entries in F files of Q, saving a.org, b.org first? '. The design does not say how files are named. Basenames collide (two notes.org in different directories), so the user cannot tell which buffer they are consenting to save. There is also no rule for many modified buffers in a minibuffer prompt. Consent is only as explicit as the names shown. Specify the naming (e.g. uniquified or abbreviated paths) and an overflow rule (e.g. 'saving N buffers listed in the preview'), with a test."
+disposition = "fix-now"
+response = "sec-05-2-3 'Naming': buffers are named by buffer-name, which Emacs keeps unique (uniquify), up to three; with more, the prompt gives a count and the preview lists them all. Test redistribute-prompt-names (same-named files in two directories; four buffers)."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "sec-05-2-3 'Naming': buffers are named by buffer-name, which Emacs keeps unique (uniquify), up to three; with more, the prompt gives a count and the preview lists them all. Test redistribute-prompt-names (same-named files in two directories; four buffers)."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "sec-05-2-3 'Naming' uses buffer-name, which stays unique. I checked: uniquify-buffer-name-style defaults to post-forward-angle-brackets in this Emacs, so the names come out like notes.org<a>. At most three are named, then a count with the full list in the preview. Test redistribute-prompt-names covers both."
+
+[[finding]]
+id = "F-5"
+status = "verified"
+severity = "minor"
+title = "Consented save may prompt or edit, breaking the one-prompt claim"
+detail = "org-iw-write-save-file uses an ordinary save. save-buffer can ask questions of its own (require-final-newline set to ask, coding-system choices, backups) and run before-save-hook edits. A question breaks 'one y-or-n-p … no separate save question' (sec-05-3), and an unrecorded prompt blocks batch tests. A before-save-hook edit changes buffer text after the recheck, so the rebuilt record could be stale before the apply (R7). State how the save is bound (which saves it allows to prompt, or an inhibit), and whether the key is re-checked after the saves or the apply's per-entry expected-rank guard is relied on, with a test."
+disposition = "fix-now"
+response = "Contest accepted (coding-system questions depend on the text; consent saves are the first to save user-typed text). sec-05-2-2 now says so, replacing the false 'defaults ask none' and 'same exposure' claims. The consent saves run inside the reporting unwind-protect (sec-05-2-3 'After yes'; D7). A failed or quit consent save stops before any rank is written and lists the buffers already saved; the refusal table row reads 'fails, or is quit'. Test redistribute-quit-mid-apply has a variant that quits during a consent save."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "sec-05-2-2: org-iw-write-save-file returns (save-failed . still-modified) when a save hook re-dirties the buffer, and the run stops before writing (sec-05-5 edge case; tests save-file-* and redistribute-consent-save-dirtied). The text edits of a save hook are harmless: markers are resolved per file in the apply, after every consent save, and a changed IW line fails that file's :expected guard before anything is written. Emacs's own save questions are the same exposure every org-iw save has today, not org-iw prompts; the defaults ask none of them. Stated in sec-05-2-2."
+
+[[finding.turn]]
+act = "contest"
+role = "raiser"
+note = """
+The still-modified result and the :expected reasoning cover the hook half; those parts I accept. The sentence added to sec-05-2-2 is wrong on two counts. (1) "Emacs's defaults ask none of them." The coding-system question depends on the buffer's content, not on any setting. Under defaults, an interactive save of a buffer whose text its buffer-file-coding-system can't encode goes through select-safe-coding-system and asks. Example: a file detected as iso-latin-1 or undecided, then the user types a non-Latin character. In batch it picks without asking. I checked: Emacs batch saved a latin-1 org file with an added emoji without asking. That is why the tests can "rely on the defaults", but it says nothing about interactive use. (Separately, org-mode inherits require-final-newline = t, which adds the newline silently rather than asking. That part is fine.) (2) "the same exposure every org-iw save has today" is also false. Today org-iw saves only buffers that were clean before its own edit, and those edits are ASCII (rank, ID, drawer), so the text is always encodable. A consent save is the first time org-iw saves text the user typed, which is exactly the case where the question appears. Consequence: the question appears after the user's yes, and C-g there is a quit during the consent phase. sec-05-5's quit edge case and D7 cover only "during the apply". The buffers already consent-saved then go unreported, which contradicts F-6's "every stop case". Resolution: correct the sentence. Then either (a) accept Emacs's question, put the consent-save loop inside the same unwind-protect that renders the report (listing what was saved so far), and add a quit-during-consent-save test, or (b) add an encodability pre-check (e.g. unencodable-char-position against buffer-file-coding-system) as a file problem, so the preview blocks instead.
+"""
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Contest accepted (coding-system questions depend on the text; consent saves are the first to save user-typed text). sec-05-2-2 now says so, replacing the false 'defaults ask none' and 'same exposure' claims. The consent saves run inside the reporting unwind-protect (sec-05-2-3 'After yes'; D7). A failed or quit consent save stops before any rank is written and lists the buffers already saved; the refusal table row reads 'fails, or is quit'. Test redistribute-quit-mid-apply has a variant that quits during a consent save."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "sec-05-2-2 now states the facts correctly: the coding-system question depends on the text, it asks interactively, batch picks silently, and consent saves are the first saves of user-typed text. The consent saves run inside the reporting unwind-protect (sec-05-2-3 'After yes'; D7), the table row covers 'fails, or is quit', and redistribute-quit-mid-apply has a consent-save-quit variant. One wording residue, the row's refusal text on a quit, is raised as a nit."
+
+[[finding]]
+id = "F-6"
+status = "verified"
+severity = "minor"
+title = "REQ-020 report doesn't separate consent saves from rank saves"
+detail = "After yes, the named buffers are saved first, then each file's ranks are written. If a later rank write fails, the report partitions saved / modified / untouched by rank outcome only. A file that was consent-saved but whose rank write never ran shows as 'untouched', yet its content on disk changed (the user's edits are now saved). The consent-save-fails row names saved buffers, but the 'a file fails' row does not. Say how the report shows consent saves in every stop case, and test it."
+disposition = "fix-now"
+response = "sec-05-2-3 Partition and Report: untouched means no rank written. A consent-saved file is listed there and in a fourth group, 'saved at your request before writing', in every stop case; the refusal text adds '; K saved first at your request'. Test redistribute-report-consent-saves."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "sec-05-2-3 Partition and Report: untouched means no rank written. A consent-saved file is listed there and in a fourth group, 'saved at your request before writing', in every stop case; the refusal text adds '; K saved first at your request'. Test redistribute-report-consent-saves."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Partition: untouched means no rank was written. A consent-saved file is listed there and in a fourth group, 'saved at your request before writing', and the refusal text adds '; K saved first at your request'. Test redistribute-report-consent-saves. Consistent with the 'a consented save fails' row. A quit during the consent phase is not covered; that is raised under the F-5 contest."
+
+[[finding]]
+id = "F-7"
+status = "verified"
+severity = "nit"
+title = "DEC-029 slug and markdown heading still describe the old choice"
+detail = "DEC-029's slug is 'redistribution-refuses-approval-while-an-affected-buffer-is-unsaved' and its .md heading reads 'Redistribution refuses approval while an affected buffer is unsaved'. The amended title and choice say the opposite. Readers following the slug or the prose get the superseded meaning. Update the heading (and slug, if the CLI allows it)."
+disposition = "fix-now"
+response = "DEC-029 .md heading now matches the amended title, and the body cites REV-007. The slug keeps the original wording: the CLI has no slug edit (knowledge edit covers title, tags and body only). Noted in the body."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "DEC-029 .md heading now matches the amended title, and the body cites REV-007. The slug keeps the original wording: the CLI has no slug edit (knowledge edit covers title, tags and body only). Noted in the body."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "The .md heading matches the amended title. The slug can't change: knowledge edit takes only title, tags and body, which I checked with --help. The body says so."
+
+[[finding]]
+id = "F-8"
+status = "verified"
+severity = "blocker"
+title = "Continue visits the old head after a redistributing move"
+detail = """
+sec-05-2-3 (handoff, --move bullet) says "Move, Continue's place and the four view moves get this through --move, with no change of their own". sec-05-4 shows "M-->>C: (redistributed 2 OUTCOMES)", then "--visit-head", without saying which order is visited. Code: org-iw--continue-place (org-iw.el:925-945) computes new-order with `(pcase result (`(moved ,depth ,_) (org-iw-core-reorder order entry depth)) (_ order))`. A `(redistributed DEPTH OUTCOMES)` result falls to `_` and keeps the OLD order. Scenario: the session entry E is the head (visit-next put it there) and the user runs Continue Soon at no gap, then approves. The ranks are re-laid with E at position 3. Continue then visits (car order), which is E again, and reports "Now 1/N: E". That breaks PRD-001 section 6 Continue ("the new first entry is opened and retained") and DEC-038 ("success -> move text plus redistribution summary, then the head visit"). No section-9 test asserts which entry is visited after a successful redistributing Continue: handoff-surfaces, continue-reports-before-visit and continue-no-visit-after-failure all miss it. Resolution: sec-05-2-3 should say that --continue-place derives new-order for `redistributed` as it does for `moved`, e.g. one pcase arm `(or `(moved ,depth . ,_) `(redistributed ,depth . ,_))`. Drop the "no change of their own" claim for Continue, list the change in sec-10, and add a test, continue-redistributes-then-visits-new-head, that asserts the visited entry, the session ID and the "Now 1/N" text.
+"""
+disposition = "design-wrong"
+route = "review"
+response = "Confirmed at org-iw.el:937-939. sec-05-2-3: the 'no change of their own' claim is narrowed to Move and the view moves; --continue-place derives the new order from DEPTH for redistributed as for moved. The sec-05-4 diagram and its notes show the new head; sec-10 lists the change. Test continue-redistributes-then-visits-new-head (visited entry, session ID, 'Now 1/N'); added to the mutation check."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+route = "review"
+response = "Confirmed at org-iw.el:937-939. sec-05-2-3: the 'no change of their own' claim is narrowed to Move and the view moves; --continue-place derives the new order from DEPTH for redistributed as for moved. The sec-05-4 diagram and its notes show the new head; sec-10 lists the change. Test continue-redistributes-then-visits-new-head (visited entry, session ID, 'Now 1/N'); added to the mutation check."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "sec-05-2-3 narrows the 'no change' claim to Move and the view moves. --continue-place reorders from DEPTH for redistributed, citing org-iw.el:937-939, which matches the code. The sec-05-4 diagram and notes show the new head, and sec-10 lists the change. Test continue-redistributes-then-visits-new-head checks the visited entry, the session ID and 'Now 1/N', and it is in the mutation check."
+
+[[finding]]
+id = "F-9"
+status = "verified"
+severity = "major"
+title = "Joining entry's marker is unspecified in the apply; from an indirect buffer it breaks put-ranks"
+detail = """
+sec-05-2-3 (the apply) says the per-file function "resolves each change's marker with org-iw--entry-marker against the recheck's scan". The joining token (org-iw--joining) is not an org-iw-entry, and with ID nil it cannot be resolved at all. So the design doesn't say which marker the joining change uses. The only candidate is the token's own marker, from org-iw--target-at-point. Code: org-iw--target-at-point (org-iw.el:174-185) returns `(point-marker)` in the CURRENT buffer, and org-iw-add's docstring promises "indirect buffers work". Members are resolved by org-iw-discovery-resolve, which always gives base-buffer markers (org-iw-discovery.el:551-572), and put-ranks requires "Every MARKER is in the same buffer; else it is an error" (sec-05-2-2). sec-05-2-2's "Why one buffer" bullet assumes every redistribution marker comes from resolve, which is false for the joining entry. Scenario: labelled Add of a heading from an org-tree-to-indirect-buffer view, at no gap, in a file holding other members whose ranks change. After yes, any consent saves run, earlier files are written, and then put-ranks signals a plain `error`. --file-outcome doesn't catch it (only org-iw-refusal and file-error), so it propagates mid-run. A related gap: a read-only indirect buffer for the joining marker is not a file problem (file-problems looks only at the base buffer), so the preview approves and the preflight refuses mid-run. STD-001 item 5 requires indirect and narrowed fixtures for buffer-reading code, but no section-9 test builds either for the flow. Resolution: state that the joining change uses the token's marker, re-homed to the base buffer (`(copy-marker (marker-position m))` in org-iw-discovery-base-buffer; indirect buffers share text, and a document marker already is one). Add the joining marker buffer's read-only state to the preview problems. Add add-handoff tests from an indirect and from a narrowed buffer.
+"""
+disposition = "design-wrong"
+route = "review"
+response = "Confirmed: target-at-point returns a current-buffer marker (org-iw.el:174-185). D9: the apply re-homes the joining token's marker to the base buffer (sec-05-2-3); sec-05-2-2 'Why one buffer' corrected. org-iw-write-file-problems takes BUFFER, which may be indirect: read-only of base or BUFFER holds, absorbing --check-file's separate indirect check. The preview passes the joining marker's buffer, so a read-only indirect is a blocker. Tests add-handoff-indirect and add-handoff-narrowed (STD-001 item 5), with a read-only-indirect variant."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+route = "review"
+response = "Confirmed: target-at-point returns a current-buffer marker (org-iw.el:174-185). D9: the apply re-homes the joining token's marker to the base buffer (sec-05-2-3); sec-05-2-2 'Why one buffer' corrected. org-iw-write-file-problems takes BUFFER, which may be indirect: read-only of base or BUFFER holds, absorbing --check-file's separate indirect check. The preview passes the joining marker's buffer, so a read-only indirect is a blocker. Tests add-handoff-indirect and add-handoff-narrowed (STD-001 item 5), with a read-only-indirect variant."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "D9 moves the joining marker into the base buffer (copy-marker of its position, which is valid because indirect buffers share their base's text). sec-05-2-2 'Why one buffer' is corrected. file-problems takes an indirect BUFFER, so a read-only indirect buffer blocks in the preview, and --check-file's separate indirect check is absorbed with the same base-or-buffer semantics as the code today. Tests add-handoff-indirect and add-handoff-narrowed, plus a read-only variant. The check-joinable point-context issue is raised separately."
+
+[[finding]]
+id = "F-10"
+status = "verified"
+severity = "minor"
+title = "INTEND on the re-show path is specified only for Move"
+detail = """
+sec-05-2-3 specifies the move INTEND fully: find by ID in the fresh scan, then depth = placement-depth PLACEMENT over (1- (length order)). For a pending add, sec-05-2-1 gives only `(org-iw-core-reorder order JOINING depth)`. The token has no placement or depth slot, so it is unstated whether depth is fixed from the first (no-gap DEPTH) or recomputed from the placement. It is also unstated whether INTEND re-runs --add-entry's own checks against the fresh scan: already a member, an excluded IW line (org-iw--excluded-types), or a shared ID (org-iw.el:466-473). On the re-show path (key changed, which sec-05-4 says happens when the user edits while asked) this matters. (1) A fraction or percent label ("Later" = (fraction 1 2)) gets a stale depth when the member count changed. (2) If the user enrolled the entry by hand while asked, the fresh order holds both the member and the token, and the plan writes two ranks for one entry. The write's :expected :absent then refuses that file mid-run, after earlier files were written. The view moves have the same weakness: org-iw-core-beside and org-iw-core-step turn "before X" and "up one" into `(after N)` against the ORIGINAL order. A re-show after X moved therefore places by stale index while PENDING still says "before X" (R2: intended order). Resolution: give the add INTEND the placement and have it recompute depth over (length order), refusing, as --add-entry does, when the entry is now a member, excluded or shared-ID. For view-relative moves, either recompute the placement from the anchor's ID in the fresh scan or refuse on re-show. Add one re-show test for Add.
+"""
+disposition = "fix-now"
+response = "Contest accepted. org-iw--check-joinable now takes (scan order queue marker document), runs at MARKER, and re-reads ID and file there on every scan, so the token's ID is refreshed and an entry enrolled by hand while asking is found ('already in Q') before anything is written. The add INTEND calls it at the token's marker (sec-05-2-3)."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "D8: --move takes a placement or a function of (ORDER ENTRY). The view moves pass functions: the anchor is found by ID per scan (refusing 'X is no longer in queue Q'), and up/down step from the fresh index. The joining token keeps its placement. The add INTEND re-runs the extracted org-iw--check-joinable, so an entry that became a member while asking refuses 'already in Q', as do excluded and shared-ID entries, and depth is recomputed over the fresh count. Tests add-reshow-recomputes (with an enrolled-while-asking variant) and view-move-reshow-anchor."
+
+[[finding.turn]]
+act = "contest"
+role = "raiser"
+note = """
+D8, the re-shown view anchor, and the add depth recomputed over the fresh count all hold. The add INTEND's re-check does not. --add-entry's checks run inside `(org-with-point-at marker ...)` (org-iw.el:461). org-iw--excluded-types calls org-iw-discovery-queue-lines, which reads "the entry at point's IW lines" (org-iw-discovery.el:226-234). org-iw-discovery-shared-id-p means "an entry other than the one at point" (:537-544), and the ID itself comes from org-iw-discovery-entry-id or document-id at point. The proposed signature `org-iw--check-joinable (scan order queue id file document)` has no MARKER, and sec-05-2-3 doesn't say the add INTEND runs at the token's marker. INTEND is called from --redistribute in whatever buffer is current, and point there may have moved while the user was asked. So the excluded-line and shared-ID checks would read the wrong entry. Second, ID: the token's ID is fixed when the token is made (often nil). If the user gives the entry an ID and an IW_Q line while asked (the enrolled-while-asking case D8 claims to catch), `(org-iw--find-entry order nil file)` cannot match. The plan then holds the member AND the token, and the only guard left is the write's :expected :absent, which fires mid-run after earlier files are written. That is exactly what F-10 raised. Resolution: give check-joinable a MARKER, run it under org-with-point-at, and re-read the ID there on every scan. Make the enrolled-while-asking test use an entry that had no ID when Add started.
+"""
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Contest accepted. org-iw--check-joinable now takes (scan order queue marker document), runs at MARKER, and re-reads ID and file there on every scan, so the token's ID is refreshed and an entry enrolled by hand while asking is found ('already in Q') before anything is written. The add INTEND calls it at the token's marker (sec-05-2-3)."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "check-joinable now takes (scan order queue marker document), runs at MARKER and re-reads the ID and file on every scan, and the add INTEND calls it at the token's marker. That matches the point-reading checks in org-iw.el:461-473 and org-iw-discovery.el:226 and :537. Suggestion: the add-reshow-recomputes 'enrols itself' variant should start from an entry with no ID, which is the case the refresh exists for."
+
+[[finding]]
+id = "F-11"
+status = "verified"
+severity = "minor"
+title = "Live buffer not in Org mode is not caught before the first write"
+detail = """
+REQ-019 AC4 says "Unwritable targets are detected before any write". DEC-030's rationale is "no partial redistribution that would leave the queue half re-laid". The preview's checks are org-iw-write-file-problems: changed-on-disk, not-writable, read-only, modified (sec-05-2-2). Code: the scan parses a live buffer's text in a temp buffer in Org mode, whatever the live buffer's mode (org-iw-discovery.el:399-433). So members in a buffer that is not in Org mode (opened with find-file-literally, or switched to text-mode) are in the plan. In the apply, org-iw-discovery-resolve calls org-iw-discovery-require-org-mode (org-iw-discovery.el:563) and refuses "buffer not in Org mode". The result is (failed) for that file, after every earlier file was written and saved. Continue's docstring already lists "a source buffer is not in Org mode" as a refusal, so this is a known condition that the preview could see. Resolution: add a `not-org` problem, for a visiting buffer whose mode is not derived from org-mode, to the preview's blockers. Decide whether it belongs in org-iw-write-file-problems (the rule's one owner is discovery's require-org-mode, so take a discovery predicate) or in the redistribution build. Add a redistribute-blocked-not-org test.
+"""
+disposition = "fix-now"
+response = "Confirmed: resolve calls require-org-mode (org-iw-discovery.el:563). org-iw-write-file-problems gains not-org via a new discovery predicate, org-iw-discovery-org-mode-p, shared with require-org-mode, so the rule keeps one owner. It blocks (DEC-030 row extended; REQ-019 AC4). Test redistribute-blocked-not-org; sec-10 lists the discovery change."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Confirmed: resolve calls require-org-mode (org-iw-discovery.el:563). org-iw-write-file-problems gains not-org via a new discovery predicate, org-iw-discovery-org-mode-p, shared with require-org-mode, so the rule keeps one owner. It blocks (DEC-030 row extended; REQ-019 AC4). Test redistribute-blocked-not-org; sec-10 lists the discovery change."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "not-org is added through a new discovery predicate, org-iw-discovery-org-mode-p, which require-org-mode shares, so the rule keeps one owner (STD-004 item 5, POL-002). It blocks in the preview. Test redistribute-blocked-not-org, and sec-10 has the discovery row. Adding not-org to --check-file is not a regression for single writes: every current path refuses non-Org earlier, through require-source or resolve."
+
+[[finding]]
+id = "F-12"
+status = "verified"
+severity = "minor"
+title = "Code impact misses the existing no-room tests that become handoffs; unlabelled Add at End is ambiguous"
+detail = """
+sec-10's test/org-iw-test.el row names only the no-room text test (:192) and the batch-report tests (:1206). In test/org-iw-test.el these existing tests assert the no-room refusal on paths that now hand off and prompt: add-refuses-at-rank-limit (~715), add-document-refuses-at-rank-limit (~984), add-refuses-without-gap (~2320), continue-refuses-at-rank-limit (~2763), continue-refuses-without-gap (~2775), move-command-no-room (3324), the view step at "position 3/4" (~4248), and view-place-refusals (~4418). Under the prompt stub they would fail with "Unexpected prompt". Outside it, batch Emacs would hit an unrecorded y-or-n-p (sec-02, mem.fact.emacs.batch-test-gotchas). Planning should size and own this rewrite; it is not a two-line rename. Related ambiguity: sec-05-2-3 says --add-at "(labelled Add and Add-document) hands off with PENDING 'add TITLE at LABEL'". But --add-at also serves unlabelled Add (label nil, placement `end`, org-iw.el:488-507), which reaches no-gap at the rank limit. DEC-036 names "labelled Add" and keeps only batch add refusing. The design should say whether unlabelled Add, and Continue at End, hand off at the limit, and what PENDING reads with no label: "at nil" would be wrong, so use "at the end". Resolution: list the tests above in sec-10 with their new expectations, and state the unlabelled-Add behaviour.
+"""
+disposition = "fix-now"
+response = "sec-10 lists the nine existing tests, which are rewritten to expect the prompt (answered no: cancelled, state equal); batch-no-room-fails-rest keeps the refusal with the new text. Unlabelled Add hands off through --add-at with PENDING 'add TITLE at the end' (sec-01, sec-05-2-3, sec-07 DEC-036 row). Continue at End hands off through --move. handoff-surfaces covers unlabelled Add."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "sec-10 lists the nine existing tests, which are rewritten to expect the prompt (answered no: cancelled, state equal); batch-no-room-fails-rest keeps the refusal with the new text. Unlabelled Add hands off through --add-at with PENDING 'add TITLE at the end' (sec-01, sec-05-2-3, sec-07 DEC-036 row). Continue at End hands off through --move. handoff-surfaces covers unlabelled Add."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "sec-10 lists nine tests. I spot-checked the lines: :715, :982, :2856 and :4403 match the named tests. batch-no-room-fails-rest keeps the refusal. Unlabelled Add hands off with 'add TITLE at the end', and handoff-surfaces covers it. Note: this goes beyond DEC-036's literal choice ('labelled Add'). The design records it in the DEC-036 row, but the decision record itself is unchanged; reconcile should touch DEC-036, or the user should confirm."
+
+[[finding]]
+id = "F-13"
+status = "verified"
+severity = "minor"
+title = "Stale-reshow test only re-asks if the rewritten file is unvisited"
+detail = """
+sec-09 redistribute-stale-reshows: "the first answer is a function that rewrites an affected IW line on disk, then answers yes -> the preview is shown again and asked again; the second yes applies the fresh plan." If that file has a live buffer, the scan reads the buffer, not the disk (REQ-006; org-iw-discovery.el:399-413), so MEMBERS doesn't change. Instead verify-visited-file-modtime fails, the file gains `changed-on-disk`, and that is a DEC-030 blocker: the re-show has NO prompt and the run refuses. The test as written then fails, or gets "fixed" to expect the blocker. Either way R7's re-ask loop is left untested. The edge case in sec-05-5 ("changed on disk ... after the prompt -> ... no prompt") confirms this is the visited-file outcome. Resolution: specify that the answer function either rewrites an UNVISITED affected file on disk, or edits an affected IW line in a live buffer (which changes MEMBERS and the modified flag). Assert that the second prompt appears and that the applied ranks follow the fresh order. Keep the visited, changed-on-disk variant as a separate blocker test.
+"""
+disposition = "fix-now"
+response = "sec-09 redistribute-stale-reshows now has two variants that change MEMBERS (an unvisited file rewritten on disk; a live-buffer edit) and assert the second prompt and the fresh order. The visited, changed-on-disk case is the separate test redistribute-blocked-changed-while-asking."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "sec-09 redistribute-stale-reshows now has two variants that change MEMBERS (an unvisited file rewritten on disk; a live-buffer edit) and assert the second prompt and the fresh order. The visited, changed-on-disk case is the separate test redistribute-blocked-changed-while-asking."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "Two variants change MEMBERS without a blocker: an unvisited file rewritten on disk, and a live-buffer edit. Both assert the second prompt and the fresh order. The visited-and-changed-on-disk case is now its own blocker test. That matches the scan's live-buffer precedence (org-iw-discovery.el:399-413)."
+
+[[finding]]
+id = "F-14"
+status = "verified"
+severity = "minor"
+title = "A quit while a file saves puts it in the wrong partition; D7 is untested"
+detail = """
+D7 and sec-05-5 (quit/error during the apply): "the files already done stand, and the rest are (stopped)". Under REQ-020 (sec-05-2-3 Partition), (stopped) counts as untouched. R4 claims the partition is exact. Code: atomic-change-group rolls back on a quit inside the edits, so that window is safe. A quit during org-iw-write--save (save-buffer, or before-save/after-save hooks such as formatters), or after the save but before --file-outcome returns, is different. The edits stand, the file may already be saved, and no outcome is recorded: --file-outcome's value comes from the unwind-protect form, which never returns (org-iw.el:655-680). Batch add's unwind-protect, which D7 copies (org-iw.el:765-776), marks every file without an outcome `stopped`. So the in-flight file is reported "untouched" while its buffer holds rank edits, or its disk does. A user restoring from that report would skip the one file that did change. No sec-09 test exercises D7. Resolution: classify the in-flight file from observed state, e.g. modified-p on its buffer, or label it "interrupted: check this file". Add a test that quits from write-file-functions or after-save-hook on the second file and asserts the partition.
+"""
+disposition = "fix-now"
+response = "Contest accepted. The in-flight file is (interrupted) only if its buffer is modified or its visited-file modtime changed (a save ran); a quit inside the change group rolls back and stays (stopped), untouched (sec-05-2-3 'Interrupted'; D7). Batch add keeps its own loop and stopped rule, so org-iw-cmd-test-batch-summary-after-error stays green. Its sibling defect is captured as ISS-007. Test redistribute-quit-mid-apply has a rolled-back variant. Also folded in from the verify notes: the sec-08 risk row now reads 'redraws after a clean apply' (F-16), and sec-06 lists the DEC-036 wording update for reconcile (F-12)."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "D7 and sec-05-2-3 'Interrupted': the loop notes the file in flight, and a quit or error leaves it (interrupted), partitioned as modified ('interrupted; check this file'), never untouched. R4 states the exception. Batch add shares the rule (same defect class, shared loop). Test redistribute-quit-mid-apply."
+
+[[finding.turn]]
+act = "contest"
+role = "raiser"
+note = """
+Marking the in-flight file is the right idea, but the rule as written over-reports, and it regresses batch add. (1) "If a quit or error leaves it with no outcome ... it is (interrupted)", which is partitioned as modified. An error or quit before or inside the change group leaves no edit: atomic-change-group rolls back, and that state is truly untouched. Under the new rule it is reported "modified; interrupted; check this file", so the partition becomes inexact in the other direction, and R4's "exact" claim still fails. (2) "Batch add gains the same rule, through the shared loop helper" contradicts the existing test org-iw-cmd-test-batch-summary-after-error (test/org-iw-test.el:1610-1640, RV-012 F-7). There, an error or quit diverted into --add-entry for b.org must report "b.org: not added: the batch stopped", "stopped after 1 of 3 files", and b.org unchanged and not visited. Under the new rule b.org becomes interrupted. sec-10 doesn't list that test, and the change reverses an earlier review ruling without saying so. (3) The "shared loop helper" has no name, no row in the ownership table and no row in sec-10, but today batch add and redistribution have separate loops (org-iw--batch-add's dolist; --redistribute's loop). Resolution: classify the in-flight file from what is observed in the unwind. Interrupted only if its buffer is modified or its file's modtime changed since the loop began; else stopped (untouched). That keeps RV-012 F-7's test green. Name the shared helper and give it an ownership row, or drop the batch-add claim.
+"""
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "Contest accepted. The in-flight file is (interrupted) only if its buffer is modified or its visited-file modtime changed (a save ran); a quit inside the change group rolls back and stays (stopped), untouched (sec-05-2-3 'Interrupted'; D7). Batch add keeps its own loop and stopped rule, so org-iw-cmd-test-batch-summary-after-error stays green. Its sibling defect is captured as ISS-007. Test redistribute-quit-mid-apply has a rolled-back variant. Also folded in from the verify notes: the sec-08 risk row now reads 'redraws after a clean apply' (F-16), and sec-06 lists the DEC-036 wording update for reconcile (F-12)."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "The in-flight file is interrupted only when its buffer is modified or its file's modtime changed; a quit rolled back inside the change group stays stopped. Batch add keeps its own loop and rule, so the test at test/org-iw-test.el:1610 stays green, and the sibling defect is ISS-007. There is a rolled-back test variant. sec-05-2-3, R4, D7, sec-09 and sec-10 agree. The sec-05-5 edge-case line is stale and is raised as a nit."
+
+[[finding]]
+id = "F-15"
+status = "verified"
+severity = "minor"
+title = "New test oracles need self-tests (STD-001 item 2)"
+detail = """
+sec-08 and sec-09 add org-iw-test-changed-files (before after), an oracle for "exactly these lines changed" across files that redistribute-applies-minimal (R2, R3) relies on. They also extend org-iw-cmd-test--with-prompt to accept a function answer, which redistribute-stale-reshows relies on. STD-001 item 2: "Any helper that decides pass/fail for many tests ... has a self-test showing it detects the change it claims to detect". Precedent: org-iw-test-changed-lines has org-iw-discovery-test-fixture-changed-lines (test/org-iw-discovery-test.el:125). sec-09 and sec-10 name no self-test for either. Without one, changed-files could, for example, ignore an added or removed file, or a change in an unaffected file, and R3 would pass vacuously (the RV-002 F-19 failure mode STD-001 cites). Resolution: list a fixture self-test for changed-files (a change in an unlisted file, a new file, a buffer-only change) and one for the function answer (it is called, its value is used, and a non-:yes/:no value is rejected).
+"""
+disposition = "fix-now"
+response = "sec-09 'Helper self-tests': changed-files detects an out-of-set, new, deleted and buffer-only change; the prompt stub's function answer is called, used, and a non-:yes/:no value fails. sec-10 rows updated."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "sec-09 'Helper self-tests': changed-files detects an out-of-set, new, deleted and buffer-only change; the prompt stub's function answer is called, used, and a non-:yes/:no value fails. sec-10 rows updated."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "sec-09 'Helper self-tests' covers changed-files (a file outside the set, a new file, a deleted file, a buffer-only change) and the stub's function answer (it is called, its value is used, and a non-:yes/:no value fails). sec-10 rows are updated."
+
+[[finding]]
+id = "F-16"
+status = "verified"
+severity = "nit"
+title = "The moving view isn't redrawn after a partial failure; normalise's no-change outcome isn't in the contract"
+detail = """
+(1) D1 makes the "a file fails" case a refusal from --redistribute. org-iw--view-move (org-iw.el:1344-1352) calls --view-redraw-and-report only on return, so after a partial redistribution started from the view, the view still shows the pre-run order and ranks while some files changed. sec-05-5 says only "the view that moved redraws from a fresh scan", which is true on success alone. Say whether the view redraws on the failure refusal (e.g. an unwind in --view-move), or state that it stays stale. (2) sec-05-2-3's --redistribute contract and refusal table have no row for an empty `changes`. Yet sec-05-4 says normalise "with no changes returns before any preview", and the normalise bullets report "already normal". Add the row, and say what is returned, so normalise can tell "already normal" from a clean apply. It matters on the re-show path too, when a rebuilt plan becomes empty.
+"""
+disposition = "fix-now"
+response = "(1) sec-05-5: after a stopped run the moving view stays as it was, since the refusal skips the redraw; the refusal points at the report, and g redraws (IDE-001 covers the rest). Kept as a stated limitation, not a redraw on unwind, which would touch the view on cancel too (R1). (2) The sec-05-2-3 contract and table gain 'no changes → nil, no preview'. Normalise maps nil to 'already normal'; the handoff's --move maps nil to (unchanged DEPTH); a pending add is never empty."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "(1) sec-05-5: after a stopped run the moving view stays as it was, since the refusal skips the redraw; the refusal points at the report, and g redraws (IDE-001 covers the rest). Kept as a stated limitation, not a redraw on unwind, which would touch the view on cancel too (R1). (2) The sec-05-2-3 contract and table gain 'no changes → nil, no preview'. Normalise maps nil to 'already normal'; the handoff's --move maps nil to (unchanged DEPTH); a pending add is never empty."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "(1) A stated limitation is an acceptable resolution of a nit. The R1 justification only holds for an UNCONDITIONAL unwind redraw: R1 does forbid view changes on blocked or cancelled runs, but a redraw limited to the 'stopped' refusal, after a write, would not breach it. The stated limitation is still a fair choice. A leftover: the sec-08 risk row 'Stale queue views ... the moving view redraws' now reads as unconditional and should say 'after a clean apply'. (2) The contract row 'no changes -> nil' plus normalise's and --move's mapping of nil is consistent."
+
+[[finding]]
+id = "F-17"
+status = "verified"
+severity = "nit"
+title = "Residues of the F-5 and F-14 fixes: stale edge case, quit refusal text, modtime of unopened files"
+detail = """
+(1) sec-05-5 Edge cases, "A quit (C-g) or unexpected error during the apply", still reads "the file in flight is (interrupted)" unconditionally. sec-05-2-3 'Interrupted', R4, D7 and sec-09's rolled-back variant all make it conditional (interrupted only if the buffer is modified or the modtime changed, else stopped). Make the edge case conditional and mention the consent-save phase that D7 now includes. (2) The sec-05-2-3 table row "a consented save fails, or is quit" gives the refusal text "...FILE not saved: ERR". A quit isn't a refusal: D7 says the quit propagates after the report, and there is no ERR. Say that on a quit the report is shown and the quit propagates, with no refusal text. (3) 'Interrupted' compares the in-flight file's "visited-file modtime", noted before --file-outcome is called. For an affected file that no buffer visits, there is no visited-file modtime until --file-outcome opens it. Use the file's on-disk modtime (file-attribute-modification-time) for both cases. That also survives --file-outcome killing a buffer it opened that ended clean after the save.
+"""
+disposition = "fix-now"
+response = "sec-05-5 quit edge case now states the conditional rule. The refusal table splits 'consented save fails' (refusal with ERR) from a new row 'a quit or unexpected error (consent saves or apply)': report shown, then the quit or error propagates (D7), with no refusal text. The interrupted rule compares the on-disk modtime (file-attribute-modification-time), noted before --file-outcome opens the file."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "sec-05-5 quit edge case now states the conditional rule. The refusal table splits 'consented save fails' (refusal with ERR) from a new row 'a quit or unexpected error (consent saves or apply)': report shown, then the quit or error propagates (D7), with no refusal text. The interrupted rule compares the on-disk modtime (file-attribute-modification-time), noted before --file-outcome opens the file."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "All three edits are in. (1) The sec-05-5 quit edge case is now conditional: interrupted if the buffer is modified or the file was saved, else stopped. It matches sec-05-2-3, R4 and D7. The consent phase is covered by the new table row and by D7. (2) The table splits the consent-save failure (a refusal) from a quit or unexpected error, which shows the report and propagates with no refusal text, per D7. (3) 'Interrupted' uses the on-disk modtime (file-attribute-modification-time), so a file no buffer visits yet is handled."
+
 # Findings are append-only `[[finding]]` tables, added by `review raise`.
 # Empty here at creation — a fresh review is Active, awaiting the raiser.
