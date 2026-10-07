@@ -41,6 +41,13 @@
 
 ;;;; Helpers
 
+(defun org-iw-cmd-test--at (marker fn &rest args)
+  "Apply FN to ARGS in MARKER's buffer with point at MARKER; return its value.
+Prompts are left to the caller, as to `org-iw-cmd-test--with-prompt'."
+  (with-current-buffer (marker-buffer marker)
+    (goto-char marker)
+    (apply fn args)))
+
 (defun org-iw-cmd-test--call-at (marker fn &rest args)
   "Apply FN to ARGS in MARKER's buffer with point at MARKER; return its value.
 A confirmation prompt fails the test.  To call a command
@@ -49,9 +56,7 @@ interactively, FN is `call-interactively' and ARGS the command."
              (lambda (&rest _) (ert-fail "y-or-n-p")))
             ((symbol-function 'yes-or-no-p)
              (lambda (&rest _) (ert-fail "yes-or-no-p"))))
-    (with-current-buffer (marker-buffer marker)
-      (goto-char marker)
-      (apply fn args))))
+    (apply #'org-iw-cmd-test--at marker fn args)))
 
 (defun org-iw-cmd-test--add (name title queue &optional label)
   "Add the heading TITLE of corpus file NAME to QUEUE at LABEL.
@@ -2464,6 +2469,28 @@ a navigation."
       (should-error (org-iw-cmd-test--should-refuse-cleanly "no" fn)
                     :type 'ert-test-failed))))
 
+(defconst org-iw-cmd-test--cancelled
+  "Redistribution of ESSAYS cancelled; nothing changed"
+  "The refusal when the redistribution of ESSAYS is answered no.")
+
+(defun org-iw-cmd-test--refuses-cleanly (text fn)
+  "Assert FN refuses with exactly TEXT and changes nothing.
+See `org-iw-cmd-test--should-refuse-cleanly'."
+  (should (equal (org-iw-cmd-test--should-refuse-cleanly text fn) text)))
+
+(defun org-iw-cmd-test--should-cancel-handoff (pending fn &optional refuses)
+  "Assert FN asks once to redistribute ESSAYS for PENDING; answer no.
+PENDING, the move's text, must be in the preview.  REFUSES, called
+with `org-iw-cmd-test--cancelled' and FN, asserts FN refuses with that
+text and changes nothing; it is `org-iw-cmd-test--refuses-cleanly' by
+default."
+  (org-iw-cmd-test--with-prompt :no
+    (funcall (or refuses #'org-iw-cmd-test--refuses-cleanly)
+             org-iw-cmd-test--cancelled fn)
+    (should (length= org-iw-cmd-test--prompts 1)))
+  (should (string-search (format "Pending: %s\n" pending)
+                         (org-iw-cmd-test--preview-text))))
+
 (ert-deftest org-iw-cmd-test-visit-next-writes-nothing ()
   "`org-iw-visit-next' changes nothing and repeats the same entry (I1)."
   (org-iw-test-with-corpus org-iw-cmd-test--queue
@@ -2820,19 +2847,20 @@ B and C are re-ranked before A in b.org's unsaved buffer."
     (should (equal (org-iw-cmd-test--session-id) "b1"))))
 
 (ert-deftest org-iw-cmd-test-continue-refuses-at-rank-limit ()
-  "Continue refuses when the last rank leaves no room below the limit."
+  "With no room below the limit, Continue offers to redistribute.
+Answered no, it refuses, changing nothing."
   (org-iw-test-with-corpus
       `(("a.org" . ,org-iw-cmd-test--a-file)
         ("b.org" . ,(org-iw-test-heading "B" "b1"
                                          ":IW_ESSAYS: 9007199254740991")))
     (org-iw-cmd-test--open-all)
     (org-iw-visit-next "ESSAYS")
-    (should (equal (org-iw-cmd-test--should-refuse-cleanly
-                    "no room at End" #'org-iw-continue)
-                   (org-iw-cmd-test--no-room "at End")))))
+    (org-iw-cmd-test--should-cancel-handoff "move A at End"
+                                            #'org-iw-continue)))
 
 (ert-deftest org-iw-cmd-test-continue-refuses-without-gap ()
-  "Between neighbours ranked 5 and 6 there is no room: nothing changes (I9)."
+  "Between neighbours ranked 5 and 6 Continue offers to redistribute (I9).
+Answered no, it refuses, changing nothing."
   (org-iw-test-with-corpus
       `(("a.org" . ,(org-iw-test-heading "A" "a1" ":IW_ESSAYS: 1"))
         ("b.org" . ,(concat (org-iw-test-heading "B" "b1" ":IW_ESSAYS: 5")
@@ -2840,9 +2868,8 @@ B and C are re-ranked before A in b.org's unsaved buffer."
     (let ((org-iw-queues '(("essays" :placements (("Second" (after 1)))))))
       (org-iw-cmd-test--open-all)
       (org-iw-visit-next "ESSAYS")
-      (should (equal (org-iw-cmd-test--should-refuse-cleanly
-                      "no room" #'org-iw-continue)
-                     (org-iw-cmd-test--no-room "at Second"))))))
+      (org-iw-cmd-test--should-cancel-handoff "move A at Second"
+                                              #'org-iw-continue))))
 
 (ert-deftest org-iw-cmd-test-continue-refuses-read-only-buffer ()
   "Continue refuses when the session entry's buffer is read-only (RV-002 F-1).
@@ -2866,6 +2893,67 @@ Nothing is written or visited, and the session is unchanged."
                                                 "* Added outside\n"))
     (org-iw-cmd-test--should-refuse-cleanly "changed on disk"
                                             #'org-iw-continue)))
+
+;;;; Continue: the head visit
+
+(defun org-iw-cmd-test--unresolvable (id fn)
+  "Call FN with the entry ID refusing to resolve; return FN's value.
+The refusal reads \"ID cannot be found\"; other entries resolve."
+  (org-iw-cmd-test--diverting
+   'org-iw-discovery-resolve
+   (lambda (_scan entry-id _file) (equal entry-id id))
+   (lambda (&rest _) (org-iw-core-refuse "%s cannot be found" id))
+   fn))
+
+(ert-deftest org-iw-cmd-test-visit-head ()
+  "`org-iw--visit-head' visits the head and returns nil, or the refusal.
+A refused visit changes nothing; another error propagates; a visit
+shows the head and makes it the session's entry."
+  (org-iw-test-with-corpus org-iw-cmd-test--queue
+    (org-iw-cmd-test--open-all)
+    (org-iw-visit-next "DRAFTS")
+    (let* ((scan (org-iw--scan))
+           (order (org-iw--order scan "ESSAYS"))
+           (visit (lambda () (org-iw--visit-head scan order "ESSAYS"))))
+      (should (equal (org-iw-cmd-test--should-change-nothing
+                      (lambda () (org-iw-cmd-test--unresolvable "a1" visit)))
+                     "a1 cannot be found"))
+      (should (equal (should-error
+                      (org-iw-cmd-test--diverting
+                       'org-iw-discovery-resolve #'always
+                       (lambda (&rest _) (error "Boom")) visit))
+                     '(error "Boom")))
+      (should-not (org-iw--visit-head scan order "ESSAYS"))
+      (should (equal (org-iw-cmd-test--shown) '("a.org" "A")))
+      (should (equal (org-iw-cmd-test--session-id) "a1")))))
+
+(ert-deftest org-iw-cmd-test-continue-reports-before-visit ()
+  "A refused head visit after Continue's write keeps the write's report.
+The message is the write text, save status included, then the reason
+the head was not visited; the write is saved, and the session and the
+window stay."
+  (pcase-dolist
+      (`(,label ,added ,text)
+       `((nil (":IW_ESSAYS: 4096")
+              "Moved A to End, 3/3 (saved); not visited: b1 cannot be found")
+         (remove nil
+                 ,(concat "Removed A from ESSAYS (saved). The session still"
+                          " names it: org-iw-visit-next to go on,"
+                          " org-iw-end-session to stop; not visited: b1"
+                          " cannot be found"))))
+    (org-iw-test-with-corpus org-iw-cmd-test--queue
+      (org-iw-visit-next "ESSAYS")
+      (let ((session org-iw--session)
+            (shown (org-iw-cmd-test--shown)))
+        (should (equal (org-iw-cmd-test--should-change-lines
+                        (lambda ()
+                          (org-iw-cmd-test--unresolvable
+                           "b1" (lambda () (org-iw-continue label))))
+                        "a.org" '(":IW_ESSAYS: 1024") added)
+                       text))
+        (should (equal (org-iw-cmd-test--last-message) text))
+        (should (eq org-iw--session session))
+        (should (equal (org-iw-cmd-test--shown) shown))))))
 
 ;;;; Moving a member
 
@@ -2913,28 +3001,20 @@ Its buffer is read-only, which would refuse any write."
                              ": IW_ESSAYS changed since scan"))))))
 
 (ert-deftest org-iw-cmd-test-move-refuses-without-gap ()
-  "Between neighbours ranked 5 and 6 there is no room; nothing changes.
-The refusal names the queue by its configured name."
+  "Between neighbours ranked 5 and 6 a move offers to redistribute.
+The pending move is named by WHERE, else by the position the entry
+would take.  Answered no, it refuses, changing nothing."
   (org-iw-test-with-corpus
       `(("a.org" . ,(concat (org-iw-test-heading "A" "a1" ":IW_ESSAYS: 1")
                             (org-iw-test-heading "B" "b1" ":IW_ESSAYS: 5")
                             (org-iw-test-heading "C" "c1" ":IW_ESSAYS: 6"))))
     (org-iw-cmd-test--open-all)
-    (let ((org-iw-queues '(("essays" :name "Essays")))
-          (scan (org-iw--scan)))
-      (should (equal (org-iw-cmd-test--should-refuse-cleanly
-                      "no room"
-                      (lambda ()
-                        (org-iw-cmd-test--move scan "a1" '(after 1)
-                                               "at Second")))
-                     (concat "no room at Second in Essays; normalise it"
-                             " with org-iw-normalise")))
-      (should (equal (org-iw-cmd-test--should-refuse-cleanly
-                      "no room"
-                      (lambda ()
-                        (org-iw-cmd-test--move scan "a1" '(after 1))))
-                     (concat "no room at position 2/3 in Essays;"
-                             " normalise it with org-iw-normalise"))))))
+    (let ((scan (org-iw--scan)))
+      (pcase-dolist (`(,where ,pending) '(("at Second" "move A at Second")
+                                          (nil "move A at position 2/3")))
+        (org-iw-cmd-test--should-cancel-handoff
+         pending
+         (lambda () (org-iw-cmd-test--move scan "a1" '(after 1) where)))))))
 
 (ert-deftest org-iw-cmd-test-moved-text ()
   "The move text gives the placement when WHERE is given, else only D/N."
@@ -3381,20 +3461,19 @@ Its buffer is read-only, which would refuse any write."
           (should (equal (null org-iw--session) (not visiting))))))))
 
 (ert-deftest org-iw-cmd-test-move-command-no-room ()
-  "Between neighbours ranked 5 and 6 there is no room; nothing changes."
+  "Between neighbours ranked 5 and 6 Move offers to redistribute.
+Answered no, it refuses, changing nothing."
   (org-iw-test-with-corpus
       `(("a.org" . ,(concat (org-iw-test-heading "A" "a1" ":IW_ESSAYS: 1")
                             (org-iw-test-heading "B" "b1" ":IW_ESSAYS: 5")
                             (org-iw-test-heading "C" "c1" ":IW_ESSAYS: 6"))))
     (org-iw-cmd-test--open-all)
     (let ((org-iw-queues '(("essays" :placements (("Second" (after 1)))))))
-      (should (equal (org-iw-cmd-test--should-refuse-cleanly
-                      "no room"
-                      (lambda ()
-                        (org-iw-cmd-test--call-at
-                         (org-iw-test-marker "a.org" "A")
-                         #'org-iw-move "ESSAYS" "Second")))
-                     (org-iw-cmd-test--no-room "at Second"))))))
+      (org-iw-cmd-test--should-cancel-handoff
+       "move A at Second"
+       (lambda ()
+         (org-iw-cmd-test--at (org-iw-test-marker "a.org" "A")
+                              #'org-iw-move "ESSAYS" "Second"))))))
 
 (ert-deftest org-iw-cmd-test-move-command-member-document ()
   "A member document moves, as a heading does, from within its preamble."
@@ -4289,7 +4368,8 @@ At the front it is already there, and nothing is written."
                        "A already at 1/3"))))))
 
 (ert-deftest org-iw-cmd-test-view-move-ties ()
-  "Moving out of a tied pair succeeds; moving between it refuses."
+  "Moving out of a tied pair succeeds; moving between it redistributes.
+Answered no, that refuses, changing nothing."
   (pcase-dolist (`(,row ,command ,to ,text)
                  '((3 org-iw-view-move-up 3 "Moved C to 2/4 (saved)")
                    (2 org-iw-view-move-down 7 "Moved B to 3/4 (saved)")))
@@ -4302,9 +4382,8 @@ At the front it is already there, and nothing is written."
   (org-iw-test-with-corpus org-iw-cmd-test--tied
     (org-iw-cmd-test--open-all)
     (org-iw-cmd-test--view-on-row "ESSAYS" 4)
-    (should (equal (org-iw-cmd-test--should-refuse-cleanly
-                    "" #'org-iw-view-move-up)
-                   (org-iw-cmd-test--no-room "at position 3/4")))))
+    (org-iw-cmd-test--should-cancel-handoff "move D at position 3/4"
+                                            #'org-iw-view-move-up)))
 
 ;;;; Queue view: mark (EX-3, EX-4, VT-3)
 
@@ -4461,8 +4540,9 @@ The mark must be tagged before and after."
 
 (ert-deftest org-iw-cmd-test-view-place-refusals ()
   "A refused place writes nothing and keeps the mark.
-It refuses without a mark, without room, or when the marked entry or
-the entry at point has left the queue."
+It refuses without a mark, when the redistribution offered without
+room is answered no, or when the marked entry or the entry at point
+has left the queue."
   (org-iw-test-with-corpus org-iw-cmd-test--queue
     (org-iw-cmd-test--open-all)
     (org-iw-cmd-test--view-on-row "ESSAYS" 1)
@@ -4477,8 +4557,10 @@ the entry at point has left the queue."
       (let ((view (org-iw-cmd-test--view "ESSAYS")))
         (org-iw-cmd-test--mark-row "d1")
         (org-iw-cmd-test--goto-row anchor)
-        (org-iw-cmd-test--should-refuse-keeping-mark
-         view (org-iw-cmd-test--no-room where) command))))
+        (org-iw-cmd-test--should-cancel-handoff
+         (concat "move D " where) command
+         (apply-partially #'org-iw-cmd-test--should-refuse-keeping-mark
+                          view)))))
   (pcase-dolist (`(,marked ,anchor ,command)
                  '(("a1" "c1" org-iw-view-place-after)
                    ("c1" "a1" org-iw-view-place-before)))
@@ -5371,6 +5453,161 @@ failed or stopped file.  Each group keeps the order of the outcomes."
                    ((stopped) "not reached")
                    ((failed "stale") "stale")))
     (should (equal (org-iw--outcome-text outcome "not reached") text))))
+
+;;;; Redistribution: the handoff
+
+(defconst org-iw-cmd-test--uneven-placements
+  '(("essays" :placements (("Second" (after 1)) ("Third" (after 2)))))
+  "Placements for `org-iw-cmd-test--uneven' that land between B and C.")
+
+(defun org-iw-cmd-test--move-d-at-third ()
+  "Move D to Third in ESSAYS with `org-iw-move' at D; return the message."
+  (org-iw-cmd-test--at (org-iw-test-marker "b.org" "D")
+                       #'org-iw-move "ESSAYS" "Third"))
+
+(ert-deftest org-iw-cmd-test-handoff-surfaces ()
+  "Move, Continue and each view move offer to redistribute at no gap.
+B and C, at 1536 and 1537, leave no rank between them.  Each command
+asks once, its pending move in the preview; answered no, it refuses
+as cancelled, and the corpus, the session and the window are
+unchanged."
+  (pcase-dolist
+      (`(,pending ,setup ,command)
+       `(("move D at Third" ignore org-iw-cmd-test--move-d-at-third)
+         ("move A at Second" ignore ,(lambda () (org-iw-continue "Second")))
+         ("move D before C"
+          ,(lambda ()
+             (org-iw-cmd-test--view "ESSAYS")
+             (org-iw-cmd-test--mark-row "d1")
+             (org-iw-cmd-test--goto-row "c1"))
+          org-iw-view-place-before)
+         ("move D after B"
+          ,(lambda ()
+             (org-iw-cmd-test--view "ESSAYS")
+             (org-iw-cmd-test--mark-row "d1")
+             (org-iw-cmd-test--goto-row "b1"))
+          org-iw-view-place-after)
+         ("move D at position 3/4"
+          ,(lambda () (org-iw-cmd-test--view-on-row "ESSAYS" 4))
+          org-iw-view-move-up)
+         ("move A at position 2/4"
+          ,(lambda () (org-iw-cmd-test--view-on-row "ESSAYS" 1))
+          org-iw-view-move-down)))
+    (org-iw-test-with-corpus org-iw-cmd-test--uneven
+      (let ((org-iw-queues org-iw-cmd-test--uneven-placements))
+        (org-iw-cmd-test--open-all)
+        (org-iw-visit-next "ESSAYS")
+        (funcall setup)
+        (org-iw-cmd-test--should-cancel-handoff pending command)))))
+
+(ert-deftest org-iw-cmd-test-handoff-approved-move ()
+  "An approved Move at no gap re-lays the queue with the entry in its slot.
+The message is the move's, then the redistribution's."
+  (org-iw-test-with-corpus org-iw-cmd-test--uneven
+    (let ((org-iw-queues org-iw-cmd-test--uneven-placements))
+      (org-iw-cmd-test--with-prompt :yes
+        (should (equal (org-iw-cmd-test--move-d-at-third)
+                       (concat "Moved D to Third in ESSAYS, 3/4; redistributed"
+                               " 3 entries in 2 files, saved"
+                               " [1 source problems ignored]"))))
+      (should (equal (org-iw-cmd-test--order "ESSAYS") '("a1" "b1" "d1" "c1")))
+      (should (equal (org-iw-cmd-test--ranks "ESSAYS")
+                     '(("c.org" . 1024) ("a.org" . 2048) ("b.org" . 3072)
+                       ("a.org" . 4096))))
+      (should-not (cl-some #'buffer-modified-p
+                           (delq nil (mapcar #'org-iw-cmd-test--visited
+                                             '("a.org" "b.org" "c.org"))))))))
+
+(ert-deftest org-iw-cmd-test-continue-redistributes-then-visits-new-head ()
+  "An approved Continue at no gap visits the new head, not the moved entry.
+A, the head, goes Second, between B and C; B becomes the head, is
+shown and holds the session, and the message ends naming it."
+  (org-iw-test-with-corpus org-iw-cmd-test--uneven
+    (let ((org-iw-queues org-iw-cmd-test--uneven-placements))
+      (org-iw-visit-next "ESSAYS")
+      (org-iw-cmd-test--with-prompt :yes
+        (should (equal (org-iw-continue "Second")
+                       (concat "Moved A to Second, 2/4; redistributed 3"
+                               " entries in 2 files, saved. Now 1/4: B"
+                               " [1 source problems ignored]"))))
+      (should (equal (org-iw-cmd-test--order "ESSAYS") '("b1" "a1" "c1" "d1")))
+      (should (equal (org-iw-cmd-test--shown) '("a.org" "B")))
+      (should (equal (org-iw-cmd-test--session-id) "b1")))))
+
+(ert-deftest org-iw-cmd-test-continue-no-visit-after-failure ()
+  "A Continue whose redistribution fails visits nothing.
+Answered no, or blocked by a read-only file, it changes nothing.  When
+a.org fails to save, the run stops with a.org's edits standing; the
+session and the window are still unchanged."
+  (pcase-dolist
+      (`(,setup ,answer ,text)
+       `((ignore :no ,org-iw-cmd-test--cancelled)
+         (,(lambda ()
+             (with-current-buffer (org-iw-test-visit "a.org")
+               (setq buffer-read-only t)))
+          nil ,org-iw-cmd-test--block-text)))
+    (org-iw-test-with-corpus org-iw-cmd-test--uneven
+      (let ((org-iw-queues org-iw-cmd-test--uneven-placements))
+        (org-iw-cmd-test--open-all)
+        (org-iw-visit-next "ESSAYS")
+        (funcall setup)
+        (org-iw-cmd-test--with-prompt answer
+          (org-iw-cmd-test--refuses-cleanly
+           text (lambda () (org-iw-continue "Second")))))))
+  (org-iw-test-with-corpus org-iw-cmd-test--uneven
+    (let ((org-iw-queues org-iw-cmd-test--uneven-placements)
+          (write-file-functions
+           (list (org-iw-cmd-test--failing-save "a.org"))))
+      (org-iw-visit-next "ESSAYS")
+      (let ((session org-iw--session)
+            (shown (org-iw-cmd-test--shown)))
+        (org-iw-cmd-test--with-prompt :yes
+          (should (string-prefix-p
+                   "Redistribution of ESSAYS stopped: 0 saved, 1 modified,"
+                   (org-iw-cmd-test--refusal
+                    (lambda () (org-iw-continue "Second"))))))
+        (should (buffer-modified-p (org-iw-cmd-test--visited "a.org")))
+        (should (eq org-iw--session session))
+        (should (equal (org-iw-cmd-test--shown) shown))))))
+
+(ert-deftest org-iw-cmd-test-view-move-reshow-anchor ()
+  "A view place recomputes its anchor by ID for each plan shown.
+D is placed before C, where there is no room.  While asking, C moves
+first: the plan is shown again, and the one applied puts D just before
+C at C's new place.  If C instead leaves the queue while asking, the
+place refuses, writing nothing beyond the user's edit, and keeps the
+mark."
+  (org-iw-test-with-corpus org-iw-cmd-test--uneven
+    (org-iw-cmd-test--open-all)
+    (let ((view (org-iw-cmd-test--view "ESSAYS")))
+      (org-iw-cmd-test--mark-row "d1")
+      (org-iw-cmd-test--goto-row "c1")
+      (org-iw-cmd-test--with-prompt
+          (list (lambda ()
+                  (org-iw-cmd-test--set-rank "a.org" 1537 1000)
+                  :yes)
+                :yes)
+        (should (equal (org-iw-view-place-before)
+                       (concat "Moved D to 1/4; redistributed 4 entries in"
+                               " 3 files, saved [1 source problems ignored]")))
+        (should (length= org-iw-cmd-test--prompts 2)))
+      (should (equal (org-iw-cmd-test--order "ESSAYS") '("d1" "c1" "a1" "b1")))
+      (should (equal (org-iw-cmd-test--view-ids view) '("d1" "c1" "a1" "b1")))))
+  (org-iw-test-with-corpus org-iw-cmd-test--uneven
+    (org-iw-cmd-test--open-all)
+    (let ((view (org-iw-cmd-test--view "ESSAYS"))
+          (edited nil))
+      (org-iw-cmd-test--mark-row "d1")
+      (org-iw-cmd-test--goto-row "c1")
+      (org-iw-cmd-test--with-prompt
+          (lambda ()
+            (org-iw-cmd-test--delete-in-a "^:IW_ESSAYS: 1537\n")
+            (setq edited (org-iw-test-state))
+            :yes)
+        (should (equal (org-iw-cmd-test--refusal #'org-iw-view-place-before)
+                       "C is no longer in queue ESSAYS")))
+      (should (equal (org-iw-test-state) edited))
+      (should (equal (org-iw-cmd-test--view-tags view) '(("d1" . ">")))))))
 
 ;;;; Normalise
 

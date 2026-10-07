@@ -1281,20 +1281,63 @@ The delete expects ENTRY's scanned rank.  Return the result of
   (org-iw-write-delete-rank (org-iw--entry-marker scan entry) queue
                             :expected (org-iw-core-rank entry queue)))
 
+(defun org-iw--placement-in (placement scan order entry)
+  "Return PLACEMENT for ENTRY among ORDER, its queue's members in SCAN.
+PLACEMENT is a placement, returned as it is, or a function returning
+one, called with SCAN, ORDER and ENTRY."
+  (if (and (not (org-iw-core-placement-p placement)) (functionp placement))
+      (funcall placement scan order entry)
+    placement))
+
+(defun org-iw--move-redistributing (queue entry placement depth pending)
+  "Offer to redistribute QUEUE with ENTRY at PLACEMENT, for PENDING.
+QUEUE is a canonical queue ID, ENTRY a member, found by ID in each
+fresh scan, PLACEMENT as for `org-iw--move' and PENDING the text of
+the move.  DEPTH is ENTRY's index in the new order in the scan that
+found no room.  Return (redistributed DEPTH OUTCOMES), OUTCOMES being as from
+`org-iw--redistribute', or (unchanged DEPTH) if no rank had to
+change; DEPTH is that of the plan applied.  Otherwise refuse."
+  (let* ((id (org-iw-entry-id entry))
+         (title (org-iw-entry-title entry))
+         (outcomes
+          (org-iw--redistribute
+           queue
+           (lambda (scan)
+             (let* ((order (org-iw--order scan queue))
+                    (entry (org-iw--find-member scan order queue id title)))
+               ;; The last plan intended is the one applied.
+               (setq depth (org-iw-core-placement-depth
+                            (org-iw--placement-in placement scan order entry)
+                            (1- (length order))))
+               (org-iw-core-reorder order entry depth)))
+           pending)))
+    (if outcomes
+        (list 'redistributed depth outcomes)
+      (list 'unchanged depth))))
+
 (defun org-iw--move (scan order entry queue placement &optional where)
   "Move ENTRY, an element of ORDER, to PLACEMENT in QUEUE.
 ORDER is QUEUE's members in SCAN, and QUEUE a canonical queue ID.
+PLACEMENT is a placement or a function of (SCAN ORDER ENTRY) returning
+one, called afresh for each scan; it may refuse.
+
 Return (unchanged DEPTH), writing nothing, or (moved DEPTH STATUS)
 after writing ENTRY's new rank against its scanned rank; DEPTH is
 ENTRY's index in the new order and STATUS the result of
-`org-iw-write-put-rank'.  Refuse if there is no room at PLACEMENT,
-WHERE being its text, with its preposition; without WHERE, the text
-is the position ENTRY would take, as \"at position 2/3\"."
-  (pcase (org-iw-core-place order entry queue placement)
+`org-iw-write-put-rank'.
+
+If there is no room at PLACEMENT, the queue's redistribution is
+offered instead, see `org-iw--move-redistributing'.  It names the
+move by WHERE, the placement's text with its preposition, or without
+WHERE by the position ENTRY would take, as \"at position 2/3\"."
+  (pcase (org-iw-core-place order entry queue
+                            (org-iw--placement-in placement scan order entry))
     (`(no-gap ,depth)
-     (org-iw--refuse-no-room
-      (or where (format "at position %d/%d" (1+ depth) (length order)))
-      (org-iw--queue-name queue)))
+     (org-iw--move-redistributing
+      queue entry placement depth
+      (format "move %s %s" (org-iw-entry-title entry)
+              (or where (format "at position %d/%d"
+                                (1+ depth) (length order))))))
     (`(unchanged ,depth) (list 'unchanged depth))
     (`(moved ,depth ,rank)
      (list 'moved depth (org-iw--put-rank scan entry queue rank)))))
@@ -1303,12 +1346,15 @@ is the position ENTRY would take, as \"at position 2/3\"."
   "Return the text reporting RESULT of `org-iw--move' for the entry TITLE.
 WHERE names the placement, as \"Soon\" or \"Soon in ESSAYS\", or is nil
 to give only the position.  TOTAL is the number of the queue's members."
-  (pcase-let* ((`(,outcome ,depth ,status) result)
+  (pcase-let* ((`(,outcome ,depth ,detail) result)
                (at (format "%s%d/%d" (if where (concat where ", ") "")
                            (1+ depth) total)))
-    (if (eq outcome 'moved)
-        (format "Moved %s to %s %s" title at (org-iw--save-status status))
-      (format "%s already at %s" title at))))
+    (pcase outcome
+      ('moved (format "Moved %s to %s %s" title at
+                      (org-iw--save-status detail)))
+      ('redistributed (format "Moved %s to %s; %s" title at
+                              (org-iw--redistributed-text detail)))
+      (_ (format "%s already at %s" title at)))))
 
 (defun org-iw--removed-text (entry queue status &optional then)
   "Return the text reporting ENTRY removed from QUEUE, a canonical queue ID.
@@ -1328,6 +1374,25 @@ ENTRY in QUEUE."
   "Return the text naming the head of ORDER, a non-empty queue order."
   (format "Now 1/%d: %s" (length order) (org-iw-entry-title (car order))))
 
+(defun org-iw--visit-head (scan order queue)
+  "Visit the head of ORDER, QUEUE's members in SCAN; return nil.
+QUEUE is a canonical queue ID.  If the visit refuses, nothing is
+changed and the refusal's text is returned instead; see
+`org-iw--visit'.  Other errors and quits propagate."
+  (condition-case err
+      (progn (org-iw--visit scan (car order) queue 1 (length order))
+             nil)
+    (org-iw-refusal (cadr err))))
+
+(defun org-iw--head-visited-text (text reason order)
+  "Return TEXT, a write's report, followed by the outcome of its head visit.
+REASON is what `org-iw--visit-head' returned for ORDER: nil names
+ORDER's head as now visited; otherwise the head was not visited, for
+REASON."
+  (if reason
+      (format "%s; not visited: %s" text reason)
+    (format "%s. %s" text (org-iw--now-text order))))
+
 ;;;; Continue
 
 (defun org-iw--session-or-refuse ()
@@ -1338,8 +1403,10 @@ ENTRY in QUEUE."
 (defun org-iw--continue-place (scan order entry queue choice)
   "Move ENTRY, of ORDER, to the placement CHOICE in QUEUE; visit the head.
 ORDER is QUEUE's members in SCAN, QUEUE a canonical queue ID, and
-CHOICE (LABEL . PLACEMENT), as from `org-iw--placement'.  The only
-entry is left alone.  Return the message shown."
+CHOICE (LABEL . PLACEMENT), as from `org-iw--placement'; see
+`org-iw--move'.  The head is visited after the write, as by
+`org-iw--visit-head'.  The only entry is left alone.  Return the
+message shown."
   (pcase-let ((`(,label . ,placement) choice)
               (title (org-iw-entry-title entry))
               (total (length order)))
@@ -1348,30 +1415,32 @@ entry is left alone.  Return the message shown."
                         title (org-iw--queue-name queue))
       (let* ((result (org-iw--move scan order entry queue placement
                                    (format "at %s" label)))
+             (text (org-iw--moved-text result title label total))
              (new-order (pcase result
-                          (`(moved ,depth ,_)
+                          (`(,(or 'moved 'redistributed) ,depth ,_)
                            (org-iw-core-reorder order entry depth))
                           (_ order))))
-        (org-iw--visit scan (car new-order) queue 1 total)
-        (org-iw--report scan "%s. %s"
-                        (org-iw--moved-text result title label total)
-                        (org-iw--now-text new-order))))))
+        (org-iw--report scan "%s" (org-iw--head-visited-text
+                                   text (org-iw--visit-head scan new-order queue)
+                                   new-order))))))
 
 (defun org-iw--continue-remove (scan order entry queue)
   "Remove ENTRY, of ORDER, from QUEUE; visit the head of the rest.
 ORDER is QUEUE's members in SCAN, and QUEUE a canonical queue ID.
+The head is visited after the write, as by `org-iw--visit-head'.
 With none left, the session stays.  Return the message shown."
-  (let ((status (org-iw--delete-rank scan entry queue))
-        (rest (remq entry order)))
-    ;; Visiting moves the session to the head, so the text gives the
-    ;; hint only when no entry is left.
-    (when rest
-      (org-iw--visit scan (car rest) queue 1 (length rest)))
-    (org-iw--report scan "%s" (org-iw--removed-text
-                               entry queue status
-                               (if rest
-                                   (org-iw--now-text rest)
-                                 (org-iw--empty-text queue))))))
+  (let* ((status (org-iw--delete-rank scan entry queue))
+         (rest (remq entry order))
+         ;; The removed text gives the session hint only if the session
+         ;; still names ENTRY, so it is built once the visit is done.
+         (reason (and rest (org-iw--visit-head scan rest queue))))
+    (org-iw--report
+     scan "%s"
+     (if rest
+         (org-iw--head-visited-text
+          (org-iw--removed-text entry queue status) reason rest)
+       (org-iw--removed-text entry queue status
+                             (org-iw--empty-text queue))))))
 
 ;;;###autoload
 (defun org-iw-continue (&optional label)
@@ -1383,9 +1452,13 @@ the queue's default.  Interactively, a prefix argument reads LABEL
 with completion over the queue's labels, then Remove.
 
 The entry is given a rank between its new neighbours through its
-buffer, which is saved unless it already had unsaved changes.  Then
+buffer, which is saved unless it already had unsaved changes.  If
+there is no room for one, the queue's redistribution with the entry
+at its placement is offered instead (see `org-iw-normalise').  Then
 the first member of the queue is visited and becomes the session's
-entry.  At the front, that is the entry itself.
+entry.  At the front, that is the entry itself.  The message reports
+the write first; if the first member cannot be visited, it says why,
+and the session is left as it was.
 
 LABEL may also be the symbol `remove': the entry's IW line for the
 queue is deleted instead, unconfirmed, with a document's drawer if
@@ -1404,7 +1477,7 @@ and visiting nothing, if:
 - a source buffer is not in Org mode;
 - the entry has left its queue, or its ID is duplicated, missing or
   ambiguous in its file;
-- there is no room for a rank at the placement; or
+- the redistribution offered is cancelled, blocked or stopped; or
 - the write refuses: the file changed on disk or is not writable, its
   buffer is read-only, the rank changed since the scan, or the entry
   has a property drawer Org doesn't recognise.
@@ -1492,16 +1565,20 @@ queue's default.
 The entry is the heading at or above point, even outside a narrowing,
 or the document before the first heading; indirect buffers work.  Its
 rank in QUEUE is rewritten through its buffer, which is saved unless
-it already had unsaved changes.  Nothing is visited and the session is
-left as it is.  An entry already at its placement is not written.
+it already had unsaved changes.  If there is no room for a rank at
+the placement, the queue's redistribution with the entry there is
+offered instead (see `org-iw-normalise').  Nothing is visited and the
+session is left as it is.  An entry already at its placement is not
+written.
 
 Move refuses, writing nothing, if the buffer is not a source file or
 not in Org mode, QUEUE is not a valid ID, LABEL is not one of the
 queue's labels or its placements are misconfigured (checked before any
 scan), the entry is in no queue, was excluded by the scan or is not in
-QUEUE, there is no room for a rank at the placement, or the write
-refuses (the file changed on disk or is not writable, its buffer is
-read-only, or the entry has a property drawer Org doesn't recognise).
+QUEUE, the redistribution offered is cancelled, blocked or stopped, or
+the write refuses (the file changed on disk or is not writable, its
+buffer is read-only, or the entry has a property drawer Org doesn't
+recognise).
 
 Return the message shown."
   (interactive
@@ -1756,8 +1833,9 @@ Return the message shown."
 
 (defun org-iw--view-move (scan order entry placement &optional where)
   "Move ENTRY, of ORDER, to PLACEMENT in the view's queue; redraw on it.
-ORDER is the queue's members in SCAN.  WHERE is the placement's text
-for a refusal, as for `org-iw--move'.  Return the message shown."
+ORDER is the queue's members in SCAN.  PLACEMENT and WHERE, the
+placement's text, are as for `org-iw--move'.  Return the message
+shown."
   (org-iw--view-redraw-and-report
    scan (org-iw-entry-id entry)
    (org-iw--moved-text (org-iw--move scan order entry org-iw--view-queue
@@ -1782,11 +1860,14 @@ Return the message shown."
 
 (defun org-iw--view-step (delta)
   "Move the entry at point DELTA rows along the view's queue.
-The entry is found, and moved, in a fresh scan.  Return the message
+The entry is found, and moved, in a fresh scan; a redistribution
+offered steps from its place in each scan.  Return the message
 shown."
   (pcase-let ((`(,scan ,order ,entry)
                (org-iw--view-rescan (org-iw--view-id-at-point))))
-    (org-iw--view-move scan order entry (org-iw-core-step order entry delta))))
+    (org-iw--view-move scan order entry
+                       (lambda (_scan order entry)
+                         (org-iw-core-step order entry delta)))))
 
 (defun org-iw-view-mark ()
   "Mark the entry at point, replacing any mark; its row is tagged.
@@ -1812,24 +1893,34 @@ Return nil: no message is shown."
 (defun org-iw--view-place (side)
   "Place the marked entry on SIDE of the entry at point.
 SIDE is `before' or `after'.  Both entries are found, and the marked
-one moved, in a fresh scan.  The mark clears unless this refuses.
+one moved, in a fresh scan; a redistribution offered finds the entry
+at point afresh in each scan.  The mark clears unless this refuses.
 Return the message shown."
   (pcase-let* ((id (org-iw--view-id-at-point))
                (marked-id
                 (or org-iw--view-mark
                     (org-iw-core-refuse "no marked entry; mark one with m")))
                (`(,scan ,order ,marked ,anchor)
-                (org-iw--view-rescan marked-id id)))
-    (prog1 (org-iw--view-move scan order marked
-                              (org-iw-core-beside order marked anchor side)
-                              (format "%s %s" side (org-iw-entry-title anchor)))
+                (org-iw--view-rescan marked-id id))
+               (queue org-iw--view-queue)
+               (title (org-iw-entry-title anchor)))
+    (prog1 (org-iw--view-move
+            scan order marked
+            (lambda (scan order marked)
+              (org-iw-core-beside
+               order marked (org-iw--find-member scan order queue id title)
+               side))
+            (format "%s %s" side title))
       (org-iw--view-set-mark nil))))
 
 (defun org-iw-view-place-before ()
   "Place the marked entry just before the entry at point; clear the mark.
 Point follows the marked entry.  If it is there already, nothing is
-written.  Refuses off a row, without a mark, if either entry has left
-the queue, if there is no room, or if the write refuses: the file
+written.  If there is no room, the queue's redistribution is offered
+instead (see `org-iw-normalise'), placing the entry before the other
+wherever that is when approved.  Refuses off a row, without a mark,
+if either entry has left the queue, if the redistribution is
+cancelled, blocked or stopped, or if the write refuses: the file
 changed on disk or is not writable, its buffer is read-only, or the
 entry has a property drawer Org doesn't recognise.  A refusal keeps
 the mark.
@@ -1842,8 +1933,11 @@ Return the message shown."
 (defun org-iw-view-place-after ()
   "Place the marked entry just after the entry at point; clear the mark.
 Point follows the marked entry.  If it is there already, nothing is
-written.  Refuses off a row, without a mark, if either entry has left
-the queue, if there is no room, or if the write refuses: the file
+written.  If there is no room, the queue's redistribution is offered
+instead (see `org-iw-normalise'), placing the entry after the other
+wherever that is when approved.  Refuses off a row, without a mark,
+if either entry has left the queue, if the redistribution is
+cancelled, blocked or stopped, or if the write refuses: the file
 changed on disk or is not writable, its buffer is read-only, or the
 entry has a property drawer Org doesn't recognise.  A refusal keeps
 the mark.
@@ -1881,8 +1975,10 @@ Return the message shown, or nil if not confirmed."
 
 (defun org-iw-view-move-up ()
   "Move the entry at point up one row, writing its new rank.
-Point follows the entry.  At the front, nothing is written.  Refuses
-off a row, if the entry has left the queue, if there is no room, or if
+Point follows the entry.  At the front, nothing is written.  If there
+is no room, the queue's redistribution is offered instead (see
+`org-iw-normalise').  Refuses off a row, if the entry has left the
+queue, if the redistribution is cancelled, blocked or stopped, or if
 the write refuses: the file changed on disk or is not writable, its
 buffer is read-only, or the entry has a property drawer Org doesn't
 recognise.
@@ -1894,10 +1990,12 @@ Return the message shown."
 
 (defun org-iw-view-move-down ()
   "Move the entry at point down one row, writing its new rank.
-Point follows the entry.  At the end, nothing is written.  Refuses off
-a row, if the entry has left the queue, if there is no room, or if the
-write refuses: the file changed on disk or is not writable, its buffer
-is read-only, or the entry has a property drawer Org doesn't
+Point follows the entry.  At the end, nothing is written.  If there is
+no room, the queue's redistribution is offered instead (see
+`org-iw-normalise').  Refuses off a row, if the entry has left the
+queue, if the redistribution is cancelled, blocked or stopped, or if
+the write refuses: the file changed on disk or is not writable, its
+buffer is read-only, or the entry has a property drawer Org doesn't
 recognise.
 For interactive use only.
 
