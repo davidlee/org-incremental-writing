@@ -1,0 +1,18 @@
+schema = "doctrine.observation"
+schema_version = 1
+uid = "01a11472-35a5-73f1-ab48-75a02e943cae"
+recorded_at = "2026-10-07T03:39:51.589119315Z"
+kind = "friction"
+summary = "verify-vt reports UNATTRIBUTABLE until the phase is flipped completed"
+detail = "SL-006 PHASE-03: verify-vt run after commit but before 'slice phase --status completed' reported VT-2..4 UNATTRIBUTABLE ('test/org-iw-test.el not modified by this slice') though HEAD modified it; code_end_oid is only captured at the completed flip. Re-run after the flip: PASS. Capsule loop order (commit -> verify-vt -> flip) produces a false alarm; either verify after the flip or have verify-vt consider HEAD for in_progress phases."
+
+[facets.execution]
+schema_version = 1
+interface = "cli"
+interface_origin = "automatic"
+product_surface = "doctrine"
+product_surface_origin = "automatic"
+command = "observation record"
+command_origin = "automatic"
+repository_context = "primary"
+repository_context_origin = "automatic"

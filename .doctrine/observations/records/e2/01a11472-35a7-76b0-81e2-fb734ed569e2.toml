@@ -1,0 +1,18 @@
+schema = "doctrine.observation"
+schema_version = 1
+uid = "01a11472-35a7-76b0-81e2-fb734ed569e2"
+recorded_at = "2026-10-07T03:39:51.591934643Z"
+kind = "friction"
+summary = "Phase sheets name the planner's model, not the worker's"
+detail = "SL-006 PHASE-03: sheet says 'Model: sonnet' (planner) while worker B ran opus; readers may misattribute. Sheets could separate planner and worker model fields."
+
+[facets.execution]
+schema_version = 1
+interface = "cli"
+interface_origin = "automatic"
+product_surface = "doctrine"
+product_surface_origin = "automatic"
+command = "observation record"
+command_origin = "automatic"
+repository_context = "primary"
+repository_context_origin = "automatic"
