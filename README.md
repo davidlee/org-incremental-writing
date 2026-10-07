@@ -11,7 +11,7 @@ drawer at the top of the file. There is no index file, and content never moves.
 Status: 0.1.0, pre-release. The feature set covers adding, visiting,
 Continue with a choice of placement, moving and removing entries, a view
 of each queue in which to reorder it, documents as entries, and adding
-many files at once.
+many files at once, and re-laying a queue's ranks when they run out of room.
 
 ![banner](./assets/octopus.jpg)
 
@@ -37,7 +37,7 @@ Or with `use-package`:
 (use-package org-iw
   :load-path "/path/to/org-incremental-writing"
   :commands (org-iw-add org-iw-add-document org-iw-add-files org-iw-visit-next org-iw-continue org-iw-end-session
-             org-iw-move org-iw-remove org-iw-list-queue))
+             org-iw-move org-iw-remove org-iw-list-queue org-iw-normalise))
 ```
 
 ## Configure
@@ -121,6 +121,7 @@ No keys are bound. Suggested bindings:
 (keymap-global-set "C-c i m" #'org-iw-move)
 (keymap-global-set "C-c i r" #'org-iw-remove)
 (keymap-global-set "C-c i l" #'org-iw-list-queue)
+(keymap-global-set "C-c i n" #'org-iw-normalise)
 ```
 
 ## Use
@@ -136,6 +137,7 @@ No keys are bound. Suggested bindings:
 | `org-iw-move` | Move the entry at point to a placement in its queue; with `C-u`, choose which of its queues. |
 | `org-iw-remove` | Remove the entry at point (or the document, before the first heading) from a queue; with `C-u`, choose which of its queues. |
 | `org-iw-list-queue` | Show a queue's entries in order, to reorder or remove them. |
+| `org-iw-normalise` | Re-lay a queue's ranks at the standard spacing, after a preview you approve. Add, Move and Continue offer it when a queue has no room (see *Running out of room*). |
 
 A typical round:
 
@@ -148,7 +150,8 @@ A typical round:
    nothing; visiting again shows the same entry.
 3. Work on the entry and save as usual.
 4. Run `org-iw-continue`. The entry goes back at the default placement,
-   which changes at most one `IW_` line, and the first entry is shown.
+   which normally changes one `IW_` line (see *Running out of room* for
+   when it does not), and the first entry is shown.
    Run `C-u M-x org-iw-continue` to pick Soon, Later or End instead.
    Its last candidate, Remove, takes the entry out of the queue and
    visits the next one.
@@ -251,7 +254,9 @@ for `org-iw-sources`. Lisp callers pass a list of files and directories.
   never closed. An open file with unsaved edits is added but reported
   unsaved.
 - The session is untouched. At the rank limit, that file and the rest
-  fail with "no room"; automatic redistribution is planned.
+  fail with "no room at the end in NAME; normalise it with
+  org-iw-normalise". Batch add never offers a redistribution: run
+  `org-iw-normalise`, then repeat (see *Running out of room*).
 
 Run over 74 journal files, `git diff` shows one drawer added to each
 (`:IW_JOURNAL: 1024`, `2048`, ...), and no `:ID:`.
@@ -300,6 +305,72 @@ restore the file but not the session.
 
 Deleting the entry's `IW_` line by hand has the same effect.
 
+### Running out of room
+
+A rank is an integer, and a placement between two entries takes the
+middle of their ranks. Ranks are spaced 1024 apart, so using one placement
+over and over, such as Soon, uses its gap up after about ten times; two
+entries with equal or adjacent ranks have no room between them, and a
+queue whose last rank is at the limit has none at the end. That is "no
+room".
+
+Add (with or without a placement, a heading or a document), Move,
+Continue, and the queue view's moves (`M-<up>`, `M-<down>`, `b`, `a`) do
+not refuse at it. They offer to *redistribute* the queue instead: its
+members, in order and with the entry in its new place, are re-laid at the
+standard spacing, the Kth at K x 1024. Members already at their rank are not
+written. `org-iw-normalise` does the same with no entry pending, to tidy a
+queue before it runs out. It acts on the session's queue; with `C-u`, or
+without a session, you choose one. A queue that needs nothing is reported
+("Queue NAME is already normal") and shows no preview. Batch
+`org-iw-add-files` is the exception: it refuses as above, and you run
+`org-iw-normalise` and repeat.
+
+The preview is the buffer `*org-iw redistribution*`. It names the queue
+and the pending operation, counts the entries and files that change, and
+lists one button per file to write. Pushing a button opens that file; the
+redistribution itself visits nothing. It also reports `N source problems
+ignored (never rewritten)`, the buffers approval would save, and any
+blockers.
+
+Then one question is asked: "Redistribute N entries in F files of
+NAME?" (`y` or `n`).
+
+- If affected buffers have unsaved changes, the question names them
+  ("..., saving a.org, b.org first?", or a count if there are more than
+  three), and yes saves them first. Nothing else saves a buffer you have
+  edited.
+- Answering no changes nothing; the preview stays for browsing, and the command
+  refuses ("Redistribution of NAME cancelled; nothing changed").
+- A file that cannot be written blocks the run: it is unwritable,
+  read-only, changed on disk since it was visited, or its buffer is not in
+  Org mode. The preview lists it under "Blocking" and no question is
+  asked; resolve it and repeat.
+- If files change while the question is up, the plan is rebuilt after the
+  answer; if it differs, it is shown and you are asked again.
+- An Add whose buffer is killed while the question is up refuses, writing
+  nothing.
+
+**It is not atomic, so commit to Git first.** Files are written one by
+one, through their buffers (undo works per buffer), and each is saved. Only
+the planned `IW_<QUEUE>` lines change, plus the `:ID:` and drawer a joining
+Add gives its entry.
+
+If a file fails to save or write, or you quit (`C-g`), the run stops and
+nothing after it is written. The preview becomes a report listing the
+files saved, modified (their changes stand unsaved), and untouched, and
+the buffers saved first at your request. The command refuses with
+"Redistribution of NAME stopped: S saved, M modified, U untouched (see
+*org-iw redistribution*); not atomic". Continue does not then visit.
+
+When it succeeds, the message reports the operation and then
+"redistributed N entries in F files, saved", for example `Moved Tight A1 to
+Soon in Tight, 3/6; redistributed 6 entries in 3 files, saved`. Continue
+reports its write first, then visits the new first entry ("Now 1/N: TITLE");
+if that visit refuses, the message ends "not visited: REASON". The
+preview of an Add of a document names it by its `#+title:`, else by its
+file's base name, even if a heading starts the file.
+
 ## Queue view
 
 `M-x org-iw-list-queue` shows a queue in the buffer `*org-iw: NAME*`. The
@@ -340,15 +411,19 @@ the rows.
 ### What gets written, and when
 
 - Add, Continue, Move, Remove and the view's actions write. Each changes
-  at most one `IW_` line, and Remove deletes it. Add may also give the
+  at most one `IW_` line, and Remove deletes it, unless it redistributes
+  (see *Running out of room*), which may change many lines in many files
+  after your approval. Add may also give the
   entry a property drawer and an ID (a Denote note gets no ID), and
   Remove may take a document's emptied drawer. `org-iw-add-files` writes
-  as Add does, once per file. Nothing else writes.
+  as Add does, once per file. `org-iw-normalise` writes only by
+  redistribution. Nothing else writes.
 - Writes go through the file's buffer, so undo works.
 - If that buffer was unmodified, it is saved; the message ends `(saved)`.
 - If it already had unsaved changes, it is left unsaved. The message
   says the queue change is not saved, and the file on disk is untouched
-  until you save.
+  until you save. A redistribution is the exception: it asks first, and a
+  yes saves those buffers before writing.
 - Saving runs your usual save hooks, so something like whitespace
   cleanup can change other lines too.
 
@@ -358,15 +433,14 @@ When something is off, a command refuses with an `org-iw refused: "…"`
 message and changes nothing. Examples: the file changed on disk, the
 entry's ID is shared with another entry, the entry has left the queue,
 the file is not a source file (outside `org-iw-sources` or excluded),
-there is no session for Continue, or there is no room at the chosen
-placement.
+there is no session for Continue, or a redistribution is cancelled,
+blocked or stopped.
 
-"No room" means the ranks around that placement are used up, and the
-message names where: at a label, at the end, before or after an entry,
-or at a position. Using one placement over and over, such as Soon, uses
-up its gap after about ten Continues; two entries with equal ranks
-leave no room between them. Placing an entry first, or at the end,
-always has room. Automatic redistribution of ranks is planned.
+"No room" means the ranks around that placement are used up. Only batch
+`org-iw-add-files` refuses at it ("no room at the end in NAME; normalise it
+with org-iw-normalise"); the other commands offer a redistribution. See
+*Running out of room*. Placing an entry first, or at the end, has room
+unless the end is at the rank limit.
 
 Malformed or duplicated `IW_` properties and IDs are skipped, not fatal.
 Messages then end with `[N source problems ignored]`.
@@ -420,7 +494,12 @@ control:
    file. The batch closes the buffers it opened, so there is no undo for
    them: revert with `git checkout` or `org-iw-remove` per document. (Undo
    works only in a buffer that was already open.)
-4. To undo everything, `git checkout` the files. To remove a heading from
+4. To try running out of room, make a queue's ranks adjacent (say
+   `:IW_TIGHT: 1000`, `1001`, ... in a few files) and commit. Continue,
+   Move or place an entry in the queue view at a placement between them,
+   or run `org-iw-normalise`: after approval, `git diff` shows only
+   `IW_TIGHT` lines changed (plus any drawer a joining Add gave its entry).
+5. To undo everything, `git checkout` the files. To remove a heading from
    a queue, run `org-iw-remove` on it, or delete its `IW_<QUEUE>` line by
    hand.
 
