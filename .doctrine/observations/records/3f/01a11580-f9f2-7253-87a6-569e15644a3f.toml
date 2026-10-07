@@ -1,0 +1,18 @@
+schema = "doctrine.observation"
+schema_version = 1
+uid = "01a11580-f9f2-7253-87a6-569e15644a3f"
+recorded_at = "2026-10-07T08:35:36.562629305Z"
+kind = "friction"
+summary = "test fixture has no way to declare an expected extra corpus file"
+detail = "SL-006 PHASE-06 fix-up worker: creating a new corpus file mid-test (e.g. e.org) fails the fixture's no-stray-files check, and no public helper declares an expected extra file. The worker avoided it by rewriting an existing unvisited file instead."
+
+[facets.execution]
+schema_version = 1
+interface = "cli"
+interface_origin = "automatic"
+product_surface = "doctrine"
+product_surface_origin = "automatic"
+command = "observation record"
+command_origin = "automatic"
+repository_context = "primary"
+repository_context_origin = "automatic"

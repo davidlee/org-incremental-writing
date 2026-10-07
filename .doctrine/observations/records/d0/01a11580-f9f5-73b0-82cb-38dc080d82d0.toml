@@ -1,0 +1,18 @@
+schema = "doctrine.observation"
+schema_version = 1
+uid = "01a11580-f9f5-73b0-82cb-38dc080d82d0"
+recorded_at = "2026-10-07T08:35:36.56543218Z"
+kind = "friction"
+summary = "just test-each emacs30 fails with exit 127"
+detail = "test-all passes the just variable emacs30 (default 'emacs-30'), but on the CLI 'just test-each emacs30' passes the literal 'emacs30', which is not on PATH, so it fails with exit 127. You have to know to pass 'emacs-30'. A test-each-all recipe or a bin default that resolves the variable would remove the trap."
+
+[facets.execution]
+schema_version = 1
+interface = "cli"
+interface_origin = "automatic"
+product_surface = "doctrine"
+product_surface_origin = "automatic"
+command = "observation record"
+command_origin = "automatic"
+repository_context = "primary"
+repository_context_origin = "automatic"
