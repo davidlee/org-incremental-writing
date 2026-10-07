@@ -157,6 +157,9 @@ subagent pass raised F-8..F-17; all disposed and verified by the raiser
 - Reconcile also updates DEC-036 ("labelled Add" → Add, F-12).
 - ISS-007: batch-add sibling of F-14.
 
+Locked 2026-10-07 (run rev 35): user disposed RV-014 "conducted",
+reviewed all 14 sections, accepted the design. Next: `/plan`.
+
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->
 fresh-as-of: 2026-10-06 · design drafting (run rev 18)
