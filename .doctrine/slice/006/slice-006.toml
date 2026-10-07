@@ -18,6 +18,46 @@ intent = "scope-relevant"
 selector = "test/**"
 intent = "scope-relevant"
 
+[[selector]]
+selector = "org-iw-core.el"
+intent = "design-target"
+note = "design § 10 Code Impact"
+
+[[selector]]
+selector = "org-iw-write.el"
+intent = "design-target"
+note = "design § 10 Code Impact"
+
+[[selector]]
+selector = "org-iw.el"
+intent = "design-target"
+note = "design § 10 Code Impact"
+
+[[selector]]
+selector = "test/org-iw-core-test.el"
+intent = "design-target"
+note = "design § 10 Code Impact"
+
+[[selector]]
+selector = "test/org-iw-write-test.el"
+intent = "design-target"
+note = "design § 10 Code Impact"
+
+[[selector]]
+selector = "test/org-iw-test.el"
+intent = "design-target"
+note = "design § 10 Code Impact"
+
+[[selector]]
+selector = "test/org-iw-test-helpers.el"
+intent = "design-target"
+note = "design § 10 Code Impact"
+
+[[selector]]
+selector = "README.md"
+intent = "design-target"
+note = "design § 10 Code Impact"
+
 [[relation]]
 label = "governed_by"
 target = "ADR-001"
