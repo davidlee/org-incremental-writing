@@ -371,6 +371,41 @@ always has room. Automatic redistribution of ranks is planned.
 Malformed or duplicated `IW_` properties and IDs are skipped, not fatal.
 Messages then end with `[N source problems ignored]`.
 
+## How to
+
+### Add new notes to a queue automatically
+
+A rank depends on the queue at the moment of adding, so a note
+template cannot carry one. Add the note when it is created instead,
+from your note-making tool's hook, by calling `org-iw-add-document` (or
+`org-iw-add-files` with the one file) in Lisp.
+
+With Denote, to put every new note tagged `journal` at the end of the
+`JOURNAL` queue:
+
+```elisp
+(defun my/iw-enrol-journal ()
+  "Add the new journal note to the JOURNAL queue."
+  (when (member "journal" (denote-extract-keywords-from-path buffer-file-name))
+    (save-buffer)                       ; it must exist on disk first
+    (org-iw-add-document "JOURNAL")))
+
+(add-hook 'denote-after-new-note-hook #'my/iw-enrol-journal)
+```
+
+- The file must exist on disk before it is added: an unsaved new file
+  is refused as "not a source file", since `org-iw-sources` is read from
+  disk. Denote leaves new notes unsaved unless `denote-save-buffers` is
+  set, hence the `save-buffer`.
+- Hook into creation, not saving. Adding is idempotent, so a hook on
+  every save works too, but it puts back a note you removed from the
+  queue the next time you save it.
+- Notes sharing a Denote identifier, such as a personal and a work note
+  named for the same date, are one ID to org-iw, and the second is
+  refused ("ID shared with another entry"). Give one of them an `:ID:`
+  in its file-level drawer; that takes precedence (see *Document
+  identity*).
+
 ## Trying it on your own notes
 
 Queue state is ordinary text in your files, so review it through version
