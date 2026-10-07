@@ -93,7 +93,8 @@ The leanings recorded at rev 9 went to the user. Each became an accepted
 DEC that shapes SL-006 (`doctrine design tree SL-006`):
 
 - inq-1 → DEC-029: unsaved affected buffers block approval; the user
-  resolves.
+  resolves. Amended in review (RV-014 F-1, 2026-10-07): the approval
+  prompt names them and saves them on yes.
 - inq-2 → DEC-030: unwritable, read-only and changed-on-disk targets
   block approval.
 - inq-3 → DEC-031: the preview opens no buffer; the apply kills the clean
@@ -118,6 +119,29 @@ Scope prose was updated to match (inquire.scope). Sufficiency was
 accepted (user "accepted"). Next: draft the sections, then record the
 `draft.selectors` design-target selectors, `drafting-ready`, and
 materialise.
+
+## Design review (2026-10-07, reviewing, RV-014)
+
+Agent self-pass raised F-1 and F-2 (`doctrine show RV-014`):
+- F-1: blocking on modified buffers stalled edit-then-Continue → DEC-029
+  amended to consent in the approval prompt (user).
+- F-2: the apply uses the rebuilt record → fixed in § 5.2.3.
+
+A further (adversarial) pass would probe:
+- **Grouped apply.** Markers across one change group when a joining
+  document's drawer goes in at `point-min` beside heading edits, and
+  `atomic-change-group` with Org's own hooks. A thin demonstration
+  settles this better than prose.
+- **Unhappy paths as refusals.** A refusal signalled after files were
+  written: the message must carry the partition, and nothing may catch
+  it and lose the report (the ISS-002 class).
+- **Consent saves.** `before-save-hook`s that rewrite IW lines between
+  the recheck and the apply. The per-entry `expected` guard should catch
+  them, but no test is named for it.
+- **The recheck loop.** Termination and re-prompt UX when the user keeps
+  editing.
+- **Cohesion.** Size and cohesion of the new `;;;; Redistribution`
+  section in a ~1,500-line `org-iw.el`.
 
 ## Harvest
 <!-- single-copy: updated in place each harvest; ids only, never restated content -->

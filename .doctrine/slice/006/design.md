@@ -16,8 +16,9 @@ SL-006 makes exhaustion recoverable, explicitly and safely:
   pending placement, and returns only the ranks that change.
 - **A preview, then approval** (REQ-019): a buffer shows the counts, the
   affected files, the pending operation, the blockers, non-atomicity and
-  a Git recommendation. Approval is a `y-or-n-p`, refused while any
-  blocker remains (DEC-029, DEC-030, DEC-037).
+  a Git recommendation. Approval is one `y-or-n-p`, which also names
+  any unsaved affected buffers it will save (DEC-029, DEC-037).
+  Unwritable, read-only or changed-on-disk files block it (DEC-030).
 - **A recheck, then a per-file apply** (REQ-019 AC2, REQ-020): on
   approval the plan is rebuilt and compared (DEC-033). Each file is
   written in one change group and saved once. The first failure stops
@@ -128,8 +129,10 @@ Out of scope:
    assert on it.
 3. **Look, don't touch.** Nothing opens a buffer or changes state until
    approval. File checks read existing buffers and the file system.
-4. **Refuse, don't resolve.** org-iw never saves, reverts or discards on
-   the user's behalf. It lists blockers and stops.
+4. **Consent, don't assume.** org-iw saves a modified buffer only when
+   the approval prompt named it, and never reverts or discards. Problems
+   that saving cannot fix (changed on disk, read-only, unwritable) block,
+   and are listed.
 5. **Generalise the write path, don't fork it.** The grouped write is
    the single-entry write with many edits, and `put-rank` becomes its
    one-element case.
@@ -264,9 +267,23 @@ visited), `not-writable', `read-only' (BUFFER is read-only), and
   "changed on disk; revert first", "not writable", "buffer is
   read-only". `modified` reads "unsaved changes".
 - The preview (§ 5.2.3) calls `org-iw-write-file-problems` for every
-  affected file and treats **any** problem, `modified` included, as a
-  blocker (DEC-029, DEC-030). The guard lives in the write layer
-  (ADR-003); redistribution only decides that `modified` blocks.
+  affected file. Every problem other than `modified` blocks (DEC-030).
+  A `modified` file is named in the approval prompt and saved on yes
+  (DEC-029). The guards live in the write layer (ADR-003).
+
+**Saving on consent.**
+
+```elisp
+(defun org-iw-write-save-file (file)
+  "Save the buffer visiting FILE, which the user agreed to save.
+Refuse, saving nothing, if FILE has a problem other than `modified'
+\(see `org-iw-write-file-problems'): saving over a file changed on
+disk would lose those changes.  Return `saved', or (save-failed .
+ERROR) if saving signalled ERROR.")
+```
+
+`org-iw-write--apply`'s save-and-catch becomes `org-iw-write--save`,
+used by both, so there is one owner of "save and report failure".
 
 **Grouped puts.**
 
@@ -378,22 +395,34 @@ so callers need no new branches for the unhappy paths:
 
 | case | effect | refusal text |
 |---|---|---|
-| any file has a problem | preview shown, no prompt | "N files block redistributing Q (see *org-iw redistribution*); resolve them and repeat" |
+| any file has a problem other than `modified` | preview shown, no prompt | "N files block redistributing Q (see *org-iw redistribution*); resolve them and repeat" |
 | answered no | preview stays for browsing | "Redistribution of Q cancelled; nothing changed" |
 | the key changed since the preview | preview rebuilt and shown again, then asked again | — (the flow loops) |
+| a consented save fails | stop before any rank is written; the report names the file and the buffers already saved | "Redistribution of Q stopped before writing: FILE not saved: ERR" |
 | a file fails | stop; the preview buffer becomes the REQ-020 report | "Redistribution of Q stopped: S saved, M modified, U untouched (see *org-iw redistribution*); not atomic" |
 | all saved | preview buffer killed; outcomes returned | — |
 
 - The prompt is
-  `(y-or-n-p "Redistribute N entries in F files of Q? ")`. The test
-  stub already records `y-or-n-p` (`test/org-iw-test.el:77`).
+  `(y-or-n-p "Redistribute N entries in F files of Q? ")`. When affected
+  buffers are modified it names them: "Redistribute N entries in F
+  files of Q, saving a.org, b.org first? ". That single yes is both the
+  approval and the explicit resolution of those buffers (PRD-001 § 4;
+  REQ-019 AC3; DEC-029). There is no separate save question, so a no
+  still changes nothing. The test stub already records `y-or-n-p`
+  (`test/org-iw-test.el:77`).
+- **After yes:** recheck (the key includes the `modified` flags, so a
+  buffer modified while asking re-shows the prompt), then save each
+  named buffer with `org-iw-write-save-file` in `files` order, then the
+  apply. Every affected buffer is therefore clean when its ranks are
+  written: one save per file afterwards, and the saved / modified /
+  untouched partition stays exact.
 - Rendering is `org-iw--redistribution-show`. It builds a `special-mode`
   buffer `*org-iw redistribution*` containing:
   - the queue;
   - the pending operation;
   - the counts;
   - "Not atomic: files are written one by one. Commit to Git first.";
-  - the blockers, if any;
+  - the blockers, if any, and the buffers that approval will save;
   - one line per file, as a text button (`insert-text-button`) that
     calls `find-file-other-window`.
 
@@ -402,6 +431,9 @@ so callers need no new branches for the unhappy paths:
 
 **The apply: one file at a time.**
 
+- **Which record.** The apply runs the **rebuilt** record from the
+  recheck, never the previewed one. Its changes, expected ranks and
+  markers therefore all come from one scan.
 - **Order.** Files go in `files` order. For each,
   `org-iw--file-outcome` (renamed from `org-iw--batch-outcome`) opens
   the file if need be and calls a function that:
@@ -501,7 +533,8 @@ ISS-002 is resolved for both paths.
 | target ranks (k × spacing), changed set | `org-iw-core-redistribution` |
 | intended order | `org-iw-core-reorder` (the handoff), or the scan's order (normalise) |
 | file checks and their text | `org-iw-write-file-problems`, `org-iw-write-problem-text` |
-| that `modified` blocks redistribution | `org-iw--redistribution-build`, via `files` problems |
+| which problems block, and which buffers approval saves | `org-iw--redistribute`, from the `files` problems |
+| saving a buffer on consent | `org-iw-write-save-file` (shares `org-iw-write--save` with the apply) |
 | per-entry guards (expected rank, drawer shape) | the write preflight, unchanged |
 | one change group and one save per file | `org-iw-write-put-ranks` |
 | open, write, kill | `org-iw--file-outcome` |
@@ -525,7 +558,10 @@ ISS-002 is resolved for both paths.
          . (("/n/a.org" 2) ("/n/b.org" 1 modified))))
 ```
 
-Here `b.org` blocks: the preview lists it and does not prompt.
+Here `b.org` has unsaved changes: the prompt reads "Redistribute 3
+entries in 2 files of ESSAYS, saving b.org first? ". If `b.org` were
+read-only instead, the preview would list it as a blocker and not
+prompt.
 
 <!-- doctrine:section sec-05-4-dynamics -->
 ## 5.4 Lifecycle, Operations & Dynamics
@@ -553,6 +589,7 @@ sequenceDiagram
   alt key differs
     R-->>U: re-show + ask again
   end
+  R->>W: save-file for each named modified buffer
   loop each file, in order
     R->>F: open if needed
     F->>W: put-ranks (preflight all → one change group → one save)
@@ -605,8 +642,10 @@ Invariants (each has a test, § 9):
 - **R6 No navigation without success.** Continue visits only after a
   clean apply. A failed visit is appended to the write report.
 - **R7 Stale means re-show.** A changed key never applies the old plan.
-- **R8 Never resolves for the user.** No save, revert or discard of a
-  buffer that was modified before the run.
+- **R8 Saves only with consent.** A buffer modified before the run is
+  saved only if the approved prompt named it, and only after the
+  recheck. Nothing is ever reverted or discarded. (PRD-001 § 4;
+  DEC-029)
 - **R9 Excluded never written.** Invalid-rank and duplicate-ID
   memberships are absent from the plan.
 
@@ -649,7 +688,8 @@ Assumptions:
 - **Governance follow-ups for reconcile** (not open for design):
   - ADR-004 rule 5: the sequence starts at k = 1, and the "shared
     apply" is per file.
-  - REQ-019 AC3: the user resolves, and approval is refused meanwhile.
+  - REQ-019 AC3 and PRD-001 § 6: no change needed. The approval prompt
+    that names the buffers is the explicit resolution (DEC-029).
   - PRD-001 OQ-2 is settled for redistribution by DEC-031, and OQ-3
     stays open via inq-11.
   - DEC-012 and DEC-013 consequences: the view moves now hand off.
@@ -663,7 +703,7 @@ Settled in inquiry (accepted, each shapes SL-006):
 
 | decision | choice |
 |---|---|
-| DEC-029 | unsaved affected buffers block approval; the user resolves |
+| DEC-029 | unsaved affected buffers are named in the approval prompt and saved on yes, before any rank is written (amended in review, RV-014 F-1) |
 | DEC-030 | unwritable, read-only and changed-on-disk targets block approval |
 | DEC-031 | the preview opens nothing; the apply kills the clean buffers it opened |
 | DEC-032 | excluded memberships are left alone and counted |
@@ -694,8 +734,9 @@ Made in drafting (agent; open to review):
   - Rejected: a separate redistribution writer, which would be a third
     preflight.
 - **D4. File checks return symbols** (`org-iw-write-file-problems`).
-  The refusing preflight and the preview both use them, and `modified`
-  is a problem that only the preview treats as blocking.
+  The refusing preflight and the preview both use them. `modified` is
+  never a refusal: single writes leave the buffer unsaved, and
+  redistribution saves it on consent.
 - **D5. The recheck key is `(MEMBERS . FILES)`.** Members' (ID, file,
   rank) plus the file problems: a blocker that appears while asking
   also re-shows the preview.
@@ -758,9 +799,18 @@ item 4):
 - `redistribute-cancel-changes-nothing` (R1, REQ-019 AC1): Continue
   into no gap, answer no → `org-iw-test-state` equal, session
   unchanged, "cancelled" refusal.
-- `redistribute-blocked-*` (DEC-029, DEC-030): a modified affected
-  buffer, a read-only buffer, an unwritable file → preview lists each,
-  the stub records **no** prompt, state equal.
+- `redistribute-blocked-*` (DEC-030): a read-only buffer, an
+  unwritable file, a buffer changed on disk → the preview lists each,
+  the stub records **no** prompt, and the state is equal.
+- `redistribute-modified-cancel` (DEC-029, R1): a modified affected
+  buffer → the prompt names it; answer no → the state is equal and the
+  buffer is still modified.
+- `redistribute-modified-consent` (DEC-029, R8): answer yes → the named
+  buffer is saved with the user's text intact, then the ranks are
+  applied; an unnamed modified buffer (not affected) stays modified.
+- `redistribute-consent-save-fails`: the named buffer's save fails via
+  `write-file-functions` → stop, no rank written anywhere, and the
+  report names the file.
 - `redistribute-stale-reshows` (R7, AC2): the first answer is a
   function that rewrites an affected IW line on disk, then answers yes
   → the preview is shown again and asked again; the second yes applies
@@ -790,9 +840,10 @@ item 4):
   first", one button per file (asserted on the record and the buffer
   text).
 
-**Mutation check** (STD-001): remove each blocker test in turn (the
-`modified` block, each file problem, the key comparison, the stop at
-first trouble), and the matching test above must fail. The results are
+**Mutation check** (STD-001): remove each guard in turn (naming the
+`modified` buffers in the prompt, each blocking file problem, the key
+comparison, the stop at first trouble), and the matching test above
+must fail. The results are
 recorded in the phase notes.
 
 **VH trial** (POL-003; PRD-001 § 5): exhaust Soon by repeated Continue
@@ -808,7 +859,7 @@ on a real queue:
 | path | change |
 |---|---|
 | `org-iw-core.el` | add `org-iw-core-redistribution` |
-| `org-iw-write.el` | add `org-iw-write-file-problems`, `org-iw-write-problem-text`, `org-iw-write-put-ranks`; split put-rank into `--prepare-put` + grouped `--apply (buffer edits)`; `--check-file` refuses via file problems; `put-rank` and `delete-rank` go through the grouped apply; commentary updated |
+| `org-iw-write.el` | add `org-iw-write-file-problems`, `org-iw-write-problem-text`, `org-iw-write-put-ranks`, `org-iw-write-save-file`; extract `--save` from `--apply`; split put-rank into `--prepare-put` + grouped `--apply (buffer edits)`; `--check-file` refuses via file problems; `put-rank` and `delete-rank` go through the grouped apply; commentary updated |
 | `org-iw.el` | new `;;;; Redistribution`: `org-iw--joining`, `org-iw--redistribution` (struct, build, show), `org-iw--redistribute`, `org-iw--outcome-partition`, `org-iw--redistributed-text`, `org-iw-normalise`; `--move` and `--add-entry` no-gap branches; `--add-at` handoff; `--moved-text` gains `redistributed`; `--continue-place` and `--continue-remove` report first via `--visit-head`; rename `--batch-outcome` → `--file-outcome` and `--batch-report` → `--outcome-report` (groups); `--refuse-no-room` text; docstrings of Add, Move, Continue and the view moves name the handoff instead of the no-room refusal |
 | `test/org-iw-core-test.el` | redistribution cases (§ 9) |
 | `test/org-iw-write-test.el` | file problems, put-ranks cases |

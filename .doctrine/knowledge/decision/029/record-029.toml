@@ -3,19 +3,19 @@ version = 1
 
 id = 29
 slug = "redistribution-refuses-approval-while-an-affected-buffer-is-unsaved"
-title = "Redistribution refuses approval while an affected buffer is unsaved"
+title = "Redistribution saves unsaved affected buffers only on the approval prompt's explicit yes"
 record_kind = "decision"
 status = "accepted"
 created = "2026-10-05"
-updated = "2026-10-05"
+updated = "2026-10-07"
 tags = []
 
 [facet]                         # every field typed; seeded empty (captured later)
 context = "REQ-019 requires unsaved affected buffers to be resolved before redistribution; PRD-001 § 4 says a blocked or cancelled operation leaves every file and buffer unchanged and a modified buffer is never saved without explicit resolution (SL-006 research X5)."
-choice = "The redistribution preview lists every affected buffer that is modified. Approval is refused while any remains; the user resolves with ordinary Emacs tools (save or revert) and re-previews. org-iw never saves or reverts on the user's behalf, so the apply only ever meets clean buffers."
-alternatives = ["org-iw offers save/revert per buffer from the preview", "save all affected buffers on approval"]
-rationale = "The only reading where 'cancel changes nothing' and 'never save without explicit resolution' both hold literally; no authority sanctions org-iw saving on the user's behalf."
-consequences = ["The preview collects dirty-buffer reasons from the shared write preflight (no parallel check, POL-002)", "REQ-019 resolve semantics may be clarified at reconcile"]
+choice = "The preview lists every affected buffer with unsaved changes, and the single approval prompt names them ('Redistribute N entries in F files of Q, saving a.org first?'). That yes is the explicit resolution: after the recheck, org-iw saves exactly those buffers, then writes ranks. A no changes nothing. org-iw never reverts or discards, never saves a buffer the prompt did not name, and never saves over a file changed on disk (that blocks, DEC-030)."
+alternatives = ["refuse approval while any affected buffer is modified; the user saves and repeats (original choice)", "exempt the pending entry's own file and write it unsaved (needs a REQ-019 AC3 rewording)", "a separate save question before approval (a later cancel would leave the save in place)", "defer to a keyed preview mode (IMP-011)"]
+rationale = "One keystroke on the common edit-then-Continue path, whose own buffer is usually modified. It complies with PRD-001 § 4 (saved only with the user's explicit resolution), REQ-019 AC3 (resolved explicitly, never discarded) and § 6 (resolve, then approve) without rewording. Folding consent into the one approval prompt keeps a cancel a true no-op. Every buffer is clean before rank writes, so the REQ-020 partition stays exact. It follows the Emacs idiom of compile asking to save buffers."
+consequences = ["org-iw-write-save-file saves on consent and refuses over other file problems", "The preview no longer blocks on modified buffers; DEC-030 blockers still do", "The recheck key includes modified flags so a buffer modified while asking re-prompts", "No REQ-019 or PRD-001 change is needed"]
 decided_by = "user"
 decided_on = "2026-10-06"
 

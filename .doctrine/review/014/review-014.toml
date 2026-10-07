@@ -8,9 +8,69 @@ title = "design review of SL-006"
 facet     = "design"     # scope|design|plan|phase-plan|implementation|code-review|reconciliation
 raiser    = "raiser"
 responder = "responder"
+rounds_base = 0
+contests_base = 0
 
 [target]                   # the outbound `reviews` edge: RV-NNN ──reviews──▶ <ref>
 ref   = "SL-006"
+
+[[finding]]
+id = "F-1"
+status = "verified"
+severity = "major"
+title = "Blocking on modified buffers stalls the common Continue path"
+detail = """
+DEC-029 plus D4 make every affected buffer with unsaved changes a blocker. The PRD-001 workflow is: visit the head, edit it in place, then Continue. So the session entry's own buffer is usually modified when Continue runs. At no-gap that file is almost always affected: the moving entry's rank changes. The handoff therefore blocks in the most common case, and the user must save, then Continue again. Labelled Add has the same issue in the buffer being edited. Ordinary writes leave such buffers unsaved under ADR-002, so the asymmetry will surprise. The design (sec-05-5, sec-05-2-3) does not name this consequence. Options: (a) accept it and say so in the blocker text ("save, then repeat"); (b) exempt the pending entry's own file, writing it unsaved as ordinary writes do. But the partition then has a modified-by-design file, and R4 or the stop rule must allow it. (c) let the preview offer to save the listed buffers, which reopens DEC-029.
+"""
+disposition = "design-wrong"
+route = "review"
+response = """
+User decision 2026-10-07: neither block nor exempt. DEC-029 is amended so the single approval prompt names the unsaved affected buffers ("..., saving a.org first?"). That yes is the explicit resolution. After the recheck, org-iw saves exactly those buffers with org-iw-write-save-file, then writes ranks. A no changes nothing, because consent is folded into the one prompt. DEC-030 blockers still suppress the prompt. This complies with PRD-001 section 4, REQ-019 AC3 and section 6 without rewording. Sections 1, 4, 5.2, 5.3, 5.4, 5.5, 6, 7, 9 and 10 were updated. R8 is now "saves only with consent". The rejected alternatives were exempting the pending entry's file (needs an AC3 rewording) and IMP-011 (about as much friction; stays backlogged).
+"""
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "design-wrong"
+route = "review"
+response = """
+User decision 2026-10-07: neither block nor exempt. DEC-029 is amended so the single approval prompt names the unsaved affected buffers ("..., saving a.org first?"). That yes is the explicit resolution. After the recheck, org-iw saves exactly those buffers with org-iw-write-save-file, then writes ranks. A no changes nothing, because consent is folded into the one prompt. DEC-030 blockers still suppress the prompt. This complies with PRD-001 section 4, REQ-019 AC3 and section 6 without rewording. Sections 1, 4, 5.2, 5.3, 5.4, 5.5, 6, 7, 9 and 10 were updated. R8 is now "saves only with consent". The rejected alternatives were exempting the pending entry's file (needs an AC3 rewording) and IMP-011 (about as much friction; stays backlogged).
+"""
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "DEC-029 amended; sections 1, 4, 5.2–5.5, 6, 7, 9 and 10 read back consistent with consent-in-prompt."
+
+[[finding]]
+id = "F-2"
+status = "verified"
+severity = "minor"
+title = "Apply must use the rebuilt record, not the previewed one"
+detail = """
+sec-05-2-3 says the apply resolves "each change's marker against the recheck's scan". The changes it applies are not named. The previewed record's entries come from the first scan. With equal keys the plans are equivalent, but the entries are different struct objects. The apply should state that it uses the rebuilt record (fresh scan, fresh entries), so resolution and expected ranks come from one scan.
+"""
+disposition = "fix-now"
+response = "sec-05-2-interfaces 5.2.3 now states that the apply runs the rebuilt record from the recheck, so changes, expected ranks and markers come from one scan."
+
+[[finding.turn]]
+act = "raise"
+role = "raiser"
+
+[[finding.turn]]
+act = "dispose"
+role = "responder"
+disposition = "fix-now"
+response = "sec-05-2-interfaces 5.2.3 now states that the apply runs the rebuilt record from the recheck, so changes, expected ranks and markers come from one scan."
+
+[[finding.turn]]
+act = "verify"
+role = "raiser"
+note = "5.2.3 'Which record' bullet present."
 
 # Findings are append-only `[[finding]]` tables, added by `review raise`.
 # Empty here at creation — a fresh review is Active, awaiting the raiser.

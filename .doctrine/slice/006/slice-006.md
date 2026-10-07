@@ -11,8 +11,9 @@ no integer gap left, plus explicit normalisation.
   unwritable targets, non-atomicity, and a recommendation to commit to Git
   first (REQ-019).
 - Resolve unsaved edits, check writability, approve or cancel. Cancel
-  changes nothing. The user resolves with ordinary Emacs tools; approval
-  is refused while any blocker remains (DEC-029, DEC-030).
+  changes nothing. The approval prompt names the unsaved affected
+  buffers and saves them on yes (DEC-029). Unwritable, read-only or
+  changed-on-disk files block approval (DEC-030).
 - Recheck against live state; if it changed, re-preview and re-approve.
 - Apply and save through buffers. On write failure, report saved, modified
   and untouched files and don't navigate onward (REQ-020).
