@@ -1,0 +1,168 @@
+# Implementation plan for SL-006 — the authored, durable phase plan.
+#
+# This is the single source of each phase's objective, criteria, verification,
+# and links. Runtime status lives separately under .doctrine/state/ (phase
+# tracking) — never record progress here. Hand-edit freely: the tool reads this
+# file but does not rewrite it.
+schema  = "doctrine.plan.overview"
+version = 1
+slice   = "SL-006"
+
+# Canonical spec/requirement links — cite ids, never restate what they say. The
+# plan reader does not model these yet, so nothing downstream consumes them.
+[specs]
+primary       = []
+collaborators = []
+
+[requirements]
+targets      = []
+dependencies = []
+
+# Conventions
+#
+# Every phase after PHASE-01 has the entrance "previous phase completed; just
+# gate green" (EN-1). just gate = lint + test-all (Emacs 31 and 30). Every
+# phase ends with just gate green and an STD-001 item 3 mutation pass over the
+# guards it added (ad hoc, until CHR-001), survivors killed or justified in the
+# phase sheet. "design §" means SL-006 design.md (locked, run rev 35). VT
+# keywords name ert-deftest names or symbols used in test code, never message
+# text (STD-002); a keyword that is a planned test name may be re-keyed by the
+# append rule if the worker names the test differently. Every refusal is
+# asserted by its text (design § 9). No phase changes ADR-002's save policy for
+# single writes: only redistribution saves on consent (DEC-029, REV-007).
+
+[[phase]]
+id        = "PHASE-01"
+name      = "Core plan and file checks"
+objective = "Add the pure plan org-iw-core-redistribution (design § 5.2.1, DEC-035), discovery's predicate org-iw-discovery-org-mode-p (used by require-org-mode), and the write layer's one owner of file checks, org-iw-write-file-problems and org-iw-write-problem-text, with --check-file refusing through them (design § 5.2.2, D4). No command behaviour changes."
+entrance_criteria = [
+  { id = "EN-1", text = "SL-006 design locked (run rev 35); RV-014 concluded and disposed 'conducted', no finding routed demonstrate/probe/control; REV-007 proposed." },
+]
+exit_criteria = [
+  { id = "EX-1", text = "org-iw-core-redistribution: the design § 5.2.1 example gives exactly ((B . 2048) (D . 3072) (C . 4096)); members already at k × spacing are left out; a non-entry element is always included; empty and already-normal orders give nil; applying the plan to the members' ranks sorts back to the intended order (R2). Literals pinned (STD-001 item 4)." },
+  { id = "EX-2", text = "org-iw-discovery-org-mode-p is the derived-mode-p test; org-iw-discovery-require-org-mode uses it and its behaviour and text are unchanged." },
+  { id = "EX-3", text = "org-iw-write-file-problems returns, in design order, each of changed-on-disk, not-writable, read-only (base or an indirect BUFFER), not-org, modified that holds; only not-writable without a buffer; visits nothing (org-iw-test-state equal). org-iw-write-problem-text gives today's texts plus \"unsaved changes\" and the require-org-mode text for not-org." },
+  { id = "EX-4", text = "--check-file refuses on the first problem other than modified via file-problems, with BUFFER the marker's buffer; its separate indirect read-only check is gone. The existing put-rank and delete-rank suites pass unmodified (a modified buffer is still written and left unsaved)." },
+]
+verification = [
+  { id = "VT-1", expects = "plan literals, joining included, empty/normal nil, order preserved", test_file = "test/org-iw-core-test.el", keywords = ["org-iw-core-redistribution", "org-iw-core-test-redistribution-relays-at-spacing", "org-iw-core-test-redistribution-includes-joining", "org-iw-core-test-redistribution-preserves-intended-order"], waived = false },
+  { id = "VT-2", expects = "each file problem alone and in order, indirect read-only, not-org, no visiting", test_file = "test/org-iw-write-test.el", keywords = ["org-iw-write-file-problems", "org-iw-write-problem-text", "org-iw-write-test-file-problems-not-org", "org-iw-write-test-file-problems-indirect-read-only"], waived = false },
+  { id = "VA-1", text = "Agent greps: derived-mode-p 'org-mode appears only in org-iw-discovery-org-mode-p; --check-file has no buffer-read-only test of its own; no other function in org-iw-write.el checks verify-visited-file-modtime or file-writable-p (one owner, POL-002)." },
+]
+specs        = []
+requirements = []
+
+[[phase]]
+id        = "PHASE-02"
+name      = "Grouped write and consent save"
+objective = "Generalise the write path: --prepare-put, a grouped --apply over (MARKER . EDIT) pairs, --save extracted, org-iw-write-put-ranks, and org-iw-write-save-file; put-rank and delete-rank become one-element cases (design § 5.2.2, D3, DEC-029). No command behaviour changes."
+entrance_criteria = [
+  { id = "EN-1", text = "PHASE-01 completed; just gate green." },
+]
+exit_criteria = [
+  { id = "EX-1", text = "put-ranks with three changes in one file: every change preflighted before any edit, one atomic change group, one save (counted by after-save-hook); a stale :expected on the second change refuses with the buffer unchanged (R4)." },
+  { id = "EX-2", text = "An edit that signals inside the group restores the whole buffer and its modified flag; the error propagates." },
+  { id = "EX-3", text = "A drawerless joining document plus two heading members in one file: drawer, ID and three ranks written, every other line untouched; markers after point-min move correctly (design § 5.2.2 'Markers stay valid')." },
+  { id = "EX-4", text = "Markers in more than one buffer signal an error before any change." },
+  { id = "EX-5", text = "org-iw-write-save-file saves a modified buffer and returns saved; refuses, saving nothing, over any other file problem; returns (save-failed . ERR) when a write-file-functions hook fails, and (save-failed . still-modified) when an after-save-hook re-dirties the buffer. --save is the one save-and-catch, used by --apply and save-file." },
+  { id = "EX-6", text = "put-rank is (put-ranks (list ...)) with its docstring unchanged; delete-rank calls --apply with one edit; the existing write suite passes unmodified." },
+]
+verification = [
+  { id = "VT-1", expects = "one save, refusal before change, rollback, joining document drawer, one-buffer error", test_file = "test/org-iw-write-test.el", keywords = ["org-iw-write-put-ranks", "org-iw-write-test-put-ranks-one-save", "org-iw-write-test-put-ranks-refuses-before-any-change", "org-iw-write-test-put-ranks-rolls-back-group", "org-iw-write-test-put-ranks-joining-document-drawer", "org-iw-write-test-put-ranks-one-buffer"], waived = false },
+  { id = "VT-2", expects = "save-file: saves, refuses over problems, save failure, re-dirtied", test_file = "test/org-iw-write-test.el", keywords = ["org-iw-write-save-file", "org-iw-write-test-save-file-refuses-changed-on-disk", "org-iw-write-test-save-file-redirtied"], waived = false },
+  { id = "VA-1", text = "Agent greps org-iw-write.el: atomic-change-group and save-buffer each appear once (in --apply and --save); no preflight besides --prepare-put/--preflight (DEC-014, POL-002)." },
+]
+specs        = []
+requirements = []
+
+[[phase]]
+id        = "PHASE-03"
+name      = "Redistribution flow and normalise"
+objective = "Build the command-layer flow and its first entrance: the ;;;; Redistribution section with org-iw--redistribution (struct, build, show), org-iw--redistribute (preview, prompt with buffer naming, recheck loop, consent saves, per-file apply, interrupted rule, partition, four-group report), the --file-outcome / --outcome-report renames, --refuse-no-room's new text, and org-iw-normalise (design § 5.2.3, § 5.4, § 5.5; DEC-029..035, DEC-037; D1, D5..D7). Test helpers: org-iw-test-changed-files and the prompt stub's function answer, each with a self-test."
+entrance_criteria = [
+  { id = "EN-1", text = "PHASE-02 completed; just gate green." },
+]
+exit_criteria = [
+  { id = "EX-1", text = "Helpers (STD-001 item 2): org-iw-test-changed-files detects a change outside the expected set, a new file, a deleted file and a buffer-only change; org-iw-cmd-test--with-prompt accepts a function answer, calls it, uses its value, and fails on a value other than :yes/:no. org-iw-test--release kills *org-iw redistribution*." },
+  { id = "EX-2", text = "Preview (DEC-031, DEC-032, DEC-037): the record and buffer hold queue, pending (nil for normalise), counts, the not-atomic/Git line, blockers, buffers to save, one button per file; source problems are counted; nothing is visited before approval." },
+  { id = "EX-3", text = "Cancel and blockers (R1, REQ-019 AC1/AC4, DEC-030): answering no, and each blocker (read-only, unwritable, changed on disk, not-org), leave org-iw-test-state equal; blockers record no prompt; refusal texts as design § 5.2.3." },
+  { id = "EX-4", text = "Consent (DEC-029, R8): a modified affected buffer is named in the one prompt; no leaves it modified and the state equal; yes saves exactly the named buffers, after the recheck, before any rank; an unaffected modified buffer stays modified. Same-named files in two directories are named by their unique buffer names; more than three gives the count form, the preview listing all." },
+  { id = "EX-5", text = "Recheck (R7, DEC-033): a function answer changing MEMBERS (unvisited file on disk; live-buffer edit) re-asks, and the second yes applies ranks in the fresh order; rewriting a visited file on disk re-shows with the changed-on-disk blocker and no second prompt. The apply runs the rebuilt record (RV-014 F-2)." },
+  { id = "EX-6", text = "Apply (R2..R5, REQ-020): two files change only the planned IW_ lines (org-iw-test-changed-files); a failing save on the second of three files gives saved/modified/untouched exactly, the third not opened; a consent save failure, or a re-dirtied consent save, stops before any rank; the report's fourth group lists consent-saved files and the refusal text counts them; clean buffers the run opened are killed, existing ones kept (DEC-031)." },
+  { id = "EX-7", text = "Quit (D7): a quit from after-save-hook on the second of three files → first saved, second interrupted (modified group), third stopped and unopened, the quit propagates after the report; a quit inside the second file's change group → second stopped (untouched); a quit during a consent save → no rank written, the report lists buffers already saved. Batch add's loop and its stopped rule are unchanged (org-iw-cmd-test-batch-summary-after-error green)." },
+  { id = "EX-8", text = "Normalise (DEC-034): reads its queue with org-iw--read-session-queue; an already normal or empty queue reports \"already normal\" with no preview buffer (--redistribute returns nil); otherwise it relays and reports org-iw--redistributed-text." },
+  { id = "EX-9", text = "Renames (D6): --batch-outcome → --file-outcome, --batch-report → --outcome-report (buffer heading groups); batch add renders one group and its tests pass with the renames; --refuse-no-room's text names org-iw-normalise; org-iw-cmd-test-refuse-no-room and org-iw-cmd-test-batch-no-room-fails-rest updated for it." },
+]
+verification = [
+  { id = "VT-1", expects = "helper self-tests: changed-files and function answer", test_file = "test/org-iw-discovery-test.el", keywords = ["org-iw-test-changed-files", "org-iw-discovery-test-fixture-changed-files"], waived = false },
+  { id = "VT-2", expects = "cancel, blockers, consent, naming, recheck", test_file = "test/org-iw-test.el", keywords = ["org-iw--redistribute", "org-iw-cmd-test-with-prompt-function-answer", "org-iw-cmd-test-redistribute-cancel-changes-nothing", "org-iw-cmd-test-redistribute-blocked-not-org", "org-iw-cmd-test-redistribute-modified-consent", "org-iw-cmd-test-redistribute-prompt-names", "org-iw-cmd-test-redistribute-stale-reshows"], waived = false },
+  { id = "VT-3", expects = "apply minimal, partition, consent-save failure, report groups, quit, kill opened", test_file = "test/org-iw-test.el", keywords = ["org-iw--outcome-partition", "org-iw-cmd-test-redistribute-applies-minimal", "org-iw-cmd-test-redistribute-failure-partition", "org-iw-cmd-test-redistribute-consent-save-fails", "org-iw-cmd-test-redistribute-quit-mid-apply", "org-iw-cmd-test-apply-kills-opened-clean"], waived = false },
+  { id = "VT-4", expects = "normalise relays and already-normal; preview content", test_file = "test/org-iw-test.el", keywords = ["org-iw-normalise", "org-iw-cmd-test-normalise-relays", "org-iw-cmd-test-normalise-already-normal", "org-iw-cmd-test-preview-content"], waived = false },
+  { id = "VA-1", text = "Agent greps org-iw.el: org-iw-core-redistribution and the file loop are called only from org-iw--redistribute; no --batch-outcome or --batch-report remains; no rank arithmetic in the Redistribution section (ADR-004 rule 6)." },
+]
+specs        = []
+requirements = []
+
+[[phase]]
+id        = "PHASE-04"
+name      = "Move, view and Continue handoffs"
+objective = "Hand off from --move at no gap (design § 5.2.3 'The handoff'): INTEND by ID, placement functions for the view moves (D8), (redistributed DEPTH OUTCOMES) and nil → (unchanged DEPTH), --moved-text's redistributed case, --continue-place reordering after redistributed (RV-014 F-8), and Continue reporting before it visits via --visit-head (DEC-038, ISS-002). Docstrings of Move, Continue and the view moves name the handoff."
+entrance_criteria = [
+  { id = "EN-1", text = "PHASE-03 completed; just gate green." },
+]
+exit_criteria = [
+  { id = "EX-1", text = "Move, Continue and each view move (place before/after, up, down) at no gap reach the prompt; approval relays the queue with the entry at its intended slot and reports the moved text plus the redistribution summary; cancel and blockers leave state equal and do not navigate." },
+  { id = "EX-2", text = "Continue at Soon into no gap from the head, approved: the visited entry is the new head, not the moved entry; the session holds its ID; the message ends with the Now 1/N text (PRD-001 § 6, DEC-038)." },
+  { id = "EX-3", text = "Continue place and remove: the write text is built first; a refused head visit appends \"not visited: REASON\" and the save status survives (ISS-002); after a failed redistribution there is no visit and the session is unchanged (REQ-020 AC2, R6)." },
+  { id = "EX-4", text = "Re-show (D8): a view 'before X' at no gap where X moves while asking applies before X's new slot; X leaving the queue refuses with nothing written." },
+  { id = "EX-5", text = "The existing tests that asserted the no-room refusal on these paths are rewritten to expect the prompt (answered no: cancelled, state equal): continue-refuses-at-rank-limit, continue-refuses-without-gap, move-refuses-without-gap, move-command-no-room, the view step at position 3/4, view-place-refusals (design § 10)." },
+]
+verification = [
+  { id = "VT-1", expects = "handoff from Move, Continue and view moves; cancel", test_file = "test/org-iw-test.el", keywords = ["org-iw-cmd-test-handoff-surfaces", "org-iw-cmd-test-continue-redistributes-then-visits-new-head", "org-iw-cmd-test-view-move-reshow-anchor"], waived = false },
+  { id = "VT-2", expects = "report before visit; no visit after failure", test_file = "test/org-iw-test.el", keywords = ["org-iw--visit-head", "org-iw-cmd-test-continue-reports-before-visit", "org-iw-cmd-test-continue-no-visit-after-failure"], waived = false },
+  { id = "VA-1", text = "Agent greps org-iw.el: --move is the only caller of --redistribute among Move, Continue and the view moves; --continue-place derives the new order for redistributed; no call of org-iw--visit precedes the write report in --continue-place or --continue-remove." },
+]
+specs        = []
+requirements = []
+
+[[phase]]
+id        = "PHASE-05"
+name      = "Add handoff"
+objective = "Hand off from Add at no gap (design § 5.2.3, DEC-036, D2, D9): the org-iw--joining token with its placement, --check-joinable extracted from --add-entry and run at the token's marker on every scan, --add-entry returning (no-gap DEPTH JOINING), --add-at handing off labelled or not, the joining marker re-homed to the base buffer, and batch add still refusing. Docstrings of Add and Add-document name the handoff."
+entrance_criteria = [
+  { id = "EN-1", text = "PHASE-04 completed; just gate green." },
+]
+exit_criteria = [
+  { id = "EX-1", text = "Labelled Add of an entry with no ID at no gap: one approval; the entry gains an ID and its rank at the intended slot; other members relaid. Unlabelled Add at the end limit hands off with pending text 'add TITLE at the end'. Add-document likewise." },
+  { id = "EX-2", text = "Add from an org-tree-to-indirect-buffer view and from a narrowed buffer, in a file holding members whose ranks change: one group, every rank written, no error (STD-001 item 5); a read-only indirect buffer is a read-only blocker with no prompt." },
+  { id = "EX-3", text = "Re-show: at a fraction label, a member added by hand while asking moves the entry by the fresh count; the entry itself enrolled (given an ID) by hand while asking → \"already in Q\", nothing written." },
+  { id = "EX-4", text = "Batch add at the end limit still refuses with the no-room text (DEC-036)." },
+  { id = "EX-5", text = "The existing tests add-refuses-at-rank-limit, add-document-refuses-at-rank-limit and add-refuses-without-gap are rewritten to expect the prompt (answered no: cancelled, state equal)." },
+]
+verification = [
+  { id = "VT-1", expects = "Add handoff joins; unlabelled at the end; batch still refuses", test_file = "test/org-iw-test.el", keywords = ["org-iw--joining", "org-iw-cmd-test-add-handoff-joins", "org-iw-cmd-test-add-handoff-unlabelled-end"], waived = false },
+  { id = "VT-2", expects = "indirect and narrowed Add handoff; read-only indirect blocker", test_file = "test/org-iw-test.el", keywords = ["org-iw-cmd-test-add-handoff-indirect", "org-iw-cmd-test-add-handoff-narrowed"], waived = false },
+  { id = "VT-3", expects = "re-show recomputes; enrolled while asking refuses", test_file = "test/org-iw-test.el", keywords = ["org-iw--check-joinable", "org-iw-cmd-test-add-reshow-recomputes"], waived = false },
+  { id = "VA-1", text = "Agent greps org-iw.el: the joinability checks (excluded types, shared ID, already a member) appear only in --check-joinable; --refuse-no-room's only caller is batch add." },
+]
+specs        = []
+requirements = []
+
+[[phase]]
+id        = "PHASE-06"
+name      = "README and human trial"
+objective = "Document normalise and the no-room handoff in the README (design § 10, CHR-003), then run the design § 9 VH trial (POL-003) and fold any defects back before audit."
+entrance_criteria = [
+  { id = "EN-1", text = "PHASE-05 completed; just gate green." },
+]
+exit_criteria = [
+  { id = "EX-1", text = "README: the 'Automatic redistribution of ranks is planned' text is replaced; it covers running out of room, the preview, the one approval that may save named buffers, not atomic and commit to Git first, the failure report, and org-iw-normalise; every command named exists." },
+  { id = "EX-2", text = "The user has run the trial and reported the outcome; defects are fixed in this phase (TDD) or recorded as backlog items with the user's agreement; inq-11 (DEC-009 default placement) is weighed and the user's view recorded." },
+  { id = "EX-3", text = "just gate green after any fixes." },
+]
+verification = [
+  { id = "VA-1", text = "Agent reads README against design § 5.2.3 and § 5.5 and DEC-029/030/034/036; every command named exists with that name." },
+  { id = "VH-1", text = "On a disposable Git-backed fixture or Git copy of a real queue, the user exhausts Soon by repeated Continue; cancels once and confirms git status is clean; approves with one source buffer modified and sees it named and saved; checks git diff touches only IW_ lines (plus their own edits) and commits; runs org-iw-normalise on an already normal queue." },
+]
+specs        = []
+requirements = []
