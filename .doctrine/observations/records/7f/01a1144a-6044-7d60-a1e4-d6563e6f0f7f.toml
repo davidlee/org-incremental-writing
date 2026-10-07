@@ -1,0 +1,18 @@
+schema = "doctrine.observation"
+schema_version = 1
+uid = "01a1144a-6044-7d60-a1e4-d6563e6f0f7f"
+recorded_at = "2026-10-07T02:56:21.060813993Z"
+kind = "friction"
+summary = "Phase sheet close task asks worker to fill Findings, but capsule workers are barred from .doctrine/"
+detail = "SL-006 PHASE-01/02: planner sheets include a 'record Decisions/Findings in sheet' step; orchestrator rules keep workers out of .doctrine/, so findings travel only in hand-back and the sheet stays unfilled."
+
+[facets.execution]
+schema_version = 1
+interface = "cli"
+interface_origin = "automatic"
+product_surface = "doctrine"
+product_surface_origin = "automatic"
+command = "observation record"
+command_origin = "automatic"
+repository_context = "primary"
+repository_context_origin = "automatic"

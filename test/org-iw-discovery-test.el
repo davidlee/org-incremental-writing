@@ -133,6 +133,45 @@ ENTRIES and PROBLEMS are as returned by
   (should (equal (org-iw-test-changed-lines "same\n" "same\n")
                  '(nil . nil))))
 
+(ert-deftest org-iw-discovery-test-fixture-changed-files ()
+  "Changed files name each file or buffer whose state differs, sorted."
+  (org-iw-test-with-corpus '(("a.org" . "* A\n") ("b.org" . "* B\n")
+                             ("c.org" . "* C\n"))
+    (let ((before (org-iw-test-state)))
+      (should-not (org-iw-test-changed-files before (org-iw-test-state)))
+      (org-iw-test-rewrite-behind "b.org" "* B\nbehind\n")
+      (should (equal (org-iw-test-changed-files before (org-iw-test-state))
+                     (list (org-iw-test-path "b.org"))))
+      (write-region "* D\n" nil (org-iw-test-path "d.org"))
+      (delete-file (org-iw-test-path "c.org"))
+      (should (equal (org-iw-test-changed-files before (org-iw-test-state))
+                     (mapcar #'org-iw-test-path '("b.org" "c.org" "d.org"))))
+      (delete-file (org-iw-test-path "d.org"))
+      (write-region "* C\n" nil (org-iw-test-path "c.org"))
+      (write-region "* B\n" nil (org-iw-test-path "b.org"))))
+  (org-iw-test-with-corpus '(("a.org" . "* A\n") ("b.org" . "* B\n"))
+    (let ((before (org-iw-test-state))
+          (marker (org-iw-test-marker "a.org" "A")))
+      (org-iw-test-edit-elsewhere marker)
+      (should (equal (org-iw-test-changed-files before (org-iw-test-state))
+                     (list (buffer-name (org-iw-test-base marker))))))))
+
+(ert-deftest org-iw-discovery-test-fixture-release-kills-reports ()
+  "Release kills the batch and redistribution report buffers.
+A live file-visiting buffer outside the corpus is left alone."
+  (org-iw-test-with-corpus nil
+    (let ((names (list org-iw--batch-report-name "*org-iw redistribution*"))
+          (outside (find-file-noselect (make-temp-file "org-iw-outside"))))
+      (unwind-protect
+          (progn
+            (dolist (name names)
+              (generate-new-buffer name))
+            (org-iw-test--release)
+            (dolist (name names)
+              (should-not (get-buffer name)))
+            (should (buffer-live-p outside)))
+        (kill-buffer outside)))))
+
 (ert-deftest org-iw-discovery-test-fixture-snapshot-detects-change ()
   "A snapshot differs after a buffer edit, a modified flag or a disk change."
   (let ((files '(("a.org" . "* A\n"))))

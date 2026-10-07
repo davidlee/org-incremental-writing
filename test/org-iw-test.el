@@ -26,8 +26,8 @@
 ;; `org-iw-add-document', `org-iw-add-files', the session and its mode
 ;; line, `org-iw-visit-next', `org-iw-continue', `org-iw-move',
 ;; `org-iw-end-session', `org-iw-remove', the queue view
-;; (`org-iw-list-queue' and its commands), and the private helpers the
-;; commands share.
+;; (`org-iw-list-queue' and its commands), redistribution and
+;; `org-iw-normalise', and the private helpers the commands share.
 ;; Every prompt is stubbed, so that no test reads from standard input.
 
 ;;; Code:
@@ -80,11 +80,13 @@ kind.  A `completing-read' answer is a string; a `y-or-n-p' answer is
 :yes or :no, since nil would read as no answer left.  A prompt with no
 answer left fails the test, so ANSWER nil proves BODY never prompts,
 as does an answer of the wrong kind, or one that is not a candidate
-when REQUIRE-MATCH is t.  Each call is recorded, in order, in
-`org-iw-cmd-test--prompts' as a plist: (:prompt :collection
-:require-match :default :order :annotate) for `completing-read',
-:order being `org-iw-cmd-test--cycle-order', and (:prompt) for
-`y-or-n-p'."
+when REQUIRE-MATCH is t.  An answer that is a function is called
+with no arguments when its turn comes, and its value is the answer,
+so it may change buffers or files while the prompt is up.  Each call
+is recorded, in order, in `org-iw-cmd-test--prompts' as a
+plist: (:prompt :collection :require-match :default :order :annotate)
+for `completing-read', :order being `org-iw-cmd-test--cycle-order',
+and (:prompt) for `y-or-n-p'."
   (declare (indent 1) (debug t))
   (let ((answers (make-symbol "answers"))
         (reply (make-symbol "reply")))
@@ -94,7 +96,10 @@ when REQUIRE-MATCH is t.  Each call is recorded, in order, in
                    (setq org-iw-cmd-test--prompts
                          (append org-iw-cmd-test--prompts (list call)))
                    (let* ((prompt (plist-get call :prompt))
-                          (reply (or (pop ,answers)
+                          (reply (or (let ((answer (pop ,answers)))
+                                       (if (functionp answer)
+                                           (funcall answer)
+                                         answer))
                                      (ert-fail (list "Unexpected prompt"
                                                      prompt)))))
                      (unless (funcall valid-p reply)
@@ -170,12 +175,32 @@ Under REQUIRE-MATCH t it fails an answer that is not a candidate.
                    (complete-with-action action '("b" "a") string pred)))))
     (should (equal (org-iw-cmd-test--cycle-order table nil) '("b" "a")))))
 
+(ert-deftest org-iw-cmd-test-with-prompt-function-answer ()
+  "A function answer is called once, in turn, and its value is the answer."
+  (let ((calls nil))
+    (org-iw-cmd-test--with-prompt
+        (list :yes
+              (lambda () (push 'second calls) :no)
+              (lambda () (push 'third calls) "text"))
+      (should (eq (y-or-n-p "One? ") t))
+      (should-not calls)
+      (should (eq (y-or-n-p "Two? ") nil))
+      (should (equal calls '(second)))
+      (should (equal (completing-read "Three: " '("w")) "text"))
+      (should (equal calls '(third second)))
+      (should (equal (org-iw-cmd-test--prompted :prompt)
+                     '("One? " "Two? " "Three: ")))))
+  (org-iw-cmd-test--with-prompt (lambda () "yes")
+    (should-error (y-or-n-p "Sure? ") :type 'ert-test-failed))
+  (org-iw-cmd-test--with-prompt (lambda () nil)
+    (should-error (y-or-n-p "Sure? ") :type 'ert-test-failed)))
+
 ;;;; Private helpers
 
 (defun org-iw-cmd-test--no-room (where)
   "Return the refusal when ESSAYS has no rank left WHERE.
 WHERE carries its preposition, as in \"at the end\"."
-  (concat "no room " where " in ESSAYS; redistribution is not yet available"))
+  (concat "no room " where " in ESSAYS; normalise it with org-iw-normalise"))
 
 (defun org-iw-cmd-test--refusal (fn)
   "Call FN, assert it refuses, and return the refusal message."
@@ -184,8 +209,8 @@ WHERE carries its preposition, as in \"at the end\"."
 (ert-deftest org-iw-cmd-test-refuse-no-room ()
   "No room is refused naming where and the queue, with no advice."
   (should (equal (org-iw-cmd-test--no-room "at the end")
-                 (concat "no room at the end in ESSAYS; redistribution is"
-                         " not yet available")))
+                 (concat "no room at the end in ESSAYS; normalise it with"
+                         " org-iw-normalise")))
   (dolist (where '("at the end" "at Second" "at position 3/4" "before T"
                   "after T"))
     (should (equal (org-iw-cmd-test--refusal
@@ -1036,14 +1061,15 @@ corpus."
     (org-iw-cmd-test--relative (nreverse outcomes))))
 
 (defun org-iw-cmd-test--report-lines ()
-  "Return the lines of the shown batch report after its heading.
+  "Return the lines of the shown batch report after its heading and label.
 A corpus file at the start of a line is made relative to the corpus.
 Fail unless the report is shown."
   (let ((report (get-buffer "*org-iw batch*")))
     (should (get-buffer-window report))
     (mapcar (lambda (line) (string-remove-prefix org-iw-test-dir line))
-            (cdr (split-string (with-current-buffer report (buffer-string))
-                               "\n" t)))))
+            (nthcdr 2 (split-string
+                       (with-current-buffer report (buffer-string))
+                       "\n" t)))))
 
 (defun org-iw-cmd-test--ranks (queue)
   "Return QUEUE's members, scanned afresh, as (FILE . RANK) in order.
@@ -1203,28 +1229,31 @@ file sends the reader to the report."
                                                       (list trouble)))))))
 
 (ert-deftest org-iw-cmd-test-batch-report-lists-trouble-only ()
-  "`org-iw--batch-report' lists the files needing attention, else nothing.
-Those are the failed, unsaved and stopped files, and those whose
-buffer was left open.  The report is a read-only `special-mode'
-buffer, shown, rewritten in full each time.  Added and saved, and
-existing, files are not listed."
+  "`org-iw--outcome-report' lists the groups with outcomes, else nothing.
+Each outcome reads as in the batch summary, including a buffer left
+open.  Empty groups are skipped.  The report is a read-only
+`special-mode' buffer, shown, rewritten in full each time."
   (org-iw-test-with-corpus nil
     (let ((org-iw-queues '(("essays" :name "Essays"))))
-      (should-not (org-iw--batch-report
-                   "ESSAYS" '(("/n/a.org" added saved)
-                              ("/n/b.org" existing))))
+      (should-not (org-iw--outcome-report
+                   "*org-iw batch*" "Batch add to Essays"
+                   (list (cons "files needing attention" nil))))
       (should-not (get-buffer "*org-iw batch*"))
-      (org-iw--batch-report "ESSAYS" '(("/n/old.org" failed "stale")))
-      (let ((report (org-iw--batch-report
-                     "ESSAYS"
-                     '(("/n/a.org" added saved) ("/n/b.org" existing)
-                       ("/n/c.org" failed "no room")
-                       ("/n/d.org" added unsaved)
-                       ("/n/e.org" added
-                        (save-failed error "Disk full"))
-                       ("/n/f.org" existing left-open)
-                       ("/n/g.org" failed "stale" left-open)
-                       ("/n/h.org" stopped)))))
+      (org-iw--outcome-report
+       "*org-iw batch*" "Batch add to Essays"
+       '(("files needing attention" ("/n/old.org" failed "stale"))))
+      (let ((report (org-iw--outcome-report
+                     "*org-iw batch*" "Batch add to Essays"
+                     '(("files needing attention"
+                        ("/n/c.org" failed "no room")
+                        ("/n/d.org" added unsaved)
+                        ("/n/e.org" added
+                         (save-failed error "Disk full"))
+                        ("/n/f.org" existing left-open)
+                        ("/n/g.org" failed "stale" left-open)
+                        ("/n/h.org" stopped))
+                       ("nothing here")
+                       ("also" ("/n/i.org" existing))))))
         (should (eq report (get-buffer "*org-iw batch*")))
         (should (get-buffer-window report))
         (with-current-buffer report
@@ -1232,8 +1261,9 @@ existing, files are not listed."
           (should buffer-read-only)
           (should (equal (buffer-string)
                          (org-iw-test-org
-                          "Batch add to Essays: files needing attention"
+                          "Batch add to Essays"
                           ""
+                          "files needing attention:"
                           "/n/c.org: no room"
                           (concat "/n/d.org: (buffer has unsaved changes"
                                   " — queue change not saved)")
@@ -1242,7 +1272,10 @@ existing, files are not listed."
                           (concat "/n/f.org: already present; buffer left"
                                   " open, modified")
                           "/n/g.org: stale; buffer left open, modified"
-                          "/n/h.org: not added: the batch stopped"))))))))
+                          "/n/h.org: not added: the batch stopped"
+                          ""
+                          "also:"
+                          "/n/i.org: already present"))))))))
 
 ;;;; Batch add: order, rerun and outcomes (EX-2, EX-5, VT-1)
 
@@ -1664,10 +1697,10 @@ in canonical order; a clean run makes no report."
       (should (get-buffer-window report))
       (should (equal (mapcar (lambda (line)
                                (car (split-string line ": ")))
-                             (cdr (split-string
-                                   (with-current-buffer report
-                                     (buffer-string))
-                                   "\n" t)))
+                             (nthcdr 2 (split-string
+                                        (with-current-buffer report
+                                          (buffer-string))
+                                        "\n" t)))
                      (mapcar #'org-iw-test-path
                              '("b.org" "sub/c.org")))))))
 
@@ -2868,14 +2901,14 @@ The refusal names the queue by its configured name."
                       (lambda ()
                         (org-iw-cmd-test--move scan "a1" '(after 1)
                                                "at Second")))
-                     (concat "no room at Second in Essays; redistribution"
-                             " is not yet available")))
+                     (concat "no room at Second in Essays; normalise it"
+                             " with org-iw-normalise")))
       (should (equal (org-iw-cmd-test--should-refuse-cleanly
                       "no room"
                       (lambda ()
                         (org-iw-cmd-test--move scan "a1" '(after 1))))
                      (concat "no room at position 2/3 in Essays;"
-                             " redistribution is not yet available"))))))
+                             " normalise it with org-iw-normalise"))))))
 
 (ert-deftest org-iw-cmd-test-moved-text ()
   "The move text gives the placement when WHERE is given, else only D/N."
@@ -4583,6 +4616,472 @@ Placing refuses so even with a mark set."
         (org-iw-cmd-test--with-prompt nil
           (should (equal (org-iw-cmd-test--should-refuse-cleanly "" command)
                          "no entry at point")))))))
+
+;;;; Redistribution: helpers
+
+(defconst org-iw-cmd-test--uneven
+  `(("a.org" . ,(concat (org-iw-test-heading "B" "b1" ":IW_ESSAYS: 1536")
+                        (org-iw-test-heading "C" "c1" ":IW_ESSAYS: 1537")))
+    ("b.org" . ,(org-iw-test-heading "D" "d1" ":IW_ESSAYS: 4096"))
+    ("c.org" . ,(org-iw-test-heading "A" "a1" ":IW_ESSAYS: 1024"))
+    ("x.org" . ,(org-iw-test-heading "X" "x1" ":IW_ESSAYS: soon")))
+  "ESSAYS as A 1024, B 1536, C 1537, D 4096, and X excluded.
+B and C are in a.org, D in b.org, A in c.org.  X's rank is invalid,
+so the scan leaves it out and counts one problem.")
+
+(defun org-iw-cmd-test--keep-order (scan)
+  "Return ESSAYS's members in SCAN, in order: normalise's intent."
+  (org-iw--order scan "ESSAYS"))
+
+(defun org-iw-cmd-test--move-to (id depth)
+  "Return an intent moving the member ID of ESSAYS to DEPTH."
+  (lambda (scan)
+    (let ((order (org-iw--order scan "ESSAYS")))
+      (org-iw-core-reorder order (org-iw--find-entry order id) depth))))
+
+(defun org-iw-cmd-test--with-ranks-replaced (text &rest replacements)
+  "Return TEXT with each IW_ESSAYS rank FROM made TO.
+REPLACEMENTS are FROM TO pairs, integers."
+  (cl-loop for (from to) on replacements by #'cddr
+           do (setq text (string-replace (format ":IW_ESSAYS: %d" from)
+                                         (format ":IW_ESSAYS: %d" to)
+                                         text)))
+  text)
+
+;;;; Redistribution: the record
+
+(ert-deftest org-iw-cmd-test-redistribution-build ()
+  "The record holds the plan, the affected files and the recheck key.
+Files come once each, in `string<' order, with their change count and
+problems; an excluded membership is absent and counted as a problem.
+Nothing is visited."
+  (org-iw-test-with-corpus org-iw-cmd-test--uneven
+    (let* ((a (org-iw-test-path "a.org"))
+           (b (org-iw-test-path "b.org"))
+           (c (org-iw-test-path "c.org"))
+           (before (org-iw-test-state))
+           (record (org-iw--redistribution-build
+                    (org-iw--scan) "ESSAYS" (org-iw-cmd-test--move-to "d1" 2)
+                    "move D at Soon")))
+      (should (equal (org-iw-test-state) before))
+      (should (equal (org-iw--redistribution-queue record) "ESSAYS"))
+      (should (equal (org-iw--redistribution-pending record) "move D at Soon"))
+      (should (equal (mapcar (pcase-lambda (`(,entry . ,rank))
+                               (cons (org-iw-entry-id entry) rank))
+                             (org-iw--redistribution-changes record))
+                     '(("b1" . 2048) ("d1" . 3072) ("c1" . 4096))))
+      (should (equal (org-iw--redistribution-files record)
+                     `((,a 2) (,b 1))))
+      (should (equal (org-iw--redistribution-problems record) 1))
+      (should (equal (org-iw--redistribution-key record)
+                     `((("a1" ,c 1024) ("b1" ,a 1536) ("c1" ,a 1537)
+                        ("d1" ,b 4096))
+                       . ((,a 2) (,b 1)))))
+      (org-iw-test-edit-elsewhere (org-iw-test-marker "a.org" nil))
+      (let ((record (org-iw--redistribution-build
+                     (org-iw--scan) "ESSAYS" #'org-iw-cmd-test--keep-order
+                     nil)))
+        (should-not (org-iw--redistribution-pending record))
+        (should (equal (org-iw--redistribution-files record)
+                       `((,a 2 modified))))))))
+
+;;;; Redistribution: the preview
+
+(defun org-iw-cmd-test--preview-buttons ()
+  "Return the labels of the buttons in the preview buffer, in order."
+  (with-current-buffer org-iw--redistribution-buffer-name
+    (let ((button (next-button (point-min) t))
+          (labels nil))
+      (while button
+        (push (button-label button) labels)
+        (setq button (next-button (button-end button))))
+      (nreverse labels))))
+
+(ert-deftest org-iw-cmd-test-preview-content ()
+  "The preview shows the plan, the blockers and the buffers approval saves.
+It names the queue and the pending operation, counts the entries and
+files, warns that the run is not atomic, counts the source problems
+and lists each file as a button that visits it.  Showing it visits
+nothing."
+  (org-iw-test-with-corpus org-iw-cmd-test--uneven
+    (org-iw-test-edit-elsewhere (org-iw-test-marker "a.org" nil))
+    (with-current-buffer (org-iw-test-visit "b.org")
+      (setq buffer-read-only t))
+    (let* ((a (org-iw-test-path "a.org"))
+           (b (org-iw-test-path "b.org"))
+           (before (org-iw-test-state))
+           (buffer (org-iw--redistribution-show
+                    (org-iw--redistribution-build
+                     (org-iw--scan) "ESSAYS" (org-iw-cmd-test--move-to "d1" 2)
+                     "move D at Soon"))))
+      (should (equal (org-iw-test-state) before))
+      (should (eq buffer (get-buffer org-iw--redistribution-buffer-name)))
+      (should (get-buffer-window buffer))
+      (with-current-buffer buffer
+        (should (derived-mode-p 'special-mode))
+        (should (equal (buffer-string)
+                       (org-iw-test-org
+                        "Redistribution of ESSAYS"
+                        "Pending: move D at Soon"
+                        "3 entries in 2 files"
+                        (concat "Not atomic: files are written one by one."
+                                " Commit to Git first.")
+                        "1 source problems ignored (never rewritten)"
+                        ""
+                        "Blocking:"
+                        (concat b ": buffer is read-only")
+                        ""
+                        "Saved on approval:"
+                        "a.org"
+                        ""
+                        "Files:"
+                        (concat a ": 2 entries")
+                        (concat b ": 1 entries")))))
+      (should (equal (org-iw-cmd-test--preview-buttons) (list a b))))))
+
+(ert-deftest org-iw-cmd-test-preview-content-plain ()
+  "The preview leaves out what is absent; a file's button visits it.
+Absent are the pending operation, blockers, buffers to save and
+problems."
+  (org-iw-test-with-corpus (butlast org-iw-cmd-test--uneven)
+    (let ((a (org-iw-test-path "a.org")))
+      (with-current-buffer (org-iw--redistribution-show
+                            (org-iw--redistribution-build
+                             (org-iw--scan) "ESSAYS"
+                             #'org-iw-cmd-test--keep-order nil))
+        (should (equal (buffer-string)
+                       (org-iw-test-org
+                        "Redistribution of ESSAYS"
+                        "2 entries in 1 files"
+                        (concat "Not atomic: files are written one by one."
+                                " Commit to Git first.")
+                        ""
+                        "Files:"
+                        (concat a ": 2 entries"))))
+        (should-not (org-iw-cmd-test--visited "a.org"))
+        (push-button (next-button (point-min) t))
+        (should (org-iw-cmd-test--visited "a.org"))))))
+
+;;;; Redistribution: cancel, blockers and the recheck
+
+(defun org-iw-cmd-test--normalise-essays ()
+  "Redistribute ESSAYS in its own order, with no pending operation."
+  (org-iw--redistribute "ESSAYS" #'org-iw-cmd-test--keep-order nil))
+
+(defun org-iw-cmd-test--preview-text ()
+  "Return the text of the preview buffer."
+  (with-current-buffer org-iw--redistribution-buffer-name
+    (buffer-string)))
+
+(defconst org-iw-cmd-test--block-text
+  (concat "1 files block redistributing ESSAYS (see *org-iw redistribution*);"
+          " resolve them and repeat")
+  "The refusal when one file blocks redistributing ESSAYS.")
+
+(ert-deftest org-iw-cmd-test-redistribute-cancel-changes-nothing ()
+  "Answering no refuses as cancelled, changing nothing; the preview stays."
+  (org-iw-test-with-corpus org-iw-cmd-test--uneven
+    (let ((before (org-iw-test-state)))
+      (org-iw-cmd-test--with-prompt :no
+        (should (equal (org-iw-cmd-test--refusal
+                        (lambda ()
+                          (org-iw--redistribute
+                           "ESSAYS" (org-iw-cmd-test--move-to "d1" 2)
+                           "move D at Soon")))
+                       "Redistribution of ESSAYS cancelled; nothing changed"))
+        (should (equal (org-iw-cmd-test--prompted :prompt)
+                       '("Redistribute 3 entries in 2 files of ESSAYS? "))))
+      (should (equal (org-iw-test-state) before))
+      (should (string-search "Pending: move D at Soon"
+                             (org-iw-cmd-test--preview-text))))))
+
+(defun org-iw-cmd-test--should-block (setup text)
+  "Assert a.org blocks redistributing ESSAYS for TEXT once SETUP has run.
+SETUP is called with no arguments in the corpus.  The preview lists
+the file with TEXT, nothing prompts, and nothing changes."
+  (org-iw-test-with-corpus org-iw-cmd-test--uneven
+    (funcall setup)
+    (let ((before (org-iw-test-state)))
+      (org-iw-cmd-test--with-prompt nil
+        (should (equal (org-iw-cmd-test--refusal
+                        #'org-iw-cmd-test--normalise-essays)
+                       org-iw-cmd-test--block-text)))
+      (should (equal (org-iw-test-state) before))
+      (should (string-search (format "Blocking:\n%s: %s\n"
+                                     (org-iw-test-path "a.org") text)
+                             (org-iw-cmd-test--preview-text))))))
+
+(ert-deftest org-iw-cmd-test-redistribute-blocked-read-only ()
+  "A read-only affected buffer blocks the run before the prompt."
+  (org-iw-cmd-test--should-block
+   (lambda ()
+     (with-current-buffer (org-iw-test-visit "a.org")
+       (setq buffer-read-only t)))
+   "buffer is read-only"))
+
+(ert-deftest org-iw-cmd-test-redistribute-blocked-not-writable ()
+  "An unwritable affected file blocks the run before the prompt."
+  (org-iw-test-unless-root
+    (org-iw-cmd-test--should-block
+     (lambda () (org-iw-test-set-modes "a.org" #o444))
+     "not writable")))
+
+(ert-deftest org-iw-cmd-test-redistribute-blocked-changed-on-disk ()
+  "An affected buffer whose file changed on disk blocks the run."
+  (org-iw-cmd-test--should-block
+   (lambda ()
+     (org-iw-test-visit "a.org")
+     (org-iw-test-rewrite-behind "a.org" (org-iw-test-file-string "a.org")))
+   "changed on disk; revert first"))
+
+(ert-deftest org-iw-cmd-test-redistribute-blocked-not-org ()
+  "An affected buffer not in Org mode blocks the run before the prompt."
+  (org-iw-cmd-test--should-block
+   (lambda () (find-file-literally (org-iw-test-path "a.org")))
+   "buffer not in Org mode"))
+
+(defun org-iw-cmd-test--edit-d-rank (rank)
+  "Return a prompt answer that gives D, in b.org, RANK, then answers yes.
+The rank is edited in b.org's buffer if one visits it, else on disk."
+  (lambda ()
+    (let ((text (org-iw-test-heading "D" "d1" (format ":IW_ESSAYS: %d" rank))))
+      (if-let* ((buffer (org-iw-cmd-test--visited "b.org")))
+          (with-current-buffer buffer
+            (erase-buffer)
+            (insert text))
+        (org-iw-test-rewrite-behind "b.org" text)))
+    :yes))
+
+(defconst org-iw-cmd-test--d-first
+  '(("b.org" . 1024) ("c.org" . 2048) ("a.org" . 3072) ("a.org" . 4096))
+  "ESSAYS's ranks once D, moved to the front, is normalised.")
+
+(ert-deftest org-iw-cmd-test-redistribute-stale-reshows ()
+  "A member changed while asking re-shows the plan and asks again.
+The second yes applies the fresh plan: D, moved to the front while the
+prompt was up, stays there.  On disk or in a live buffer alike; a
+buffer so edited is named for saving in the second prompt."
+  (dolist (visit '(nil t))
+    (org-iw-test-with-corpus org-iw-cmd-test--uneven
+      (when visit
+        (org-iw-test-visit "b.org"))
+      (org-iw-cmd-test--with-prompt
+          (list (org-iw-cmd-test--edit-d-rank 1000) :yes)
+        (should (org-iw-cmd-test--normalise-essays))
+        (should (equal (org-iw-cmd-test--prompted :prompt)
+                       (list "Redistribute 2 entries in 1 files of ESSAYS? "
+                             (concat "Redistribute 4 entries in 3 files of"
+                                     " ESSAYS"
+                                     (and visit ", saving b.org first")
+                                     "? ")))))
+      (should (equal (org-iw-cmd-test--ranks "ESSAYS")
+                     org-iw-cmd-test--d-first))
+      (should-not (buffer-modified-p (org-iw-cmd-test--visited "b.org"))))))
+
+(ert-deftest org-iw-cmd-test-redistribute-blocked-changed-while-asking ()
+  "A visited affected file changed on disk while asking blocks the rerun.
+The preview is shown again with the blocker, with no second prompt.
+Only that file changed: the buffer the first prompt named for saving
+is not saved, since the recheck comes first."
+  (org-iw-test-with-corpus org-iw-cmd-test--uneven
+    (org-iw-test-visit "a.org")
+    (org-iw-test-edit-elsewhere (org-iw-test-marker "b.org" nil))
+    (let ((before (org-iw-test-state)))
+      (org-iw-cmd-test--with-prompt
+          (lambda ()
+            (org-iw-test-rewrite-behind
+             "a.org" (concat (org-iw-test-file-string "a.org") "Edited.\n"))
+            :yes)
+        (should (equal (org-iw-cmd-test--refusal
+                        (lambda ()
+                          (org-iw--redistribute
+                           "ESSAYS" (org-iw-cmd-test--move-to "d1" 2) nil)))
+                       org-iw-cmd-test--block-text))
+        (should (equal (org-iw-cmd-test--prompted :prompt)
+                       (list (concat "Redistribute 3 entries in 2 files of"
+                                     " ESSAYS, saving b.org first? ")))))
+      (should (equal (org-iw-test-changed-files before (org-iw-test-state))
+                     (list (org-iw-test-path "a.org"))))
+      (should (string-search "changed on disk; revert first"
+                             (org-iw-cmd-test--preview-text))))))
+
+;;;; Redistribution: saving on consent
+
+(ert-deftest org-iw-cmd-test-redistribute-modified-consent ()
+  "A modified affected buffer, named in the prompt, is saved before ranks.
+The yes saves it with the user's text intact, then writes the ranks
+in a second save.  A modified buffer the plan does not affect stays
+modified."
+  (org-iw-test-with-corpus org-iw-cmd-test--uneven
+    (org-iw-test-edit-elsewhere (org-iw-test-marker "a.org" nil))
+    (org-iw-test-edit-elsewhere (org-iw-test-marker "c.org" nil))
+    (let ((c-disk (org-iw-test-file-string "c.org"))
+          (saves nil))
+      (with-current-buffer (org-iw-cmd-test--visited "a.org")
+        (add-hook 'after-save-hook
+                  (lambda () (push (org-iw-test-file-string "a.org") saves))
+                  nil t))
+      (org-iw-cmd-test--with-prompt :yes
+        (should (org-iw-cmd-test--normalise-essays))
+        (should (equal (org-iw-cmd-test--prompted :prompt)
+                       (list (concat "Redistribute 2 entries in 1 files of"
+                                     " ESSAYS, saving a.org first? ")))))
+      (pcase-let ((`(,ranked ,consented) saves))
+        (should (equal (length saves) 2))
+        (should (string-search "User edit." consented))
+        (should (string-search ":IW_ESSAYS: 1536" consented))
+        (should (equal ranked (org-iw-cmd-test--with-ranks-replaced
+                               consented 1536 2048 1537 3072))))
+      (should-not (buffer-modified-p (org-iw-cmd-test--visited "a.org")))
+      (should (buffer-modified-p (org-iw-cmd-test--visited "c.org")))
+      (should (equal (org-iw-test-file-string "c.org") c-disk)))))
+
+(ert-deftest org-iw-cmd-test-redistribute-modified-cancel ()
+  "A no leaves a modified affected buffer, named in the prompt, unsaved."
+  (org-iw-test-with-corpus org-iw-cmd-test--uneven
+    (org-iw-test-edit-elsewhere (org-iw-test-marker "a.org" nil))
+    (let ((before (org-iw-test-state)))
+      (org-iw-cmd-test--with-prompt :no
+        (should (equal (org-iw-cmd-test--refusal
+                        #'org-iw-cmd-test--normalise-essays)
+                       "Redistribution of ESSAYS cancelled; nothing changed"))
+        (should (equal (org-iw-cmd-test--prompted :prompt)
+                       (list (concat "Redistribute 2 entries in 1 files of"
+                                     " ESSAYS, saving a.org first? ")))))
+      (should (equal (org-iw-test-state) before))
+      (should (buffer-modified-p (org-iw-cmd-test--visited "a.org"))))))
+
+(ert-deftest org-iw-cmd-test-redistribute-prompt-names ()
+  "The prompt names up to three modified buffers by buffer name, else counts.
+Files of one name in two directories have distinct buffer names.  The
+preview lists every buffer approval saves."
+  (pcase-dolist (`(,edited ,saving)
+                 '((("x/notes.org" "y/notes.org")
+                    "notes.org<x>, notes.org<y>")
+                   (("x/notes.org" "y/notes.org" "a.org")
+                    "a.org, notes.org<x>, notes.org<y>")
+                   (("x/notes.org" "y/notes.org" "a.org" "b.org")
+                    "4 modified buffers (listed)")))
+    (org-iw-test-with-corpus
+        `(("x/notes.org" . ,(org-iw-test-heading "P" "p1" ":IW_ESSAYS: 1"))
+          ("y/notes.org" . ,(org-iw-test-heading "Q" "q1" ":IW_ESSAYS: 2"))
+          ("a.org" . ,(org-iw-test-heading "R" "r1" ":IW_ESSAYS: 3"))
+          ("b.org" . ,(org-iw-test-heading "S" "s1" ":IW_ESSAYS: 4")))
+      (dolist (name edited)
+        (org-iw-test-visit name))
+      (dolist (name edited)
+        (org-iw-test-edit-elsewhere (org-iw-test-marker name nil)))
+      (org-iw-cmd-test--with-prompt :no
+        (should-error (org-iw-cmd-test--normalise-essays) :type 'org-iw-refusal)
+        (should (equal (org-iw-cmd-test--prompted :prompt)
+                       (list (format (concat "Redistribute 4 entries in 4"
+                                             " files of ESSAYS, saving %s"
+                                             " first? ")
+                                     saving)))))
+      (should (string-search
+               (concat "Saved on approval:\n"
+                       (mapconcat (lambda (name)
+                                    (concat (buffer-name
+                                             (org-iw-cmd-test--visited name))
+                                            "\n"))
+                                  (sort (copy-sequence edited) #'string<) ""))
+               (org-iw-cmd-test--preview-text))))))
+
+;;;; Redistribution: the apply
+
+(ert-deftest org-iw-cmd-test-redistribute-applies-minimal ()
+  "A clean apply writes only the planned IW_ lines, one put per file.
+The order becomes the intended one, at multiples of 1024; the
+outcomes are returned and the preview is killed."
+  (org-iw-test-with-corpus org-iw-cmd-test--uneven
+    (let* ((a (org-iw-test-path "a.org"))
+           (b (org-iw-test-path "b.org"))
+           (a-text (org-iw-test-file-string "a.org"))
+           (b-text (org-iw-test-file-string "b.org"))
+           (before (org-iw-test-state))
+           (put (symbol-function 'org-iw-write-put-ranks))
+           (puts nil))
+      (cl-letf (((symbol-function 'org-iw-write-put-ranks)
+                 (lambda (changes)
+                   (push (length changes) puts)
+                   (funcall put changes))))
+        (org-iw-cmd-test--with-prompt :yes
+          (let ((outcomes (org-iw--redistribute
+                           "ESSAYS" (org-iw-cmd-test--move-to "d1" 2)
+                           "move D at Soon")))
+            (should (equal outcomes
+                           `((,a written saved 2) (,b written saved 1))))
+            (should (equal (org-iw--redistributed-text outcomes)
+                           "redistributed 3 entries in 2 files, saved")))))
+      (should (equal (reverse puts) '(2 1)))
+      (should (equal (org-iw-test-changed-files before (org-iw-test-state))
+                     (list a b)))
+      (should (equal (org-iw-test-file-string "a.org")
+                     (org-iw-cmd-test--with-ranks-replaced
+                      a-text 1536 2048 1537 4096)))
+      (should (equal (org-iw-test-changed-lines
+                      b-text (org-iw-test-file-string "b.org"))
+                     '((":IW_ESSAYS: 4096") . (":IW_ESSAYS: 3072"))))
+      (should (equal (org-iw-cmd-test--ranks "ESSAYS")
+                     '(("c.org" . 1024) ("a.org" . 2048) ("b.org" . 3072)
+                       ("a.org" . 4096))))
+      (should-not (get-buffer org-iw--redistribution-buffer-name)))))
+
+(ert-deftest org-iw-cmd-test-apply-kills-opened-clean ()
+  "The apply kills the buffers it opened once clean; others are kept."
+  (org-iw-test-with-corpus org-iw-cmd-test--uneven
+    (let ((kept (org-iw-test-visit "a.org")))
+      (org-iw-cmd-test--with-prompt :yes
+        (should (org-iw--redistribute
+                 "ESSAYS" (org-iw-cmd-test--move-to "d1" 2) nil)))
+      (should (eq (org-iw-cmd-test--visited "a.org") kept))
+      (should-not (buffer-modified-p kept))
+      (should-not (org-iw-cmd-test--visited "b.org"))
+      (should (equal (org-iw-cmd-test--ranks "ESSAYS")
+                     '(("c.org" . 1024) ("a.org" . 2048) ("b.org" . 3072)
+                       ("a.org" . 4096)))))))
+
+;;;; Normalise
+
+(ert-deftest org-iw-cmd-test-normalise-relays ()
+  "Normalise re-lays the queue at multiples of 1024, keeping its order.
+Interactively the queue is the session's, which stays as it was.  The
+prompt and report name the queue by its configured name."
+  (org-iw-test-with-corpus org-iw-cmd-test--uneven
+    (let* ((org-iw-queues '(("essays" :name "Essays")))
+           (session (org-iw--session-create :queue "ESSAYS" :id "a1"
+                                            :title "A"))
+           (org-iw--session session))
+      (org-iw-cmd-test--with-prompt :yes
+        (should (equal (call-interactively #'org-iw-normalise)
+                       (concat "Normalised Essays: redistributed 2 entries"
+                               " in 1 files, saved")))
+        (should (equal (org-iw-cmd-test--prompted :prompt)
+                       '("Redistribute 2 entries in 1 files of Essays? "))))
+      (should (eq org-iw--session session))
+      (should (equal (org-iw-cmd-test--ranks "ESSAYS")
+                     '(("c.org" . 1024) ("a.org" . 2048) ("a.org" . 3072)
+                       ("b.org" . 4096)))))))
+
+(ert-deftest org-iw-cmd-test-normalise-already-normal ()
+  "An empty or already normal queue is reported, with no preview or prompt.
+An invalid queue ID is refused."
+  (dolist (files `(nil
+                   (("a.org"
+                     . ,(concat
+                         (org-iw-test-heading "A" "a1" ":IW_ESSAYS: 1024")
+                         (org-iw-test-heading "B" "b1" ":IW_ESSAYS: 2048"))))))
+    (org-iw-test-with-corpus files
+      (let ((before (org-iw-test-state)))
+        (org-iw-cmd-test--with-prompt nil
+          (should-not (org-iw-cmd-test--normalise-essays))
+          (should (equal (org-iw-normalise "essays")
+                         "Queue ESSAYS is already normal"))
+          (should (equal (org-iw-cmd-test--refusal
+                          (lambda () (org-iw-normalise "no such")))
+                         "invalid queue ID \"no such\"")))
+        (should-not (get-buffer org-iw--redistribution-buffer-name))
+        (should (equal (org-iw-test-state) before))))))
 
 (provide 'org-iw-test)
 ;;; org-iw-test.el ends here

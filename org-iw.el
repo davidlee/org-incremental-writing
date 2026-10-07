@@ -229,7 +229,7 @@ See `org-iw-discovery-resolve'."
 (defun org-iw--refuse-no-room (where name)
   "Refuse because queue NAME has no rank left WHERE.
 WHERE is text carrying its preposition, such as \"at the end\"."
-  (org-iw-core-refuse "no room %s in %s; redistribution is not yet available"
+  (org-iw-core-refuse "no room %s in %s; normalise it with org-iw-normalise"
                       where name))
 
 (defun org-iw--known-queues (scan)
@@ -351,6 +351,19 @@ Return the message."
              (if (zerop problems)
                  ""
                (format " [%d source problems ignored]" problems)))))
+
+(defun org-iw--show-buffer (buffer-name insert)
+  "Show the buffer BUFFER-NAME, in `special-mode', filled by INSERT.
+Its text is replaced by what INSERT, called with no arguments, inserts.
+Return the buffer, with point at its start."
+  (with-current-buffer (get-buffer-create buffer-name)
+    (special-mode)
+    (let ((inhibit-read-only t))
+      (erase-buffer)
+      (funcall insert))
+    (goto-char (point-min))
+    (display-buffer (current-buffer))
+    (current-buffer)))
 
 ;;;; Session
 
@@ -578,7 +591,8 @@ Return the message shown."
 ;; (existing); (failed REASON), REASON a string; or (stopped), for a
 ;; file not added because the batch stopped first.  An outcome ends in
 ;; `left-open' when the batch opened the file's buffer and left it
-;; modified.
+;; modified.  `org-iw--file-outcome' and `org-iw--outcome-report' are
+;; shared with redistribution, whose outcome is (written STATUS COUNT).
 
 (defconst org-iw--batch-report-name "*org-iw batch*"
   "The name of the buffer listing the files of a batch needing attention.")
@@ -632,29 +646,27 @@ report when any file needs attention."
               "; buffer left open, modified"
             "")))
 
-(defun org-iw--batch-report (queue outcomes)
-  "Show the files of a batch's OUTCOMES in QUEUE that need attention.
-QUEUE is a canonical queue ID.  The failed, unsaved and stopped files
-are listed, one per line with their outcome, in a `special-mode'
-buffer, which is returned.  If there are none, return nil and make
-no buffer."
-  (when-let* ((trouble (seq-filter (lambda (outcome)
-                                     (org-iw--batch-trouble-p (cdr outcome)))
-                                   outcomes)))
-    (with-current-buffer (get-buffer-create org-iw--batch-report-name)
-      (special-mode)
-      (let ((inhibit-read-only t))
-        (erase-buffer)
-        (insert (format "Batch add to %s: files needing attention\n\n"
-                        (org-iw--queue-name queue)))
-        (pcase-dolist (`(,file . ,outcome) trouble)
-          (insert file ": " (org-iw--batch-outcome-text outcome) "\n")))
-      (display-buffer (current-buffer))
-      (current-buffer))))
+(defun org-iw--outcome-report (buffer-name heading groups)
+  "Show the outcomes in GROUPS, under HEADING, in the buffer BUFFER-NAME.
+GROUPS is ((LABEL (FILE . OUTCOME) ...) ...).  Each group that has
+outcomes is listed, its label then one line per file with its outcome,
+in a `special-mode' buffer, which is shown and returned.  If every
+group is empty, return nil and make no buffer."
+  (when-let* ((groups (seq-filter #'cdr groups)))
+    (org-iw--show-buffer
+     buffer-name
+     (lambda ()
+       (insert heading "\n")
+       (pcase-dolist (`(,label . ,outcomes) groups)
+         (insert "\n" label ":\n")
+         (pcase-dolist (`(,file . ,outcome) outcomes)
+           (insert file ": " (org-iw--batch-outcome-text outcome) "\n")))))))
 
-(defun org-iw--batch-outcome (file fn)
-  "Call FN in a buffer visiting FILE; return FILE's outcome in a batch.
-FN takes no arguments and returns an outcome.  If FN, or visiting
+(defun org-iw--file-outcome (file fn)
+  "Call FN in a buffer visiting FILE; return FILE's outcome.
+Batch add and redistribution share it.  FN takes no arguments and
+returns an outcome: `added' or `existing' for batch add, `written' for
+redistribution.  If FN, or visiting
 FILE, refuses or signals a file error, the outcome is (failed
 REASON); any other error propagates.  FILE is visited if no buffer
 visits it, and that buffer is killed afterwards, however FN exits,
@@ -686,7 +698,7 @@ queue ID; FILES are truenames in canonical order.  Each file is added
 after the last, so ranks increase in the order of FILES.  A file
 fails if it is not a source, not in Org mode, or has the ID of a file
 added before it, or if the add step refuses; see
-`org-iw--batch-outcome' for the rest.  After each file, call
+`org-iw--file-outcome' for the rest.  After each file, call
 ON-OUTCOME with (FILE . OUTCOME)."
   (let ((order (org-iw--order scan queue))
         (source-set (make-hash-table :test #'equal))
@@ -708,7 +720,7 @@ ON-OUTCOME with (FILE . OUTCOME)."
       (dolist (file files)
         (funcall on-outcome
                  (cons file (if (gethash file source-set)
-                                (org-iw--batch-outcome
+                                (org-iw--file-outcome
                                  file (lambda () (add-document file)))
                               (list 'failed org-iw--not-source))))))))
 
@@ -773,10 +785,263 @@ Return the summary."
       (setq outcomes (append (reverse outcomes)
                              (mapcar (lambda (file) (list file 'stopped))
                                      (nthcdr (length outcomes) files))))
-      (org-iw--batch-report queue-id outcomes)
+      (org-iw--outcome-report
+       org-iw--batch-report-name
+       (format "Batch add to %s" (org-iw--queue-name queue-id))
+       (list (cons "files needing attention"
+                   (seq-filter (lambda (outcome)
+                                 (org-iw--batch-trouble-p (cdr outcome)))
+                               outcomes))))
       (setq summary (org-iw--report scan "%s" (org-iw--batch-summary
                                                queue-id outcomes))))
     summary))
+
+;;;; Redistribution
+
+;; When a queue has no rank left where an entry should go, its members
+;; are re-laid at the spacing, after a preview the user approves.  The
+;; preview record lives only on the call stack; its buffer is a
+;; rendering, never read back.
+
+(defconst org-iw--redistribution-buffer-name "*org-iw redistribution*"
+  "The name of the buffer previewing a redistribution.")
+
+(cl-defstruct (org-iw--redistribution
+               (:constructor org-iw--redistribution-create) (:copier nil))
+  "A redistribution plan as previewed."
+  queue      ; canonical queue ID
+  pending    ; text naming the pending operation, or nil (normalise)
+  changes    ; ((ELEMENT . RANK) ...) from `org-iw-core-redistribution'
+  files      ; ((FILE COUNT . PROBLEMS) ...), FILE a truename, `string<' order
+  problems   ; number of the scan's problems (never rewritten)
+  key)       ; plain data compared by the recheck
+
+(defun org-iw--change-file (change)
+  "Return the file of CHANGE, an element of `org-iw-core-redistribution'."
+  (org-iw-entry-file (car change)))
+
+(defun org-iw--file-changes (changes file)
+  "Return the elements of CHANGES that are in FILE.
+CHANGES are as from `org-iw-core-redistribution'."
+  (seq-filter (lambda (change) (equal (org-iw--change-file change) file))
+              changes))
+
+(defun org-iw--redistribution-build (scan queue intend pending)
+  "Return the redistribution of QUEUE in SCAN, as an `org-iw--redistribution'.
+INTEND, called with SCAN, returns the intended order, or refuses (as
+when the pending entry has left the queue).  PENDING is as the slot.
+Nothing is visited or changed."
+  (let* ((changes (org-iw-core-redistribution (funcall intend scan) queue))
+         (files (mapcar (lambda (file)
+                          (cl-list* file
+                                    (length (org-iw--file-changes changes file))
+                                    (org-iw-write-file-problems file)))
+                        (sort (seq-uniq (mapcar #'org-iw--change-file changes))
+                              #'string<)))
+         (members (mapcar (lambda (entry)
+                            (list (org-iw-entry-id entry)
+                                  (org-iw-entry-file entry)
+                                  (org-iw-core-rank entry queue)))
+                          (org-iw--order scan queue))))
+    (org-iw--redistribution-create
+     :queue queue :pending pending :changes changes :files files
+     :problems (length (org-iw-scan-problems scan))
+     :key (cons members files))))
+
+(defun org-iw--redistribution-blockers (record)
+  "Return ((FILE . PROBLEMS) ...) for the files blocking RECORD.
+PROBLEMS are a file's problems other than `modified', which approval
+resolves by saving; a file without them is left out."
+  (cl-loop for (file _count . problems) in (org-iw--redistribution-files record)
+           for blocking = (remq 'modified problems)
+           when blocking collect (cons file blocking)))
+
+(defun org-iw--redistribution-to-save (record)
+  "Return the files of RECORD whose buffers approval saves, in order.
+They are those with unsaved changes."
+  (cl-loop for (file _count . problems) in (org-iw--redistribution-files record)
+           when (memq 'modified problems) collect file))
+
+(defun org-iw--visiting-buffer-name (file)
+  "Return the name of the buffer visiting FILE."
+  (buffer-name (find-buffer-visiting file)))
+
+(defun org-iw--redistribution-counts-text (record)
+  "Return the text counting the entries and files RECORD re-ranks."
+  (format "%d entries in %d files"
+          (length (org-iw--redistribution-changes record))
+          (length (org-iw--redistribution-files record))))
+
+(defun org-iw--redistribution-show (record)
+  "Show RECORD, an `org-iw--redistribution', in its own buffer; return it.
+The buffer, `org-iw--redistribution-buffer-name', is in `special-mode'.
+It names the queue and pending operation, counts the changes, warns
+that the run is not atomic, counts the scan's problems, and lists the
+blocking files, the buffers approval saves and, as buttons, the files
+to write.  A file is visited only when its button is pushed."
+  (let ((pending (org-iw--redistribution-pending record))
+        (problems (org-iw--redistribution-problems record))
+        (blockers (org-iw--redistribution-blockers record))
+        (to-save (org-iw--redistribution-to-save record))
+        (files (org-iw--redistribution-files record)))
+    (org-iw--show-buffer
+     org-iw--redistribution-buffer-name
+     (lambda ()
+       (insert "Redistribution of "
+               (org-iw--queue-name (org-iw--redistribution-queue record)) "\n")
+       (when pending
+         (insert "Pending: " pending "\n"))
+       (insert (org-iw--redistribution-counts-text record) "\n"
+               "Not atomic: files are written one by one."
+               " Commit to Git first.\n")
+       (unless (zerop problems)
+         (insert (format "%d source problems ignored (never rewritten)\n"
+                         problems)))
+       (when blockers
+         (insert "\nBlocking:\n")
+         (pcase-dolist (`(,file . ,blocking) blockers)
+           (insert file ": "
+                   (mapconcat #'org-iw-write-problem-text blocking ", ") "\n")))
+       (when to-save
+         (insert "\nSaved on approval:\n")
+         (dolist (file to-save)
+           (insert (org-iw--visiting-buffer-name file) "\n")))
+       (insert "\nFiles:\n")
+       (pcase-dolist (`(,file ,count . ,_) files)
+         (insert-text-button file 'follow-link t
+                             'action (lambda (_) (find-file-other-window file)))
+         (insert (format ": %d entries\n" count)))))))
+
+(defun org-iw--redistribution-prompt (record)
+  "Return the question approving RECORD, naming the buffers it saves.
+Up to three are named by buffer name; more are counted."
+  (let ((to-save (org-iw--redistribution-to-save record)))
+    (format "Redistribute %s of %s%s? "
+            (org-iw--redistribution-counts-text record)
+            (org-iw--queue-name (org-iw--redistribution-queue record))
+            (cond ((null to-save) "")
+                  ((length> to-save 3)
+                   (format ", saving %d modified buffers (listed) first"
+                           (length to-save)))
+                  (t (format ", saving %s first"
+                             (mapconcat #'org-iw--visiting-buffer-name
+                                        to-save ", ")))))))
+
+(defun org-iw--redistribution-ask (record)
+  "Show RECORD and ask the user to approve it; refuse unless they do.
+Refuse without asking if any of its files blocks it."
+  (let ((name (org-iw--queue-name (org-iw--redistribution-queue record)))
+        (blockers (org-iw--redistribution-blockers record)))
+    (org-iw--redistribution-show record)
+    (when blockers
+      (org-iw-core-refuse
+       "%d files block redistributing %s (see %s); resolve them and repeat"
+       (length blockers) name org-iw--redistribution-buffer-name))
+    (unless (y-or-n-p (org-iw--redistribution-prompt record))
+      (org-iw-core-refuse "Redistribution of %s cancelled; nothing changed"
+                          name))))
+
+(defun org-iw--redistribution-stop (record file what)
+  "Refuse: the run of RECORD stopped at FILE, for WHAT, a status or outcome."
+  ;; Fail-closed placeholder.  Nothing after FILE is opened or written,
+  ;; but nothing is reported either: the outcome partition and its
+  ;; report replace this refusal.
+  (org-iw-core-refuse "Redistribution of %s stopped at %s: %S"
+                      (org-iw--queue-name (org-iw--redistribution-queue record))
+                      file what))
+
+(defun org-iw--redistribution-write (scan record file)
+  "Write the ranks RECORD changes in FILE through one grouped put.
+Each entry is found afresh from SCAN, the scan RECORD was built from,
+and must still hold its scanned rank.  Return (written STATUS COUNT),
+STATUS being the result of `org-iw-write-put-ranks' and COUNT the
+number of ranks written."
+  (let ((queue (org-iw--redistribution-queue record))
+        (changes (org-iw--file-changes (org-iw--redistribution-changes record)
+                                       file)))
+    (list 'written
+          (org-iw-write-put-ranks
+           (mapcar (pcase-lambda (`(,entry . ,rank))
+                     (list (org-iw--entry-marker scan entry) queue rank
+                           :expected (org-iw-core-rank entry queue)))
+                   changes))
+          (length changes))))
+
+(defun org-iw--redistribution-apply (scan record)
+  "Apply RECORD, built from SCAN; return the outcomes, (FILE . OUTCOME).
+First save the buffers approval named, then write the files, in order,
+each through `org-iw--file-outcome'.  Stop at the first save or file
+that is not clean.  Once every file is clean, kill the preview."
+  (dolist (file (org-iw--redistribution-to-save record))
+    (let ((status (org-iw-write-save-file file)))
+      (unless (eq status 'saved)
+        (org-iw--redistribution-stop record file status))))
+  (prog1 (mapcar (pcase-lambda (`(,file . ,_))
+                   (let ((outcome (org-iw--file-outcome
+                                   file (lambda ()
+                                          (org-iw--redistribution-write
+                                           scan record file)))))
+                     (unless (pcase outcome (`(written saved ,_) t))
+                       (org-iw--redistribution-stop record file outcome))
+                     (cons file outcome)))
+                 (org-iw--redistribution-files record))
+    (when-let* ((preview (get-buffer org-iw--redistribution-buffer-name)))
+      (kill-buffer preview))))
+
+(defun org-iw--redistribute (queue intend pending)
+  "Preview the redistribution of QUEUE; on approval, apply it.
+QUEUE, INTEND and PENDING are as for `org-iw--redistribution-build',
+from a fresh scan.  Return the file outcomes if every file was written
+and saved clean, or nil, showing nothing, if no rank needs to change;
+else refuse.
+
+The preview is shown, then the user is asked, unless a file blocks
+the run.  After a yes the plan is rebuilt from a fresh scan; if it
+differs from the one approved, it is shown and asked about again.
+The approved buffers are saved only once the plan is confirmed."
+  (named-let recheck ((approved nil))
+    (let* ((scan (org-iw--scan))
+           (record (org-iw--redistribution-build scan queue intend pending))
+           (key (org-iw--redistribution-key record)))
+      (cond ((null (org-iw--redistribution-changes record)) nil)
+            ((equal key approved) (org-iw--redistribution-apply scan record))
+            (t (org-iw--redistribution-ask record)
+               (recheck key))))))
+
+(defun org-iw--redistributed-text (outcomes)
+  "Return the text reporting OUTCOMES, as returned by `org-iw--redistribute'."
+  (format "redistributed %d entries in %d files, saved"
+          (apply #'+ (mapcar (pcase-lambda (`(,_file written ,_status ,count))
+                               count)
+                             outcomes))
+          (length outcomes)))
+
+;;;###autoload
+(defun org-iw-normalise (queue)
+  "Re-lay the ranks of QUEUE at the standard spacing, after a preview.
+QUEUE is a queue ID in any case.  Interactively, it is the session's
+queue; with a prefix argument, or without a session, it is read with
+completion over the configured and discovered queues.
+
+The members keep their order, the Kth at K times
+`org-iw-core-rank-spacing'; members already there are not written.
+The plan is shown in the *org-iw redistribution* buffer, and applied
+only if approved.  The question names the affected buffers with
+unsaved changes, which approval saves first.  Files are written one
+by one, not atomically.  An empty or already normal queue is reported,
+showing nothing.  Refuses if QUEUE is not a valid ID, if a file
+cannot be written (the plan lists why), or if the answer is no.  The
+session is untouched.
+
+Return the message shown."
+  (interactive (list (org-iw--read-session-queue)))
+  (let* ((queue-id (org-iw--queue-id queue))
+         (name (org-iw--queue-name queue-id)))
+    (if-let* ((outcomes (org-iw--redistribute
+                         queue-id (lambda (scan) (org-iw--order scan queue-id))
+                         nil)))
+        (message "Normalised %s: %s" name (org-iw--redistributed-text outcomes))
+      (message "Queue %s is already normal" name))))
 
 ;;;; Visit
 

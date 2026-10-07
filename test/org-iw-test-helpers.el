@@ -95,8 +95,9 @@ A view made outside the fixture fails it, before the view is redrawn."
 
 (defun org-iw-test--release ()
   "Discard edits to corpus buffers, kill them and restore file modes.
-Kill the queue views made in the test and the batch report too: they
-have no file, and one left behind would be found by a later test."
+Kill the queue views made in the test and the batch and redistribution
+reports too: they have no file, and one left behind would be found by
+a later test."
   (dolist (buffer (seq-filter #'org-iw-test--corpus-buffer-p (buffer-list)))
     (with-current-buffer buffer
       (set-buffer-modified-p nil))
@@ -104,8 +105,9 @@ have no file, and one left behind would be found by a later test."
   (mapc #'kill-buffer
         (seq-difference (seq-filter #'org-iw-test--view-buffer-p (buffer-list))
                         org-iw-test--outside-views))
-  (when-let* ((report (get-buffer org-iw--batch-report-name)))
-    (kill-buffer report))
+  (dolist (name (list org-iw--batch-report-name "*org-iw redistribution*"))
+    (when-let* ((report (get-buffer name)))
+      (kill-buffer report)))
   (pcase-dolist (`(,path . ,modes) org-iw-test--modes)
     (set-file-modes path modes)))
 
@@ -357,6 +359,18 @@ visited.  No buffer is visited to take it."
                            (buffer-modified-p))))
                  (seq-filter #'org-iw-test--corpus-buffer-p (buffer-list)))
          (lambda (a b) (string< (car a) (car b))))))
+
+(defun org-iw-test-changed-files (before after)
+  "Return the identifiers that differ between states BEFORE and AFTER.
+Both are `org-iw-test-state' values.  An identifier is a file path
+or a buffer name; it is listed, sorted, when its entry changed, or
+appeared or vanished (a new or deleted file, a visited or killed
+buffer)."
+  (sort (seq-uniq
+         (mapcar #'car
+                 (append (seq-difference before after)
+                         (seq-difference after before))))
+        #'string<))
 
 (defun org-iw-test-edit-elsewhere (marker)
   "Leave unsaved text at the end of MARKER's buffer, as a user would."
