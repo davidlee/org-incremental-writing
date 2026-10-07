@@ -10,6 +10,12 @@ raiser    = "raiser"
 responder = "responder"
 rounds_base = 0
 contests_base = 0
+concluded = true
+
+[[review.turn]]
+act = "conclude"
+role = "raiser"
+note = "Pass 1 (agent): F-1, F-2. Pass 2: main-session delta attack on the F-1 rework (F-3..F-7), then a fresh Opus subagent full-design pass against code and governance (F-8..F-17), with a re-verify of every disposition (three contests resolved). All 17 findings verified."
 
 [target]                   # the outbound `reviews` edge: RV-NNN ──reviews──▶ <ref>
 ref   = "SL-006"
