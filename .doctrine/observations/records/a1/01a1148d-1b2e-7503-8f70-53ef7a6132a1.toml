@@ -1,0 +1,18 @@
+schema = "doctrine.observation"
+schema_version = 1
+uid = "01a1148d-1b2e-7503-8f70-53ef7a6132a1"
+recorded_at = "2026-10-07T04:09:14.286543706Z"
+kind = "friction"
+summary = "doctrine memory retrieve rejects a positional query"
+detail = "SL-006 PHASE-07 planner and worker both tried 'doctrine memory retrieve <query>' and were refused; it needs --query. Agents fall back to memories distilled in the sheet."
+
+[facets.execution]
+schema_version = 1
+interface = "cli"
+interface_origin = "automatic"
+product_surface = "doctrine"
+product_surface_origin = "automatic"
+command = "observation record"
+command_origin = "automatic"
+repository_context = "primary"
+repository_context_origin = "automatic"

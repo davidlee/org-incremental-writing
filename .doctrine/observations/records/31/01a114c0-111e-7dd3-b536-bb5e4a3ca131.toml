@@ -1,0 +1,18 @@
+schema = "doctrine.observation"
+schema_version = 1
+uid = "01a114c0-111e-7dd3-b536-bb5e4a3ca131"
+recorded_at = "2026-10-07T05:04:54.046182938Z"
+kind = "friction"
+summary = "Shell cat in a worker command hung a test run on inherited stdin; just test-each ~6.5 min near the 10-min tool cap"
+detail = "SL-006 PHASE-05 worker: a cat reading the tool's stdin blocked until the 5-min timeout; always close stdin with </dev/null. test-each now takes ~6.5 minutes at 477 tests, approaching the 600s Bash limit — it will need splitting or parallelising soon."
+
+[facets.execution]
+schema_version = 1
+interface = "cli"
+interface_origin = "automatic"
+product_surface = "doctrine"
+product_surface_origin = "automatic"
+command = "observation record"
+command_origin = "automatic"
+repository_context = "primary"
+repository_context_origin = "automatic"

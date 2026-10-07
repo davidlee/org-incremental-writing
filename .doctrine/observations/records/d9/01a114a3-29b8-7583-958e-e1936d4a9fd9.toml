@@ -1,0 +1,18 @@
+schema = "doctrine.observation"
+schema_version = 1
+uid = "01a114a3-29b8-7583-958e-e1936d4a9fd9"
+recorded_at = "2026-10-07T04:33:19.80063567Z"
+kind = "friction"
+summary = "Phase sheet templates pre-exist empty; planner overwrites"
+detail = "SL-006 PHASE-04 planner found phase-04.md already present as an empty template and overwrote it; PHASE-03 sheet's Findings section was left empty so carried context had to come from a commit message."
+
+[facets.execution]
+schema_version = 1
+interface = "cli"
+interface_origin = "automatic"
+product_surface = "doctrine"
+product_surface_origin = "automatic"
+command = "observation record"
+command_origin = "automatic"
+repository_context = "primary"
+repository_context_origin = "automatic"
