@@ -148,6 +148,13 @@ and (:prompt) for `y-or-n-p'."
   "Return the value of KEY in each recorded prompt, in order."
   (mapcar (lambda (call) (plist-get call key)) org-iw-cmd-test--prompts))
 
+(defun org-iw-cmd-test--complete (string)
+  "Return what typing STRING completes to at the prompt now up.
+That is `try-completion' over the last `completing-read' recorded by
+`org-iw-cmd-test--with-prompt', so a function answer can type."
+  (let ((call (car (last org-iw-cmd-test--prompts))))
+    (try-completion string (plist-get call :collection))))
+
 (ert-deftest org-iw-cmd-test-with-prompt-self-test ()
   "The prompt recorder answers in turn, records, and fails when out.
 Under REQUIRE-MATCH t it fails an answer that is not a candidate.
@@ -1517,6 +1524,34 @@ redistribute, so nothing prompts (DEC-036)."
     (should (equal (cdr (assoc "a.org" (org-iw-cmd-test--ranks "ESSAYS")))
                    9007199254740991))))
 
+(defconst org-iw-cmd-test--batch-rerun-advice
+  (concat "Normalise Essays with org-iw-normalise, then run this batch"
+          " again: files already added are skipped.")
+  "The line ending a batch report in which a file found no room.")
+
+(ert-deftest org-iw-cmd-test-batch-no-room-advises-normalise-and-rerun ()
+  "A report with a file failed for no room ends advising a normalised rerun.
+The advice names the queue by its display name, once.  It holds: after
+normalising, the same batch skips the file added and adds the rest."
+  (org-iw-test-with-corpus (org-iw-cmd-test--batch-files
+                            `("m.org" . ,(org-iw-test-heading
+                                          "M" "m1"
+                                          ":IW_ESSAYS: 9007199254739967")))
+    (let ((org-iw-queues '(("essays" :name "Essays")))
+          (selection (mapcar #'org-iw-test-path '("a.org" "b.org" "sub"))))
+      (org-iw-add-files "ESSAYS" selection)
+      (should (equal (car (last (org-iw-cmd-test--report-lines)))
+                     org-iw-cmd-test--batch-rerun-advice))
+      (should (= 1 (seq-count
+                    (apply-partially #'equal
+                                     org-iw-cmd-test--batch-rerun-advice)
+                    (org-iw-cmd-test--report-lines))))
+      (org-iw-cmd-test--with-prompt :yes
+        (org-iw-normalise "ESSAYS"))
+      (should (equal (org-iw-add-files "ESSAYS" selection)
+                     (concat "Added 2 to Essays, 1 already present,"
+                             " 0 failed, 0 unsaved (not atomic)"))))))
+
 (ert-deftest org-iw-cmd-test-batch-second-copy-same-id-fails ()
   "Of two selected copies with one ID, the second fails (RV-012 F-5).
 So the queue keeps one valid member and the scan sees no duplicate."
@@ -1791,6 +1826,8 @@ in canonical order; a clean run makes no report."
                    (concat "Added 0 to ESSAYS, 1 already present,"
                            " 2 failed, 0 unsaved (not atomic; see"
                            " *org-iw batch*)")))
+    (should-not (member org-iw-cmd-test--batch-rerun-advice
+                        (org-iw-cmd-test--report-lines)))
     (let ((report (get-buffer "*org-iw batch*")))
       (should (get-buffer-window report))
       (should (equal (mapcar (lambda (line)
@@ -2100,6 +2137,13 @@ Invalid configured IDs are dropped; a new queue may be typed."
             (should-not (plist-get call :require-match))
             (should (string-search "Essays" (funcall annotate "ESSAYS")))
             (should-not (funcall annotate "DRAFTS"))))))))
+
+(ert-deftest org-iw-cmd-test-read-queue-ignores-case ()
+  "Typing a queue ID in any case completes to the canonical ID."
+  (dolist (typed '("ti" "Ti" "TI"))
+    (org-iw-cmd-test--with-prompt
+        (lambda () (org-iw-cmd-test--complete typed))
+      (should (equal (org-iw--read-queue '("ESSAYS" "TIGHT") t) "TIGHT")))))
 
 (ert-deftest org-iw-cmd-test-read-queue-require-match ()
   "The queue prompt offers the queues given, requiring a match on request."
@@ -5719,6 +5763,29 @@ shown and holds the session, and the message ends naming it."
       (should (equal (org-iw-cmd-test--order "ESSAYS") '("b1" "a1" "c1" "d1")))
       (should (equal (org-iw-cmd-test--shown) '("a.org" "B")))
       (should (equal (org-iw-cmd-test--session-id) "b1")))))
+
+(ert-deftest org-iw-cmd-test-continue-visits-head-of-the-plan-applied ()
+  "A head added while asking is the one Continue visits after redistributing.
+E joins ahead of A while the preview is up; the plan applied, asked
+again, puts A after E, so E is the new head, not B as in the first
+scan."
+  (org-iw-test-with-corpus org-iw-cmd-test--uneven
+    (let ((org-iw-queues org-iw-cmd-test--uneven-placements))
+      (org-iw-visit-next "ESSAYS")
+      (org-iw-cmd-test--with-prompt
+          (list (lambda ()
+                  (org-iw-test-rewrite-behind
+                   "b.org" (concat (org-iw-test-heading "E" "e1"
+                                                        ":IW_ESSAYS: 100")
+                                   (org-iw-test-heading "D" "d1"
+                                                        ":IW_ESSAYS: 4096")))
+                  :yes)
+                :yes)
+        (should (string-search ". Now 1/5: E" (org-iw-continue "Second"))))
+      (should (equal (org-iw-cmd-test--order "ESSAYS")
+                     '("e1" "a1" "b1" "c1" "d1")))
+      (should (equal (org-iw-cmd-test--shown) '("b.org" "E")))
+      (should (equal (org-iw-cmd-test--session-id) "e1")))))
 
 (ert-deftest org-iw-cmd-test-continue-no-visit-after-failure ()
   "A Continue whose redistribution fails visits nothing.

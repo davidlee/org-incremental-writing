@@ -256,7 +256,8 @@ for `org-iw-sources`. Lisp callers pass a list of files and directories.
 - The session is untouched. At the rank limit, that file and the rest
   fail with "no room at the end in NAME; normalise it with
   org-iw-normalise". Batch add never offers a redistribution: run
-  `org-iw-normalise`, then repeat (see *Running out of room*).
+  `org-iw-normalise`, then the batch again, as the report's last line
+  says (see *Running out of room*).
 
 Run over 74 journal files, `git diff` shows one drawer added to each
 (`:IW_JOURNAL: 1024`, `2048`, ...), and no `:ID:`.
@@ -323,8 +324,11 @@ written. `org-iw-normalise` does the same with no entry pending, to tidy a
 queue before it runs out. It acts on the session's queue; with `C-u`, or
 without a session, you choose one. A queue that needs nothing is reported
 ("Queue NAME is already normal") and shows no preview. Batch
-`org-iw-add-files` is the exception: it refuses as above, and you run
-`org-iw-normalise` and repeat.
+`org-iw-add-files` is the exception: it does not redistribute, and it
+is not atomic, so the files before the limit stay added and the rest
+fail. It is safe to rerun: run `org-iw-normalise`, then the same batch
+again, and the files already added are skipped (counted already
+present).
 
 The preview is the buffer `*org-iw redistribution*`. It names the queue
 and the pending operation, counts the entries and files that change, and

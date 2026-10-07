@@ -226,11 +226,16 @@ See `org-iw-discovery-resolve'."
   (org-iw-discovery-resolve scan (org-iw-entry-id entry)
                             (org-iw-entry-file entry)))
 
+(defun org-iw--no-room-text (where name)
+  "Return the text saying queue NAME has no rank left WHERE.
+WHERE is text carrying its preposition, such as \"at the end\"."
+  (format "no room %s in %s; normalise it with org-iw-normalise"
+          where name))
+
 (defun org-iw--refuse-no-room (where name)
   "Refuse because queue NAME has no rank left WHERE.
-WHERE is text carrying its preposition, such as \"at the end\"."
-  (org-iw-core-refuse "no room %s in %s; normalise it with org-iw-normalise"
-                      where name))
+WHERE is as for `org-iw--no-room-text'."
+  (org-iw-core-refuse "%s" (org-iw--no-room-text where name)))
 
 (defun org-iw--known-queues (scan)
   "Return the canonical IDs of the configured queues and those in SCAN.
@@ -244,9 +249,10 @@ valid are left out."
 (defun org-iw--read-queue (queues &optional require-match)
   "Prompt for a queue ID and return the string entered, unchecked.
 Completion offers QUEUES, canonical queue IDs, annotated with their
-configured names.  Unless REQUIRE-MATCH is non-nil, any other ID may
-be typed."
-  (let ((completion-extra-properties
+configured names, and ignores case, as IDs do.  Unless REQUIRE-MATCH
+is non-nil, any other ID may be typed."
+  (let ((completion-ignore-case t)
+        (completion-extra-properties
          (list :annotation-function
                (lambda (queue)
                  (when-let* ((name (org-iw--configured-name queue)))
@@ -701,7 +707,8 @@ Return the message shown."
 
 ;; Batch add and redistribution report one outcome per file, as a
 ;; list of (FILE . OUTCOME).  Batch add's OUTCOME is (added STATUS),
-;; STATUS a result of `org-iw-write-put-rank', or (existing).
+;; STATUS a result of `org-iw-write-put-rank', (existing), or (failed
+;; REASON no-room) for a file finding no rank left at the end.
 ;; Redistribution's is (written STATUS COUNT), STATUS a result of
 ;; `org-iw-write-put-ranks' and COUNT the ranks written, or
 ;; (interrupted), for the file in flight when a quit or error stopped
@@ -750,6 +757,10 @@ That is an added file left unsaved, or a buffer left open."
       (pcase outcome
         (`(added ,status . ,_) (not (eq status 'saved))))))
 
+(defun org-iw--batch-no-room-p (outcome)
+  "Return non-nil if OUTCOME is a file failed for no room at the end."
+  (pcase outcome (`(failed ,_ no-room . ,_) t)))
+
 (defun org-iw--batch-trouble-p (outcome)
   "Return non-nil if OUTCOME is a failed, unsaved or stopped file."
   (or (memq (car outcome) '(failed stopped))
@@ -777,6 +788,17 @@ report when any file needs attention."
                 (format "not atomic; see %s" org-iw--batch-report-name)
               "not atomic"))))
 
+(defun org-iw--batch-closing (queue outcomes)
+  "Return the line ending the report of a batch's OUTCOMES, or nil.
+QUEUE is a canonical queue ID.  If a file failed for no room, the
+line advises normalising QUEUE and running the batch again, which
+skips the files already added; else there is none."
+  (when (seq-some (lambda (outcome) (org-iw--batch-no-room-p (cdr outcome)))
+                  outcomes)
+    (format (concat "Normalise %s with org-iw-normalise, then run this"
+                    " batch again: files already added are skipped.")
+            (org-iw--queue-name queue))))
+
 (defun org-iw--outcome-text (outcome stopped)
   "Return the text reporting OUTCOME, one file's outcome.
 STOPPED is the text of a file the run stopped before."
@@ -793,13 +815,15 @@ STOPPED is the text of a file the run stopped before."
               "; buffer left open, modified"
             "")))
 
-(defun org-iw--outcome-report (buffer-name heading groups stopped)
+(defun org-iw--outcome-report (buffer-name heading groups stopped
+                                           &optional closing)
   "Show the outcomes in GROUPS, under HEADING, in the buffer BUFFER-NAME.
 GROUPS is ((LABEL (FILE . OUTCOME) ...) ...).  Each group that has
 outcomes is listed, its label then one line per file with its outcome,
 read as by `org-iw--outcome-text' with STOPPED, or the file alone if
 OUTCOME is nil, in a `special-mode' buffer, which is shown and
-returned.  If every group is empty, return nil and make no buffer."
+returned.  CLOSING, if non-nil, is a line ending the report.  If every
+group is empty, return nil and make no buffer."
   (when-let* ((groups (seq-filter #'cdr groups)))
     (org-iw--show-buffer
      buffer-name
@@ -812,7 +836,9 @@ returned.  If every group is empty, return nil and make no buffer."
                    (if outcome
                        (concat ": " (org-iw--outcome-text outcome stopped))
                      "")
-                   "\n")))))))
+                   "\n")))
+       (when closing
+         (insert "\n" closing "\n"))))))
 
 (defun org-iw--file-outcome (file fn)
   "Call FN in a buffer visiting FILE; return FILE's outcome.
@@ -849,9 +875,9 @@ SCAN is a scan of SOURCES, the source files; QUEUE is a canonical
 queue ID; FILES are truenames in canonical order.  Each file is added
 after the last, so ranks increase in the order of FILES.  A file
 fails if it is not a source, not in Org mode, or has the ID of a file
-added before it, or if the add step refuses; see
-`org-iw--file-outcome' for the rest.  After each file, call
-ON-OUTCOME with (FILE . OUTCOME)."
+added before it, if it finds no room at the end, as (failed REASON
+no-room), or if the add step refuses; see `org-iw--file-outcome' for
+the rest.  After each file, call ON-OUTCOME with (FILE . OUTCOME)."
   (let ((order (org-iw--order scan queue))
         (source-set (make-hash-table :test #'equal))
         (added-ids (make-hash-table :test #'equal)))
@@ -870,8 +896,10 @@ ON-OUTCOME with (FILE . OUTCOME)."
                    (list 'added status))
                   (`(existing ,_) '(existing))
                   (`(no-gap ,_ ,_)
-                   (org-iw--refuse-no-room "at the end"
-                                           (org-iw--queue-name queue))))))
+                   (list 'failed
+                         (org-iw--no-room-text "at the end"
+                                               (org-iw--queue-name queue))
+                         'no-room)))))
       (dolist (file files)
         (funcall on-outcome
                  (cons file (if (gethash file source-set)
@@ -906,12 +934,13 @@ save; it is then reported.  The session is untouched.
 The summary counts the files added, already present, failed and
 unsaved, a buffer left open counting as unsaved.  Those needing
 attention are listed in the *org-iw batch* buffer, shown only when
-there are any.  An error other than a refusal or a file error stops
-the batch, as does a quit: the summary says after how many files,
-the report lists those not added, and then the error or quit
-propagates.  Refuse, changing nothing, if QUEUE is not a valid ID or
-FILES hold no existing file, a directory without Org files holding
-none.
+there are any.  If a file found no room, the report ends advising to
+normalise QUEUE and run the batch again, which skips the files added.
+An error other than a refusal or a file error stops the batch, as
+does a quit: the summary says after how many files, the report lists
+those not added, and then the error or quit propagates.  Refuse,
+changing nothing, if QUEUE is not a valid ID or FILES hold no
+existing file, a directory without Org files holding none.
 
 Return the summary."
   (interactive
@@ -949,7 +978,8 @@ Return the summary."
                    (seq-filter (lambda (outcome)
                                  (org-iw--batch-trouble-p (cdr outcome)))
                                outcomes)))
-       "not added: the batch stopped")
+       "not added: the batch stopped"
+       (org-iw--batch-closing queue-id outcomes))
       (setq summary (org-iw--report scan "%s" (org-iw--batch-summary
                                                queue-id outcomes))))
     summary))
@@ -1441,13 +1471,14 @@ one, called with SCAN, ORDER and ENTRY."
 QUEUE is a canonical queue ID, ENTRY a member, found by ID in each
 fresh scan, PLACEMENT as for `org-iw--move' and PENDING the text of
 the move.  DEPTH is ENTRY's index in the new order in the scan that
-found no room.  Return (redistributed DEPTH OUTCOMES TOTAL), OUTCOMES
-being as from `org-iw--redistribute', or (unchanged DEPTH) if no rank
-had to change.  DEPTH is ENTRY's index in the plan applied and TOTAL
-that plan's length.  Otherwise refuse."
+found no room.  Return (redistributed DEPTH OUTCOMES PLAN), OUTCOMES
+being as from `org-iw--redistribute', or (unchanged DEPTH PLAN) if no
+rank had to change.  PLAN is the new order of the plan applied, from
+its own scan, and DEPTH ENTRY's index in it; see `org-iw--moved-plan'.
+Otherwise refuse."
   (let* ((id (org-iw-entry-id entry))
          (title (org-iw-entry-title entry))
-         (total nil)
+         (plan nil)
          (outcomes
           (org-iw--redistribute
            queue
@@ -1458,12 +1489,19 @@ that plan's length.  Otherwise refuse."
                (setq depth (org-iw-core-placement-depth
                             (org-iw--placement-in placement scan order entry)
                             (1- (length order)))
-                     total (length order))
-               (org-iw-core-reorder order entry depth)))
+                     plan (org-iw-core-reorder order entry depth))))
            pending)))
     (if outcomes
-        (list 'redistributed depth outcomes total)
-      (list 'unchanged depth))))
+        (list 'redistributed depth outcomes plan)
+      (list 'unchanged depth plan))))
+
+(defun org-iw--moved-plan (result)
+  "Return the new order of the plan applied for RESULT of `org-iw--move'.
+That is the queue's order, from the plan's own scan, when the move
+went through a redistribution, which may have scanned a queue changed
+while asking; else nil, the new order being that of the move's scan."
+  (pcase result
+    ((or `(redistributed ,_ ,_ ,plan) `(unchanged ,_ ,plan)) plan)))
 
 (defun org-iw--move (scan order entry queue placement &optional where)
   "Move ENTRY, an element of ORDER, to PLACEMENT in QUEUE.
@@ -1477,9 +1515,10 @@ ENTRY's index in the new order and STATUS the result of
 `org-iw-write-put-rank'.
 
 If there is no room at PLACEMENT, the queue's redistribution is
-offered instead, see `org-iw--move-redistributing'.  It names the
-move by WHERE, the placement's text with its preposition, or without
-WHERE by the position ENTRY would take, as \"at position 2/3\"."
+offered instead, and its result returned, see
+`org-iw--move-redistributing'.  It names the move by WHERE, the
+placement's text with its preposition, or without WHERE by the
+position ENTRY would take, as \"at position 2/3\"."
   (pcase (org-iw-core-place order entry queue
                             (org-iw--placement-in placement scan order entry))
     (`(no-gap ,depth)
@@ -1496,9 +1535,12 @@ WHERE by the position ENTRY would take, as \"at position 2/3\"."
   "Return the text reporting RESULT of `org-iw--move' for the entry TITLE.
 WHERE names the placement, as \"Soon\" or \"Soon in ESSAYS\", or is nil
 to give only the position.  TOTAL is the number of the queue's members,
-unless RESULT is a redistribution, which carries that of its plan."
-  (pcase-let* ((`(,outcome ,depth ,detail ,plan-total) result)
-               (at (org-iw--at-text where depth (or plan-total total))))
+unless RESULT carries a plan, whose length is used; see
+`org-iw--moved-plan'."
+  (pcase-let* ((`(,outcome ,depth ,detail) result)
+               (plan (org-iw--moved-plan result))
+               (at (org-iw--at-text where depth
+                                    (if plan (length plan) total))))
     (pcase outcome
       ('moved (format "Moved %s to %s %s" title at
                       (org-iw--save-status detail)))
@@ -1555,8 +1597,9 @@ REASON."
 ORDER is QUEUE's members in SCAN, QUEUE a canonical queue ID, and
 CHOICE (LABEL . PLACEMENT), as from `org-iw--placement'; see
 `org-iw--move'.  The head is visited after the write, as by
-`org-iw--visit-head'.  The only entry is left alone.  Return the
-message shown."
+`org-iw--visit-head': that of the plan applied, after a
+redistribution, see `org-iw--moved-plan'.  The only entry is left
+alone.  Return the message shown."
   (pcase-let ((`(,label . ,placement) choice)
               (title (org-iw-entry-title entry))
               (total (length order)))
@@ -1566,10 +1609,11 @@ message shown."
       (let* ((result (org-iw--move scan order entry queue placement
                                    (format "at %s" label)))
              (text (org-iw--moved-text result title label total))
-             (new-order (pcase result
-                          (`(,(or 'moved 'redistributed) ,depth . ,_)
-                           (org-iw-core-reorder order entry depth))
-                          (_ order))))
+             (new-order (or (org-iw--moved-plan result)
+                            (pcase result
+                              (`(moved ,depth ,_)
+                               (org-iw-core-reorder order entry depth))
+                              (_ order)))))
         (org-iw--report scan "%s" (org-iw--head-visited-text
                                    text (org-iw--visit-head scan new-order queue)
                                    new-order))))))
