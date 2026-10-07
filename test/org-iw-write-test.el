@@ -22,8 +22,10 @@
 
 ;;; Commentary:
 
-;; ERT tests for `org-iw-write-put-rank' and `org-iw-write-delete-rank':
-;; the preflight refusals, the atomic edit and the save policy.
+;; ERT tests for `org-iw-write-put-rank', `org-iw-write-delete-rank'
+;; and `org-iw-write-put-ranks': the preflight refusals, the atomic edit
+;; and the save policy.  Also `org-iw-write-file-problems' and the
+;; consent save, `org-iw-write-save-file'.
 
 ;;; Code:
 
@@ -399,15 +401,18 @@ The new drawer goes under the target, not at the narrowing."
 
 (define-error 'org-iw-write-test-injected "Injected failure")
 
-(defun org-iw-write-test--call-failing-rank-put (fn)
+(defun org-iw-write-test--call-failing-rank-put (fn &optional passes)
   "Call FN with `org-entry-put' failing for IW_ properties.
-Other properties, such as the ID `org-id-get-create' writes, are put
-first.  The failure signals `org-iw-write-test-injected', after
-asserting that the entry already has its ID."
-  (let ((put (symbol-function 'org-entry-put)))
+The first PASSES IW_ puts (default none) succeed.  Other properties,
+such as the ID `org-id-get-create' writes, are put first.  The
+failure signals `org-iw-write-test-injected', after asserting that
+the entry already has its ID."
+  (let ((put (symbol-function 'org-entry-put))
+        (passes (or passes 0)))
     (cl-letf (((symbol-function 'org-entry-put)
                (lambda (epom property &rest args)
-                 (if (not (string-prefix-p "IW_" property))
+                 (if (not (and (string-prefix-p "IW_" property)
+                               (< (cl-decf passes) 0)))
                      (apply put epom property args)
                    (should (org-entry-get epom "ID"))
                    (signal 'org-iw-write-test-injected nil)))))
@@ -483,6 +488,25 @@ saved and the disk holds the edit."
       (should (eq (org-iw-write-test--put-target marker)
                   'saved))
       (should-not (buffer-modified-p (marker-buffer marker)))
+      (should (equal (org-iw-test-changed-lines
+                      org-iw-write-test--target
+                      (org-iw-test-file-string "a.org"))
+                     org-iw-write-test--rank-change)))))
+
+(defun org-iw-write-test--redirtying-hook ()
+  "Leave unsaved text at the end of the current buffer, as a hook might."
+  (save-excursion
+    (goto-char (point-max))
+    (insert "Hook edit.\n")))
+
+(ert-deftest org-iw-write-test-redirtied-save-is-saved ()
+  "A save hook that edits the buffer again does not change put-rank's result.
+The write saved, so it reports saved; the hook's text is left unsaved."
+  (org-iw-test-with-corpus `(("a.org" . ,org-iw-write-test--target))
+    (let ((marker (org-iw-test-marker "a.org" "Target"))
+          (after-save-hook (list #'org-iw-write-test--redirtying-hook)))
+      (should (eq (org-iw-write-test--put-target marker) 'saved))
+      (should (buffer-modified-p (marker-buffer marker)))
       (should (equal (org-iw-test-changed-lines
                       org-iw-write-test--target
                       (org-iw-test-file-string "a.org"))
@@ -1013,6 +1037,240 @@ text before it, where the file's document entry is."
                       (org-iw-write-test--literal-buffer "a.org")
                     (copy-marker (point-min)))))
       (org-iw-write-test--should-refuse-each marker "buffer not in Org mode"))))
+
+;;;; Grouped puts
+
+(defun org-iw-write-test--members (&rest ranks)
+  "Return headings H1, H2, ... in ESSAYS at RANKS, in order.
+Heading N has the ID hN and a body line."
+  (cl-loop for rank in ranks
+           for n from 1
+           concat (concat (org-iw-test-heading
+                           (format "H%d" n) (format "h%d" n)
+                           (format ":IW_ESSAYS: %d" rank))
+                          "Body.\n")))
+
+(defun org-iw-write-test--change (name title rank &rest keys)
+  "Return a change setting TITLE's rank in ESSAYS to RANK in file NAME.
+TITLE is as for `org-iw-test-marker'; KEYS are the keyword arguments.
+The change is as `org-iw-write-put-ranks' takes it."
+  (cl-list* (org-iw-test-marker name title) "ESSAYS" rank keys))
+
+(ert-deftest org-iw-write-test-put-ranks-one-save ()
+  "Three changes in one clean file are written and saved once.
+Only their three IW_ESSAYS lines change."
+  (org-iw-test-with-corpus
+      `(("a.org" . ,(org-iw-write-test--members 1024 2048 3072)))
+    (let* ((saves 0)
+           (after-save-hook (list (lambda () (cl-incf saves)))))
+      (should (eq (org-iw-write-put-ranks
+                   (list (org-iw-write-test--change "a.org" "H1" 4096
+                                                    :expected 1024)
+                         (org-iw-write-test--change "a.org" "H2" 1536
+                                                    :expected 2048)
+                         (org-iw-write-test--change "a.org" "H3" 2560
+                                                    :expected 3072)))
+                  'saved))
+      (should (= saves 1))
+      (should-not (buffer-modified-p (org-iw-test-visit "a.org")))
+      (should (equal (org-iw-test-file-string "a.org")
+                     (org-iw-write-test--members 4096 1536 2560))))))
+
+(ert-deftest org-iw-write-test-put-ranks-refuses-before-any-change ()
+  "A stale expected rank in the second change refuses before any edit.
+The buffer is not even changed and restored: its change tick stays."
+  (org-iw-test-with-corpus
+      `(("a.org" . ,(org-iw-write-test--members 1024 2048)))
+    (let* ((changes (list (org-iw-write-test--change "a.org" "H1" 4096
+                                                     :expected 1024)
+                          (org-iw-write-test--change "a.org" "H2" 1536
+                                                     :expected 1024)))
+           (marker (caar changes))
+           (before (org-iw-test-snapshot marker))
+           (tick (buffer-chars-modified-tick (marker-buffer marker))))
+      (should (equal (cadr (should-error (org-iw-write-put-ranks changes)
+                                         :type 'org-iw-refusal))
+                     (concat (org-iw-test-path "a.org")
+                             ": IW_ESSAYS changed since scan")))
+      (should (equal (org-iw-test-snapshot marker) before))
+      (should (= (buffer-chars-modified-tick (marker-buffer marker)) tick)))))
+
+(ert-deftest org-iw-write-test-put-ranks-rolls-back-group ()
+  "An error in the second edit restores the whole buffer, dirty or clean.
+The first change's ID and rank are undone too; the error propagates."
+  (dolist (dirty '(nil t))
+    (org-iw-write-test--check-rollback
+     (org-iw-test-org "* H1" "Body." "* H2" "Body.") "H1" dirty
+     'org-iw-write-test-injected
+     (lambda (marker)
+       (let ((changes
+              (list (list marker "ESSAYS" 1024 :expected :absent :ensure-id t)
+                    (org-iw-write-test--change "a.org" "H2" 2048
+                                               :expected :absent
+                                               :ensure-id t))))
+         (org-iw-write-test--call-failing-rank-put
+          (lambda () (org-iw-write-put-ranks changes))
+          1))))))
+
+(defun org-iw-write-test--should-fail-across (&rest changes)
+  "Assert putting CHANGES is a plain error that changes nothing."
+  (let ((before (org-iw-test-state)))
+    (should (eq (car (should-error (org-iw-write-put-ranks changes)))
+                'error))
+    (should (equal (org-iw-test-state) before))))
+
+(ert-deftest org-iw-write-test-put-ranks-one-buffer ()
+  "Changes through more than one buffer are an error, changing nothing.
+So they are across two files, and across a file's buffer and an
+indirect buffer of it."
+  (org-iw-test-with-corpus
+      `(("a.org" . ,(org-iw-write-test--members 1024 2048))
+        ("b.org" . ,(org-iw-write-test--members 1024)))
+    (let ((h1 (org-iw-write-test--change "a.org" "H1" 4096 :expected 1024))
+          (h2 (org-iw-write-test--change "a.org" "H2" 1536 :expected 2048)))
+      (org-iw-write-test--should-fail-across
+       h1 (org-iw-write-test--change "b.org" "H1" 4096 :expected 1024))
+      (org-iw-test-call-with-indirect
+       (car h2)
+       (lambda (indirect-marker)
+         (org-iw-write-test--should-fail-across
+          h1 (cons indirect-marker (cdr h2))))))))
+
+(ert-deftest org-iw-write-test-put-ranks-joining-document-drawer ()
+  "A drawerless document joins with two heading members, in any order.
+The first heading starts the buffer, where the document's new drawer
+goes in, yet its own rank lands on it.  The document's drawer, with
+a new ID, and the three ranks are written; every other line is
+untouched."
+  (let ((text (org-iw-test-org "* H1" "* H2" "Body.")))
+    (dolist (order '((0 1 2) (0 2 1) (1 0 2) (1 2 0) (2 0 1) (2 1 0)))
+      (org-iw-test-with-corpus `(("a.org" . ,text))
+        (let ((changes
+               (list (org-iw-write-test--change "a.org" nil 1024
+                                                :expected :absent
+                                                :ensure-id t :document t)
+                     (org-iw-write-test--change "a.org" "H1" 2048
+                                                :expected :absent)
+                     (org-iw-write-test--change "a.org" "H2" 3072
+                                                :expected :absent))))
+          (should (eq (org-iw-write-put-ranks
+                       (mapcar (lambda (i) (nth i changes)) order))
+                      'saved))
+          (should (equal (replace-regexp-in-string
+                          "^:ID: +[^ \n]+$" ":ID: NEW"
+                          (org-iw-test-file-string "a.org"))
+                         (org-iw-test-org
+                          ":PROPERTIES:" ":ID: NEW" ":IW_ESSAYS: 1024" ":END:"
+                          "* H1" ":PROPERTIES:" ":IW_ESSAYS: 2048" ":END:"
+                          "* H2" ":PROPERTIES:" ":IW_ESSAYS: 3072" ":END:"
+                          "Body."))))))))
+
+(ert-deftest org-iw-write-test-put-ranks-through-narrowed-indirect ()
+  "A group through a narrowed indirect buffer saves only a clean file.
+The ranks land in the base buffer and the narrowing is kept.  A file
+with unsaved changes is written and left unsaved, its disk untouched."
+  (let ((text (org-iw-write-test--members 1024 2048)))
+    (dolist (dirty '(nil t))
+      (org-iw-test-with-corpus `(("a.org" . ,text))
+        (let ((h2 (org-iw-test-marker "a.org" "H2")))
+          (when dirty
+            (org-iw-test-edit-elsewhere h2))
+          (org-iw-test-call-with-indirect
+           (org-iw-test-marker "a.org" "H1")
+           (lambda (indirect-h1)
+             (let ((indirect-h2 (copy-marker (marker-position h2))))
+               (narrow-to-region (point-min) (1- indirect-h2))
+               (let ((restriction (cons (point-min) (point-max))))
+                 (should (eq (org-iw-write-put-ranks
+                              (list (list indirect-h1 "ESSAYS" 4096
+                                          :expected 1024)
+                                    (list indirect-h2 "ESSAYS" 1536
+                                          :expected 2048)))
+                             (if dirty 'unsaved 'saved)))
+                 (should (equal (cons (point-min) (point-max))
+                                restriction))))))
+          (let ((written (concat (org-iw-write-test--members 4096 1536)
+                                 (and dirty "User edit.\n"))))
+            (should (equal (org-iw-test-text h2) written))
+            (should (eq (buffer-modified-p (marker-buffer h2)) dirty))
+            (should (equal (org-iw-test-file-string "a.org")
+                           (if dirty text written)))))))))
+
+;;;; Saving on consent
+
+(defun org-iw-write-test--save-a ()
+  "Save corpus file a.org with `org-iw-write-save-file'."
+  (org-iw-write-save-file (org-iw-test-path "a.org")))
+
+(defun org-iw-write-test--dirty-a ()
+  "Return a buffer visiting corpus file a.org with a user's unsaved edit."
+  (let ((marker (org-iw-test-marker "a.org" nil)))
+    (org-iw-test-edit-elsewhere marker)
+    (marker-buffer marker)))
+
+(defconst org-iw-write-test--edited
+  (concat org-iw-write-test--target "User edit.\n")
+  "The text of `org-iw-write-test--target' after a user's edit.")
+
+(ert-deftest org-iw-write-test-save-file-saves-modified ()
+  "A buffer with unsaved changes is saved, the user's text with it."
+  (org-iw-test-with-corpus `(("a.org" . ,org-iw-write-test--target))
+    (let ((buffer (org-iw-write-test--dirty-a)))
+      (should (eq (org-iw-write-test--save-a) 'saved))
+      (should-not (buffer-modified-p buffer))
+      (should (equal (org-iw-test-file-string "a.org")
+                     org-iw-write-test--edited)))))
+
+(ert-deftest org-iw-write-test-save-file-refuses-changed-on-disk ()
+  "A file changed on disk refuses, naming it, and nothing is saved.
+So does any problem besides unsaved changes: an unwritable file, a
+read-only buffer and a buffer not in Org mode."
+  (dolist (setup (list (lambda (_)
+                         (org-iw-test-rewrite-behind "a.org" "* Else\n")
+                         "changed on disk; revert first")
+                       (lambda (_)
+                         (unless (zerop (user-uid))
+                           (org-iw-test-set-modes "a.org" #o444)
+                           "not writable"))
+                       (lambda (buffer)
+                         (with-current-buffer buffer
+                           (setq buffer-read-only t))
+                         "buffer is read-only")
+                       (lambda (buffer)
+                         (with-current-buffer buffer
+                           (fundamental-mode))
+                         "buffer not in Org mode")))
+    (org-iw-test-with-corpus `(("a.org" . ,org-iw-write-test--target))
+      (when-let* ((reason (funcall setup (org-iw-write-test--dirty-a))))
+        (let ((before (org-iw-test-state)))
+          (should (equal (cadr (should-error (org-iw-write-test--save-a)
+                                             :type 'org-iw-refusal))
+                         (concat (org-iw-test-path "a.org") ": " reason)))
+          (should (equal (org-iw-test-state) before)))))))
+
+(ert-deftest org-iw-write-test-save-file-failure ()
+  "A failing save returns save-failed with its error; nothing is saved.
+The save fails through `write-file-functions'."
+  (org-iw-test-with-corpus `(("a.org" . ,org-iw-write-test--target))
+    (let ((buffer (org-iw-write-test--dirty-a)))
+      (let ((write-file-functions (list #'org-iw-write-test--failing-hook)))
+        (should (equal (org-iw-write-test--save-a)
+                       '(save-failed org-iw-write-test-injected disk))))
+      (should (buffer-modified-p buffer))
+      (should (equal (org-iw-test-file-string "a.org")
+                     org-iw-write-test--target)))))
+
+(ert-deftest org-iw-write-test-save-file-redirtied ()
+  "A save hook that edits the buffer again gives save-failed, still-modified.
+The save itself happened: the disk holds the user's text."
+  (org-iw-test-with-corpus `(("a.org" . ,org-iw-write-test--target))
+    (let ((buffer (org-iw-write-test--dirty-a))
+          (after-save-hook (list #'org-iw-write-test--redirtying-hook)))
+      (should (equal (org-iw-write-test--save-a)
+                     '(save-failed . still-modified)))
+      (should (buffer-modified-p buffer))
+      (should (equal (org-iw-test-file-string "a.org")
+                     org-iw-write-test--edited)))))
 
 (provide 'org-iw-write-test)
 ;;; org-iw-write-test.el ends here

@@ -27,11 +27,16 @@
 ;; removing that one line and keeping the property drawer, unless it is
 ;; the document's drawer and the line was its last.  Putting a rank for
 ;; a document with no text before its first heading inserts that drawer
-;; first.  Both work through the buffer visiting the entry's file and
-;; share one preflight and one apply: check the file and the scanned
-;; rank first, edit atomically, and save only a buffer that had no
-;; unsaved changes.  Every operation that changes a queue writes through
-;; this layer.  It does not read the user options of `org-iw'.
+;; first.  `org-iw-write-put-ranks' puts several ranks through one
+;; buffer, and `org-iw-write-put-rank' is a group of one.  All work
+;; through the buffer visiting the entries' file and share one
+;; preflight and one apply: check the file and every scanned rank first,
+;; edit atomically in one change group, and save once, only a buffer
+;; that had no unsaved changes.  A buffer with unsaved changes is saved
+;; only by `org-iw-write-save-file', once the user agreed.
+;; `org-iw-write-file-problems' says what stands in the way of writing a
+;; file.  Every operation that changes a queue writes through this
+;; layer.  It does not read the user options of `org-iw'.
 
 ;;; Code:
 
@@ -41,13 +46,15 @@
 (require 'org-iw-core)
 (require 'org-iw-discovery)
 
-(defun org-iw-write--refuse (marker format-string &rest args)
-  "Signal an `org-iw-refusal' naming the file of MARKER.
+(defun org-iw-write--file (buffer)
+  "Return the file written through BUFFER, that of its base buffer."
+  (buffer-file-name (org-iw-discovery-base-buffer buffer)))
+
+(defun org-iw-write--refuse (buffer format-string &rest args)
+  "Signal an `org-iw-refusal' naming the file written through BUFFER.
 The message is FORMAT-STRING with ARGS, after the file name."
-  (org-iw-core-refuse
-   "%s: %s"
-   (buffer-file-name (org-iw-discovery-base-buffer (marker-buffer marker)))
-   (apply #'format format-string args)))
+  (org-iw-core-refuse "%s: %s" (org-iw-write--file buffer)
+                      (apply #'format format-string args)))
 
 (defun org-iw-write--expected-p (lines expected)
   "Return non-nil if the queue LINES hold the rank EXPECTED.
@@ -96,15 +103,15 @@ visited and nothing is changed."
     (not-org org-iw-discovery-not-org-text)
     (modified "unsaved changes")))
 
-(defun org-iw-write--check-file (marker)
-  "Refuse unless the file of MARKER may be written through its buffer.
-See `org-iw-write-file-problems'.  Unsaved changes do not refuse: the
-write is made and left unsaved.  Nothing is changed."
-  (let* ((buffer (marker-buffer marker))
-         (file (buffer-file-name (org-iw-discovery-base-buffer buffer))))
-    (when-let* ((problem (car (remq 'modified
-                                    (org-iw-write-file-problems file buffer)))))
-      (org-iw-write--refuse marker "%s" (org-iw-write-problem-text problem)))))
+(defun org-iw-write--check-file (buffer)
+  "Refuse unless the file written through BUFFER may be written.
+BUFFER visits the file or is an indirect buffer of one that does; see
+`org-iw-write-file-problems'.  Unsaved changes do not refuse.  Nothing
+is changed."
+  (when-let* ((problem (car (remq 'modified
+                                  (org-iw-write-file-problems
+                                   (org-iw-write--file buffer) buffer)))))
+    (org-iw-write--refuse buffer "%s" (org-iw-write-problem-text problem))))
 
 (defun org-iw-write--check-entry (marker queue expected)
   "Refuse unless the entry at MARKER holds the rank EXPECTED in QUEUE.
@@ -113,16 +120,19 @@ drawer Org fails to recognise.  Nothing is changed."
   (org-with-point-at marker
     (unless (org-iw-write--expected-p (org-iw-discovery-queue-lines queue)
                                       expected)
-      (org-iw-write--refuse marker "IW_%s changed since scan" queue))
+      (org-iw-write--refuse (marker-buffer marker)
+                            "IW_%s changed since scan" queue))
     (when (org-iw-discovery-unrecognised-drawer-p)
       (org-iw-write--refuse
-       marker "entry has a property drawer Org doesn't recognise"))))
+       (marker-buffer marker)
+       "entry has a property drawer Org doesn't recognise"))))
 
 (defun org-iw-write--preflight (marker queue expected)
   "Refuse unless writing QUEUE's rank at MARKER is safe.
-See `org-iw-write--check-file' and `org-iw-write--check-entry', which
-take MARKER, QUEUE and EXPECTED.  Nothing is changed."
-  (org-iw-write--check-file marker)
+See `org-iw-write--check-file', of MARKER's buffer, and
+`org-iw-write--check-entry', which takes MARKER, QUEUE and EXPECTED.
+Nothing is changed."
+  (org-iw-write--check-file (marker-buffer marker))
   (org-iw-write--check-entry marker queue expected))
 
 (defun org-iw-write--document-start-p (marker)
@@ -139,23 +149,89 @@ first heading; see `org-iw-discovery-document-slot-p'."
        (with-current-buffer (marker-buffer marker)
          (org-iw-discovery-document-slot-p))))
 
-(defun org-iw-write--apply (marker fn)
-  "Call FN at MARKER atomically; save the base buffer if it was clean.
-FN runs in MARKER's buffer, widened, with point at MARKER.  If it
-signals, its changes are undone, which also restores the modified
-flag of a clean buffer, and the error propagates.  Return `saved',
-`unsaved', or (save-failed . ERROR) if saving signalled ERROR."
-  (let* ((base (org-iw-discovery-base-buffer (marker-buffer marker)))
+(defun org-iw-write--save (buffer)
+  "Save BUFFER.
+Return `saved', or (save-failed . ERROR) if saving signalled ERROR."
+  (condition-case err
+      (progn (with-current-buffer buffer (save-buffer))
+             'saved)
+    (error (cons 'save-failed err))))
+
+(defun org-iw-write--apply (buffer edits)
+  "Run EDITS in BUFFER atomically; save its base buffer if it was clean.
+EDITS is a list of (MARKER . EDIT), every MARKER in BUFFER.  Each EDIT
+is called in turn, with no arguments, in BUFFER widened and with point
+at its MARKER.  If one signals, the changes of all are undone, which
+also restores the modified flag of a clean buffer, and the error
+propagates.  Return `unsaved' if the base buffer had unsaved changes,
+else what `org-iw-write--save' returns."
+  (let* ((base (org-iw-discovery-base-buffer buffer))
          (was-clean (not (buffer-modified-p base))))
-    (with-current-buffer (marker-buffer marker)
+    (with-current-buffer buffer
       (atomic-change-group
-        (org-with-point-at marker (funcall fn))))
-    (if (not was-clean)
-        'unsaved
-      (condition-case err
-          (progn (with-current-buffer base (save-buffer))
-                 'saved)
-        (error (cons 'save-failed err))))))
+        (pcase-dolist (`(,marker . ,edit) edits)
+          (org-with-point-at marker (funcall edit)))))
+    (if was-clean
+        (org-iw-write--save base)
+      'unsaved)))
+
+(cl-defun org-iw-write--prepare-put (marker queue rank
+                                            &key expected ensure-id document)
+  "Check setting the rank of the entry at MARKER in QUEUE to RANK.
+EXPECTED, ENSURE-ID and DOCUMENT, the errors and the refusals are as
+for `org-iw-write-put-rank'.  Return (POSITION . EDIT), for
+`org-iw-write--apply': EDIT writes the drawer, ID and rank at
+POSITION, a copy of MARKER that advances past text inserted at it, so
+that a heading starting the buffer keeps its position when a
+document's new drawer goes in before it.  Nothing is changed."
+  (cl-check-type queue (satisfies org-iw-core-canonical-queue-id-p))
+  (cl-check-type rank (satisfies org-iw-core-rank-p))
+  (cl-check-type expected (or integer (member :absent)))
+  (when (and document (not (org-iw-write--document-start-p marker)))
+    (error "Document entry marker not at the start of its buffer: %S"
+           marker))
+  (let ((new-drawer (and document
+                         (not (org-iw-write--document-entry-p marker))))
+        (position (copy-marker marker t)))
+    (cond ((not new-drawer)
+           (org-iw-write--preflight marker queue expected))
+          ((eq expected :absent)
+           (org-iw-write--check-file (marker-buffer marker)))
+          (t (error "Document entry without a drawer expected in %s: %S"
+                    queue expected)))
+    (cons position
+          (lambda ()
+            (when new-drawer
+              (save-excursion
+                (goto-char (point-min))
+                (insert ":PROPERTIES:\n:END:\n")))
+            (when ensure-id
+              (org-id-get-create))
+            ;; A new drawer went in at POSITION, which moved past it.
+            (org-entry-put (if new-drawer (point-min) position)
+                           (concat "IW_" queue) (number-to-string rank))))))
+
+(defun org-iw-write-put-ranks (changes)
+  "Set the ranks of CHANGES through one buffer, saved once.
+CHANGES is a list of (MARKER QUEUE RANK . KEYS), each read as the
+arguments of `org-iw-write-put-rank', KEYS its keyword arguments.
+Every MARKER is in the same buffer; else it is an error.
+
+Each change is checked as `org-iw-write-put-rank' checks it, and all
+are checked before anything changes, so the first refusal leaves the
+buffer untouched.  The edits then run in order in one atomic change
+group: if any signals, the buffer is restored and the error
+propagates.  The base buffer is saved once if it had no unsaved
+changes.  Return `saved', `unsaved' or (save-failed . ERROR), as
+`org-iw-write-put-rank' does."
+  (let ((buffer (marker-buffer (caar changes))))
+    (unless (cl-every (lambda (change) (eq (marker-buffer (car change)) buffer))
+                      changes)
+      (error "Changes in more than one buffer: %S" changes))
+    (org-iw-write--apply
+     buffer (mapcar (lambda (change)
+                      (apply #'org-iw-write--prepare-put change))
+                    changes))))
 
 (cl-defun org-iw-write-put-rank (marker queue rank
                                         &key expected ensure-id document)
@@ -193,32 +269,9 @@ the buffer is restored and the error propagates.  A base buffer that
 had no unsaved changes is saved, returning `saved'; if saving signals
 ERROR, the edit stands and the result is (save-failed . ERROR).  A
 buffer with unsaved changes is left modified, returning `unsaved'."
-  (cl-check-type queue (satisfies org-iw-core-canonical-queue-id-p))
-  (cl-check-type rank (satisfies org-iw-core-rank-p))
-  (cl-check-type expected (or integer (member :absent)))
-  (when (and document (not (org-iw-write--document-start-p marker)))
-    (error "Document entry marker not at the start of its buffer: %S"
-           marker))
-  (let ((new-drawer (and document
-                         (not (org-iw-write--document-entry-p marker)))))
-    (cond ((not new-drawer)
-           (org-iw-write--preflight marker queue expected))
-          ((eq expected :absent)
-           (org-iw-write--check-file marker))
-          (t (error "Document entry without a drawer expected in %s: %S"
-                    queue expected)))
-    (org-iw-write--apply
-     marker
-     (lambda ()
-       (when new-drawer
-         (save-excursion
-           (goto-char (point-min))
-           (insert ":PROPERTIES:\n:END:\n")))
-       (when ensure-id
-         (org-id-get-create))
-       ;; A new drawer went in at MARKER, which may have moved past it.
-       (org-entry-put (if new-drawer (point-min) marker)
-                      (concat "IW_" queue) (number-to-string rank))))))
+  (org-iw-write-put-ranks
+   (list (list marker queue rank
+               :expected expected :ensure-id ensure-id :document document))))
 
 (cl-defun org-iw-write-delete-rank (marker queue &key expected)
   "Delete the rank of the entry at MARKER in QUEUE.
@@ -245,14 +298,30 @@ is signalled.  Saving and the result are as for
   ;; heading leaves no document slot once it goes.
   (let ((document (org-iw-write--document-entry-p marker)))
     (org-iw-write--apply
-     marker
-     (lambda ()
-       ;; `org-entry-delete' skips a lowercase key unless this is t.
-       (let ((case-fold-search t))
-         (unless (and (org-entry-delete marker (concat "IW_" queue))
-                      ;; Org deletes a drawer the deletion emptied.
-                      (or document (org-get-property-block)))
-           (error "IW_%s not deleted alone" queue)))))))
+     (marker-buffer marker)
+     (list
+      (cons marker
+            (lambda ()
+              ;; `org-entry-delete' skips a lowercase key unless this is t.
+              (let ((case-fold-search t))
+                (unless (and (org-entry-delete marker (concat "IW_" queue))
+                             ;; Org deletes a drawer the deletion emptied.
+                             (or document (org-get-property-block)))
+                  (error "IW_%s not deleted alone" queue)))))))))
+
+(defun org-iw-write-save-file (file)
+  "Save the buffer visiting FILE, which the user agreed to save.
+Refuse, saving nothing, if FILE has a problem other than `modified'
+\(see `org-iw-write-file-problems'): saving over a file changed on
+disk would lose those changes.  Return `saved', or (save-failed .
+ERROR) if saving signalled ERROR, or (save-failed . still-modified)
+if the buffer is modified again once saved (a save hook edited it)."
+  (let ((buffer (find-buffer-visiting file)))
+    (org-iw-write--check-file buffer)
+    (let ((result (org-iw-write--save buffer)))
+      (if (and (eq result 'saved) (buffer-modified-p buffer))
+          '(save-failed . still-modified)
+        result))))
 
 (provide 'org-iw-write)
 ;;; org-iw-write.el ends here
