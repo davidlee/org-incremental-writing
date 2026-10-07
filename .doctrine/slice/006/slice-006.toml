@@ -1,9 +1,9 @@
 id = 6
 slug = "redistribution"
 title = "Redistribution maintenance"
-status = "proposed"
+status = "ready"
 created = "2026-09-30"
-updated = "2026-09-30"
+updated = "2026-10-07"
 tags = ["roadmap"]
 
 [relationships]

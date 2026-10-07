@@ -11,3 +11,5 @@
 - Clearing a buffer's modified flag releases its lock file; a dangling `.#`
   lock symlink is already dropped by a regular-file check.
 - Advising an inlined cl-defstruct accessor silently does nothing.
+
+- **`should-error` does not catch `quit`.** `quit` is not an `error`, so `(should-error FORM :type 'quit)` lets it escape and ERT reports the test as QUIT, not passed. Catch it with `(condition-case nil FORM (quit 'caught))`; an enclosing `unwind-protect`'s cleanup still runs. Verified in batch Emacs 31, 2026-10-07 (SL-006 plan, PHASE-07 EX-4).

@@ -6,7 +6,7 @@ status = "active"
 title = "Batch ERT gotchas: prompts block, display is empty, private buffers appear"
 summary = "Run batch tests with </dev/null; current-message nil and format-mode-line empty under --batch; first insert-file-contents creates ' *code-conversion-work*'"
 created = "2026-10-01"
-updated = "2026-10-01"
+updated = "2026-10-07"
 
 [scope]
 paths = []
