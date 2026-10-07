@@ -333,6 +333,14 @@ refuses before the prompt.  The prompt names the queue."
 
 ;;;; Messages
 
+(defun org-iw--save-error-text (err)
+  "Return the text of ERR, why a save failed.
+ERR is the error the save signalled, or `still-modified' when a save
+hook modified the buffer again, as from `org-iw-write-save-file'."
+  (if (eq err 'still-modified)
+      "still modified"
+    (error-message-string err)))
+
 (defun org-iw--save-status (status)
   "Return the text reporting STATUS, a result of a write.
 That is `org-iw-write-put-rank' or `org-iw-write-delete-rank'."
@@ -341,7 +349,7 @@ That is `org-iw-write-put-rank' or `org-iw-write-delete-rank'."
     ('unsaved "(buffer has unsaved changes — queue change not saved)")
     (`(save-failed . ,err)
      (format "(queue change applied but not saved: %s)"
-             (error-message-string err)))))
+             (org-iw--save-error-text err)))))
 
 (defun org-iw--report (scan format-string &rest args)
   "Echo FORMAT-STRING applied to ARGS, noting the problems of SCAN.
@@ -586,25 +594,54 @@ Return the message shown."
 
 ;;;; Batch add
 
-;; A batch's outcomes are a list of (FILE . OUTCOME), OUTCOME being
-;; (added STATUS), STATUS a result of `org-iw-write-put-rank';
-;; (existing); (failed REASON), REASON a string; or (stopped), for a
-;; file not added because the batch stopped first.  An outcome ends in
-;; `left-open' when the batch opened the file's buffer and left it
-;; modified.  `org-iw--file-outcome' and `org-iw--outcome-report' are
-;; shared with redistribution, whose outcome is (written STATUS COUNT).
+;; Batch add and redistribution report one outcome per file, as a
+;; list of (FILE . OUTCOME).  Batch add's OUTCOME is (added STATUS),
+;; STATUS a result of `org-iw-write-put-rank', or (existing).
+;; Redistribution's is (written STATUS COUNT), STATUS a result of
+;; `org-iw-write-put-ranks' and COUNT the ranks written, or
+;; (interrupted), for the file in flight when a quit or error stopped
+;; the run once its edits may stand.  Both have (failed REASON), REASON
+;; a string, and (stopped), for a file not reached because the run
+;; stopped first.  An outcome ends in `left-open' when the run opened
+;; the file's buffer and left it modified.  `org-iw--file-outcome',
+;; `org-iw--outcome-text' and `org-iw--outcome-report' are shared.
 
 (defconst org-iw--batch-report-name "*org-iw batch*"
   "The name of the buffer listing the files of a batch needing attention.")
 
-(defun org-iw--batch-left-open-p (outcome)
-  "Return non-nil if OUTCOME's buffer was opened by the batch and left open."
+(defun org-iw--outcome-left-open-p (outcome)
+  "Return non-nil if OUTCOME's buffer was opened by the run and left open."
   (eq (car (last outcome)) 'left-open))
+
+(defun org-iw--outcome-saved-p (outcome)
+  "Return non-nil if OUTCOME is a file written and saved, nothing left open."
+  (pcase outcome (`(written saved ,_) t)))
+
+(defun org-iw--outcome-group (outcome)
+  "Return the group of OUTCOME: `saved', `modified' or `untouched'.
+A file is modified when its edits may stand unsaved: written but not
+saved, interrupted, or with its buffer left open.  It is untouched
+when failed or stopped, no rank written."
+  (cond ((org-iw--outcome-saved-p outcome) 'saved)
+        ((or (org-iw--outcome-left-open-p outcome)
+             (memq (car outcome) '(written interrupted)))
+         'modified)
+        (t 'untouched)))
+
+(defun org-iw--outcome-partition (outcomes)
+  "Return OUTCOMES, (FILE . OUTCOME), as (SAVED MODIFIED UNTOUCHED).
+Each is the list of OUTCOMES in that group, in order; see
+`org-iw--outcome-group'."
+  (mapcar (lambda (group)
+            (seq-filter (lambda (outcome)
+                          (eq (org-iw--outcome-group (cdr outcome)) group))
+                        outcomes))
+          '(saved modified untouched)))
 
 (defun org-iw--batch-unsaved-p (outcome)
   "Return non-nil if OUTCOME leaves unsaved changes in a buffer.
 That is an added file left unsaved, or a buffer left open."
-  (or (org-iw--batch-left-open-p outcome)
+  (or (org-iw--outcome-left-open-p outcome)
       (pcase outcome
         (`(added ,status . ,_) (not (eq status 'saved))))))
 
@@ -635,23 +672,29 @@ report when any file needs attention."
                 (format "not atomic; see %s" org-iw--batch-report-name)
               "not atomic"))))
 
-(defun org-iw--batch-outcome-text (outcome)
-  "Return the text reporting OUTCOME, one file's outcome in a batch."
+(defun org-iw--outcome-text (outcome stopped)
+  "Return the text reporting OUTCOME, one file's outcome.
+STOPPED is the text of a file the run stopped before."
   (concat (pcase outcome
             (`(added ,status . ,_) (org-iw--save-status status))
             (`(existing . ,_) "already present")
+            (`(written ,status ,count . ,_)
+             (format "%d entries written %s" count
+                     (org-iw--save-status status)))
+            ('(interrupted) "interrupted; check this file")
             (`(failed ,reason . ,_) reason)
-            ('(stopped) "not added: the batch stopped"))
-          (if (org-iw--batch-left-open-p outcome)
+            ('(stopped) stopped))
+          (if (org-iw--outcome-left-open-p outcome)
               "; buffer left open, modified"
             "")))
 
-(defun org-iw--outcome-report (buffer-name heading groups)
+(defun org-iw--outcome-report (buffer-name heading groups stopped)
   "Show the outcomes in GROUPS, under HEADING, in the buffer BUFFER-NAME.
 GROUPS is ((LABEL (FILE . OUTCOME) ...) ...).  Each group that has
 outcomes is listed, its label then one line per file with its outcome,
-in a `special-mode' buffer, which is shown and returned.  If every
-group is empty, return nil and make no buffer."
+read as by `org-iw--outcome-text' with STOPPED, or the file alone if
+OUTCOME is nil, in a `special-mode' buffer, which is shown and
+returned.  If every group is empty, return nil and make no buffer."
   (when-let* ((groups (seq-filter #'cdr groups)))
     (org-iw--show-buffer
      buffer-name
@@ -660,7 +703,11 @@ group is empty, return nil and make no buffer."
        (pcase-dolist (`(,label . ,outcomes) groups)
          (insert "\n" label ":\n")
          (pcase-dolist (`(,file . ,outcome) outcomes)
-           (insert file ": " (org-iw--batch-outcome-text outcome) "\n")))))))
+           (insert file
+                   (if outcome
+                       (concat ": " (org-iw--outcome-text outcome stopped))
+                     "")
+                   "\n")))))))
 
 (defun org-iw--file-outcome (file fn)
   "Call FN in a buffer visiting FILE; return FILE's outcome.
@@ -791,7 +838,8 @@ Return the summary."
        (list (cons "files needing attention"
                    (seq-filter (lambda (outcome)
                                  (org-iw--batch-trouble-p (cdr outcome)))
-                               outcomes))))
+                               outcomes)))
+       "not added: the batch stopped")
       (setq summary (org-iw--report scan "%s" (org-iw--batch-summary
                                                queue-id outcomes))))
     summary))
@@ -941,15 +989,6 @@ Refuse without asking if any of its files blocks it."
       (org-iw-core-refuse "Redistribution of %s cancelled; nothing changed"
                           name))))
 
-(defun org-iw--redistribution-stop (record file what)
-  "Refuse: the run of RECORD stopped at FILE, for WHAT, a status or outcome."
-  ;; Fail-closed placeholder.  Nothing after FILE is opened or written,
-  ;; but nothing is reported either: the outcome partition and its
-  ;; report replace this refusal.
-  (org-iw-core-refuse "Redistribution of %s stopped at %s: %S"
-                      (org-iw--queue-name (org-iw--redistribution-queue record))
-                      file what))
-
 (defun org-iw--redistribution-write (scan record file)
   "Write the ranks RECORD changes in FILE through one grouped put.
 Each entry is found afresh from SCAN, the scan RECORD was built from,
@@ -967,26 +1006,121 @@ number of ranks written."
                    changes))
           (length changes))))
 
+(defun org-iw--modtime (file)
+  "Return FILE's modification time on disk, or nil if it has none."
+  (file-attribute-modification-time (file-attributes file)))
+
+(defun org-iw--in-flight-outcome (in-flight)
+  "Return the outcome of the file IN-FLIGHT, (FILE . MODTIME), left unfinished.
+MODTIME is FILE's modification time before it was written.  The file
+is (interrupted) if its edits may stand, its buffer being modified or
+its file saved since, else (stopped): its edits were undone."
+  (pcase-let* ((`(,file . ,modtime) in-flight)
+               (buffer (find-buffer-visiting file)))
+    (if (or (and buffer (buffer-modified-p buffer))
+            (not (equal (org-iw--modtime file) modtime)))
+        '(interrupted)
+      '(stopped))))
+
+(defun org-iw--completed-outcomes (files done in-flight)
+  "Return the outcome of each of FILES, (FILE . OUTCOME), in order.
+DONE are the outcomes the run finished, (FILE . OUTCOME); IN-FLIGHT
+is nil, or (FILE . MODTIME) for the file it was writing when stopped,
+whose outcome is as `org-iw--in-flight-outcome' finds.  The other
+files are (stopped)."
+  (mapcar (lambda (file)
+            (or (assoc file done)
+                (cons file (if (equal file (car in-flight))
+                               (org-iw--in-flight-outcome in-flight)
+                             '(stopped)))))
+          files))
+
+(defun org-iw--redistribution-report (record outcomes saved-first)
+  "Show the report of RECORD's stopped run; return its partition.
+OUTCOMES are every file's, (FILE . OUTCOME); SAVED-FIRST are the
+files saved on consent, in order.  The report replaces the preview."
+  (let ((partition (org-iw--outcome-partition outcomes)))
+    (org-iw--outcome-report
+     org-iw--redistribution-buffer-name
+     (format "Redistribution of %s stopped"
+             (org-iw--queue-name (org-iw--redistribution-queue record)))
+     (append (cl-mapcar #'cons '("saved" "modified" "untouched") partition)
+             (list (cons "saved at your request before writing"
+                         (mapcar #'list saved-first))))
+     "not written: the run stopped")
+    partition))
+
+(defun org-iw--refuse-stopped (record partition saved-first)
+  "Refuse: RECORD's run stopped at a file, leaving PARTITION.
+PARTITION is (SAVED MODIFIED UNTOUCHED), as from
+`org-iw--outcome-partition'; SAVED-FIRST are the files saved on
+consent.  The refusal counts each and points at the report."
+  (pcase-let ((`(,saved ,modified ,untouched) partition))
+    (org-iw-core-refuse
+     (concat "Redistribution of %s stopped: %d saved, %d modified,"
+             " %d untouched (see %s); not atomic%s")
+     (org-iw--queue-name (org-iw--redistribution-queue record))
+     (length saved) (length modified) (length untouched)
+     org-iw--redistribution-buffer-name
+     (if saved-first
+         (format "; %d saved first at your request" (length saved-first))
+       ""))))
+
 (defun org-iw--redistribution-apply (scan record)
   "Apply RECORD, built from SCAN; return the outcomes, (FILE . OUTCOME).
 First save the buffers approval named, then write the files, in order,
 each through `org-iw--file-outcome'.  Stop at the first save or file
-that is not clean.  Once every file is clean, kill the preview."
-  (dolist (file (org-iw--redistribution-to-save record))
-    (let ((status (org-iw-write-save-file file)))
-      (unless (eq status 'saved)
-        (org-iw--redistribution-stop record file status))))
-  (prog1 (mapcar (pcase-lambda (`(,file . ,_))
-                   (let ((outcome (org-iw--file-outcome
-                                   file (lambda ()
-                                          (org-iw--redistribution-write
-                                           scan record file)))))
-                     (unless (pcase outcome (`(written saved ,_) t))
-                       (org-iw--redistribution-stop record file outcome))
-                     (cons file outcome)))
-                 (org-iw--redistribution-files record))
-    (when-let* ((preview (get-buffer org-iw--redistribution-buffer-name)))
-      (kill-buffer preview))))
+that is not clean.  Once every file is clean, kill the preview.
+
+Otherwise the preview becomes the report of every file's outcome,
+saved, modified or untouched, and of the buffers saved first; the
+files not reached are (stopped).  After a failed save or file, refuse;
+after a quit or other error, the file in flight is checked, see
+`org-iw--in-flight-outcome', and the quit or error propagates."
+  (let ((files (mapcar #'car (org-iw--redistribution-files record)))
+        (saved-first nil)     ; files saved on consent, latest first
+        (done nil)            ; (FILE . OUTCOME), latest first
+        (in-flight nil)       ; (FILE . MODTIME) while FILE is written
+        (unsaved nil)         ; (FILE . REASON) of a failed consent save
+        (outcomes nil)        ; every file's (FILE . OUTCOME)
+        (partition nil))      ; the report's, if the run stopped
+    (unwind-protect
+        (catch 'stop
+          (dolist (file (org-iw--redistribution-to-save record))
+            (pcase (org-iw-write-save-file file)
+              ('saved (push file saved-first))
+              (`(save-failed . ,err)
+               (setq unsaved (cons file (concat "not saved: "
+                                                (org-iw--save-error-text
+                                                 err))))
+               (push (list file 'failed (cdr unsaved)) done)
+               (throw 'stop nil))))
+          (dolist (file files)
+            (setq in-flight (cons file (org-iw--modtime file)))
+            (let ((outcome (org-iw--file-outcome
+                            file (lambda ()
+                                   (org-iw--redistribution-write
+                                    scan record file)))))
+              (setq in-flight nil)
+              (push (cons file outcome) done)
+              (unless (org-iw--outcome-saved-p outcome)
+                (throw 'stop nil)))))
+      (setq outcomes (org-iw--completed-outcomes files done in-flight))
+      (unless (seq-every-p (lambda (outcome)
+                             (org-iw--outcome-saved-p (cdr outcome)))
+                           outcomes)
+        (setq partition (org-iw--redistribution-report
+                         record outcomes (reverse saved-first)))))
+    (cond (unsaved
+           (org-iw-core-refuse
+            "Redistribution of %s stopped before writing: %s %s"
+            (org-iw--queue-name (org-iw--redistribution-queue record))
+            (car unsaved) (cdr unsaved)))
+          (partition (org-iw--refuse-stopped record partition saved-first))
+          (t (when-let* ((preview (get-buffer
+                                   org-iw--redistribution-buffer-name)))
+               (kill-buffer preview))
+             outcomes))))
 
 (defun org-iw--redistribute (queue intend pending)
   "Preview the redistribution of QUEUE; on approval, apply it.
@@ -998,7 +1132,16 @@ else refuse.
 The preview is shown, then the user is asked, unless a file blocks
 the run.  After a yes the plan is rebuilt from a fresh scan; if it
 differs from the one approved, it is shown and asked about again.
-The approved buffers are saved only once the plan is confirmed."
+The approved buffers are saved only once the plan is confirmed.
+
+The run stops at the first trouble, writing nothing after it, and the
+preview becomes the report: the files saved, modified (their edits
+stand unsaved) and untouched, and the buffers saved first.  If one of
+those saves fails, no rank is written and the refusal names its file.
+If a file is not written and saved clean, the refusal counts the
+files of each group.  A quit or other error shows the report too,
+then propagates: the file being written is reported interrupted if
+its edits may stand, else untouched."
   (named-let recheck ((approved nil))
     (let* ((scan (org-iw--scan))
            (record (org-iw--redistribution-build scan queue intend pending))
@@ -1032,6 +1175,11 @@ by one, not atomically.  An empty or already normal queue is reported,
 showing nothing.  Refuses if QUEUE is not a valid ID, if a file
 cannot be written (the plan lists why), or if the answer is no.  The
 session is untouched.
+
+The run stops at the first file or save that fails, or at a quit:
+the *org-iw redistribution* buffer then lists the files saved,
+modified and untouched, and the run is refused, or the quit
+propagates.
 
 Return the message shown."
   (interactive (list (org-iw--read-session-queue)))

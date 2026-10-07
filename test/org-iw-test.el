@@ -1060,16 +1060,22 @@ corpus."
                            (funcall on-outcome outcome))))
     (org-iw-cmd-test--relative (nreverse outcomes))))
 
-(defun org-iw-cmd-test--report-lines ()
-  "Return the lines of the shown batch report after its heading and label.
+(defun org-iw-cmd-test--report-text (buffer-name)
+  "Return the text of the report shown in the buffer BUFFER-NAME.
 A corpus file at the start of a line is made relative to the corpus.
 Fail unless the report is shown."
-  (let ((report (get-buffer "*org-iw batch*")))
+  (let ((report (get-buffer buffer-name)))
     (should (get-buffer-window report))
-    (mapcar (lambda (line) (string-remove-prefix org-iw-test-dir line))
-            (nthcdr 2 (split-string
-                       (with-current-buffer report (buffer-string))
-                       "\n" t)))))
+    (mapconcat (lambda (line) (string-remove-prefix org-iw-test-dir line))
+               (split-string (with-current-buffer report (buffer-string))
+                             "\n")
+               "\n")))
+
+(defun org-iw-cmd-test--report-lines ()
+  "Return the lines of the shown batch report after its heading and label.
+They are as from `org-iw-cmd-test--report-text'."
+  (nthcdr 2 (split-string (org-iw-cmd-test--report-text "*org-iw batch*")
+                          "\n" t)))
 
 (defun org-iw-cmd-test--ranks (queue)
   "Return QUEUE's members, scanned afresh, as (FILE . RANK) in order.
@@ -1126,6 +1132,16 @@ the current buffer's."
   (lambda (&optional file &rest _)
     (string-suffix-p (concat "/" name)
                      (if (stringp file) file (buffer-file-name)))))
+
+(defun org-iw-cmd-test--failing-save (name &optional condition)
+  "Return a `write-file-functions' function failing to save corpus file NAME.
+Saving NAME signals CONDITION, (ERROR-SYMBOL . DATA), by default
+\(error \"Disk full\"); any other file is saved as usual."
+  (let ((named (org-iw-cmd-test--named-p name))
+        (condition (or condition '(error "Disk full"))))
+    (lambda ()
+      (when (funcall named)
+        (signal (car condition) (cdr condition))))))
 
 (defun org-iw-cmd-test--should-fail (failing substring names)
   "Batch NAMES to ESSAYS; assert FAILING fail with SUBSTRING, alone.
@@ -1237,11 +1253,13 @@ open.  Empty groups are skipped.  The report is a read-only
     (let ((org-iw-queues '(("essays" :name "Essays"))))
       (should-not (org-iw--outcome-report
                    "*org-iw batch*" "Batch add to Essays"
-                   (list (cons "files needing attention" nil))))
+                   (list (cons "files needing attention" nil))
+                   "not added: the batch stopped"))
       (should-not (get-buffer "*org-iw batch*"))
       (org-iw--outcome-report
        "*org-iw batch*" "Batch add to Essays"
-       '(("files needing attention" ("/n/old.org" failed "stale"))))
+       '(("files needing attention" ("/n/old.org" failed "stale")))
+       "not added: the batch stopped")
       (let ((report (org-iw--outcome-report
                      "*org-iw batch*" "Batch add to Essays"
                      '(("files needing attention"
@@ -1253,7 +1271,8 @@ open.  Empty groups are skipped.  The report is a read-only
                         ("/n/g.org" failed "stale" left-open)
                         ("/n/h.org" stopped))
                        ("nothing here")
-                       ("also" ("/n/i.org" existing))))))
+                       ("also" ("/n/i.org" existing)))
+                     "not added: the batch stopped")))
         (should (eq report (get-buffer "*org-iw batch*")))
         (should (get-buffer-window report))
         (with-current-buffer report
@@ -1973,6 +1992,13 @@ Without problems, see `org-iw-cmd-test-add-appends'."
         ("c.org" . ,(org-iw-test-heading "No ID" nil ":IW_ESSAYS: 1")))
     (should (equal (org-iw-cmd-test--add "a.org" "Target" "ESSAYS")
                    "Added to ESSAYS at 2/2 (saved) [1 source problems ignored]"))))
+
+(ert-deftest org-iw-cmd-test-save-status-still-modified ()
+  "A save failure reads as its error, or as still modified after a hook."
+  (should (equal (org-iw--save-status '(save-failed error "Disk full"))
+                 "(queue change applied but not saved: Disk full)"))
+  (should (equal (org-iw--save-status '(save-failed . still-modified))
+                 "(queue change applied but not saved: still modified)")))
 
 ;;;; Queue completion (EX-2, DEC-002)
 
@@ -5040,6 +5066,311 @@ outcomes are returned and the preview is killed."
       (should (equal (org-iw-cmd-test--ranks "ESSAYS")
                      '(("c.org" . 1024) ("a.org" . 2048) ("b.org" . 3072)
                        ("a.org" . 4096)))))))
+
+;;;; Redistribution: stopping
+
+(defconst org-iw-cmd-test--three-files
+  `(("a.org" . ,(org-iw-test-heading "A" "a1" ":IW_ESSAYS: 1"))
+    ("b.org" . ,(concat (org-iw-test-heading "B" "b1" ":IW_ESSAYS: 2")
+                        (org-iw-test-heading "B2" "b2" ":IW_ESSAYS: 3")))
+    ("c.org" . ,(org-iw-test-heading "C" "c1" ":IW_ESSAYS: 4")))
+  "ESSAYS as A 1, B 2, B2 3 and C 4, every rank changed by normalising.
+A is in a.org, B and B2 in b.org, C in c.org, so the files are
+written a.org, b.org, c.org, one change, two, one.")
+
+(defun org-iw-cmd-test--three-files-text (name)
+  "Return the text of corpus file NAME in `org-iw-cmd-test--three-files'."
+  (cdr (assoc name org-iw-cmd-test--three-files)))
+
+(defun org-iw-cmd-test--redistribution-report (&rest lines)
+  "Assert the redistribution report reads LINES after its heading.
+LINES are as for `org-iw-test-org', corpus files relative."
+  (should (equal (org-iw-cmd-test--report-text
+                  org-iw--redistribution-buffer-name)
+                 (apply #'org-iw-test-org
+                        "Redistribution of ESSAYS stopped" lines))))
+
+(defconst org-iw-cmd-test--stopped-text
+  (concat "Redistribution of ESSAYS stopped: %s"
+          " (see *org-iw redistribution*); not atomic")
+  "The refusal when a file stops redistributing ESSAYS, given the counts.")
+
+(defun org-iw-cmd-test--quits (fn)
+  "Call FN and assert it quits, the quit being caught here."
+  (should (eq (condition-case nil
+                  (progn (funcall fn) 'finished)
+                (quit 'caught))
+              'caught)))
+
+(ert-deftest org-iw-cmd-test-redistribute-failure-partition ()
+  "A failing save stops the run: files saved, modified and untouched.
+The file before it stands saved, the failing one is left open
+modified, and the file after it is not opened.  The preview becomes
+the report, and the refusal counts each group."
+  (org-iw-test-with-corpus org-iw-cmd-test--three-files
+    (let ((before (org-iw-test-state))
+          (write-file-functions
+           (list (org-iw-cmd-test--failing-save "b.org"))))
+      (org-iw-cmd-test--with-prompt :yes
+        (should (equal (org-iw-cmd-test--refusal
+                        #'org-iw-cmd-test--normalise-essays)
+                       (format org-iw-cmd-test--stopped-text
+                               "1 saved, 1 modified, 1 untouched"))))
+      (should (equal (org-iw-test-changed-files before (org-iw-test-state))
+                     (list (org-iw-test-path "a.org") "b.org")))
+      (should (equal (org-iw-test-file-string "a.org")
+                     (org-iw-cmd-test--with-ranks-replaced
+                      (org-iw-cmd-test--three-files-text "a.org") 1 1024)))
+      (should (buffer-modified-p (org-iw-cmd-test--visited "b.org")))
+      (should-not (org-iw-cmd-test--visited "c.org"))
+      (org-iw-cmd-test--redistribution-report
+       ""
+       "saved:"
+       "a.org: 1 entries written (saved)"
+       ""
+       "modified:"
+       (concat "b.org: 2 entries written (queue change applied but not"
+               " saved: Disk full); buffer left open, modified")
+       ""
+       "untouched:"
+       "c.org: not written: the run stopped"))))
+
+(ert-deftest org-iw-cmd-test-redistribute-report-consent-saves ()
+  "A file saved on consent before the stop is reported and counted.
+It is listed in its own group, as well as by its outcome."
+  (org-iw-test-with-corpus org-iw-cmd-test--three-files
+    (org-iw-test-edit-elsewhere (org-iw-test-marker "a.org" nil))
+    (let ((write-file-functions
+           (list (org-iw-cmd-test--failing-save "b.org"))))
+      (org-iw-cmd-test--with-prompt :yes
+        (should (equal (org-iw-cmd-test--refusal
+                        #'org-iw-cmd-test--normalise-essays)
+                       (concat (format org-iw-cmd-test--stopped-text
+                                       "1 saved, 1 modified, 1 untouched")
+                               "; 1 saved first at your request")))
+        (should (equal (org-iw-cmd-test--prompted :prompt)
+                       (list (concat "Redistribute 4 entries in 3 files of"
+                                     " ESSAYS, saving a.org first? "))))))
+    (should (equal (org-iw-test-file-string "a.org")
+                   (org-iw-cmd-test--with-ranks-replaced
+                    (concat (org-iw-cmd-test--three-files-text "a.org")
+                            "User edit.\n")
+                    1 1024)))
+    (org-iw-cmd-test--redistribution-report
+     ""
+     "saved:"
+     "a.org: 1 entries written (saved)"
+     ""
+     "modified:"
+     (concat "b.org: 2 entries written (queue change applied but not"
+             " saved: Disk full); buffer left open, modified")
+     ""
+     "untouched:"
+     "c.org: not written: the run stopped"
+     ""
+     "saved at your request before writing:"
+     "a.org")))
+
+(defun org-iw-cmd-test--should-write-no-rank (&rest edited)
+  "Assert no rank of the three files was written; EDITED were saved edited.
+EDITED are corpus names whose user edit was saved on consent.  Every
+other file is unchanged on disk."
+  (dolist (name '("a.org" "b.org" "c.org"))
+    (should (equal (org-iw-test-file-string name)
+                   (concat (org-iw-cmd-test--three-files-text name)
+                           (and (member name edited) "User edit.\n"))))))
+
+(ert-deftest org-iw-cmd-test-redistribute-consent-save-fails ()
+  "A consent save that fails stops the run before any rank is written.
+The refusal names the file; the report lists the buffers already
+saved.  The failed buffer and the one after it stay modified."
+  (org-iw-test-with-corpus org-iw-cmd-test--three-files
+    (dolist (name '("a.org" "b.org" "c.org"))
+      (org-iw-test-edit-elsewhere (org-iw-test-marker name nil)))
+    (let ((write-file-functions
+           (list (org-iw-cmd-test--failing-save "b.org"))))
+      (org-iw-cmd-test--with-prompt :yes
+        (should (equal (org-iw-cmd-test--refusal
+                        #'org-iw-cmd-test--normalise-essays)
+                       (concat "Redistribution of ESSAYS stopped before"
+                               " writing: " (org-iw-test-path "b.org")
+                               " not saved: Disk full")))))
+    (org-iw-cmd-test--should-write-no-rank "a.org")
+    (should (buffer-modified-p (org-iw-cmd-test--visited "b.org")))
+    (should (buffer-modified-p (org-iw-cmd-test--visited "c.org")))
+    (org-iw-cmd-test--redistribution-report
+     ""
+     "untouched:"
+     "a.org: not written: the run stopped"
+     "b.org: not saved: Disk full"
+     "c.org: not written: the run stopped"
+     ""
+     "saved at your request before writing:"
+     "a.org")))
+
+(ert-deftest org-iw-cmd-test-redistribute-consent-save-dirtied ()
+  "A consent save left modified by a save hook stops the run unwritten."
+  (org-iw-test-with-corpus org-iw-cmd-test--three-files
+    (org-iw-test-edit-elsewhere (org-iw-test-marker "a.org" nil))
+    (with-current-buffer (org-iw-cmd-test--visited "a.org")
+      (add-hook 'after-save-hook (lambda () (set-buffer-modified-p t)) nil t))
+    (org-iw-cmd-test--with-prompt :yes
+      (should (equal (org-iw-cmd-test--refusal
+                      #'org-iw-cmd-test--normalise-essays)
+                     (concat "Redistribution of ESSAYS stopped before"
+                             " writing: " (org-iw-test-path "a.org")
+                             " not saved: still modified"))))
+    (org-iw-cmd-test--should-write-no-rank "a.org")
+    (should-not (org-iw-cmd-test--visited "b.org"))
+    (should-not (org-iw-cmd-test--visited "c.org"))
+    (org-iw-cmd-test--redistribution-report
+     ""
+     "untouched:"
+     "a.org: not saved: still modified"
+     "b.org: not written: the run stopped"
+     "c.org: not written: the run stopped")))
+
+(defun org-iw-cmd-test--quit-on-b ()
+  "Signal `quit' if the current buffer visits b.org."
+  (when (funcall (org-iw-cmd-test--named-p "b.org"))
+    (signal 'quit nil)))
+
+(defconst org-iw-cmd-test--b-interrupted
+  '(""
+    "saved:"
+    "a.org: 1 entries written (saved)"
+    ""
+    "modified:"
+    "b.org: interrupted; check this file"
+    ""
+    "untouched:"
+    "c.org: not written: the run stopped")
+  "The report's lines when b.org is interrupted after a.org was written.")
+
+(ert-deftest org-iw-cmd-test-redistribute-quit-mid-apply ()
+  "A quit shows the report, then propagates; the file in flight is checked.
+It is interrupted if its file was saved or its buffer is modified,
+else stopped, as when a quit inside its edits undoes them.  The files
+after it are stopped and not opened.  A quit during a consent save
+writes no rank, and the report lists the buffers already saved."
+  ;; The file was saved: its modification time changed.
+  (org-iw-test-with-corpus org-iw-cmd-test--three-files
+    ;; Clock granularity could otherwise hide the save.
+    (set-file-times (org-iw-test-path "b.org") (time-subtract nil 10))
+    (let ((after-save-hook (list #'org-iw-cmd-test--quit-on-b)))
+      (org-iw-cmd-test--with-prompt :yes
+        (org-iw-cmd-test--quits #'org-iw-cmd-test--normalise-essays)))
+    (should-not (org-iw-cmd-test--visited "b.org"))
+    (should-not (equal (org-iw-test-file-string "b.org")
+                       (org-iw-cmd-test--three-files-text "b.org")))
+    (should-not (org-iw-cmd-test--visited "c.org"))
+    (apply #'org-iw-cmd-test--redistribution-report
+           org-iw-cmd-test--b-interrupted))
+  ;; The save never ran: the buffer is modified.
+  (org-iw-test-with-corpus org-iw-cmd-test--three-files
+    (let ((write-file-functions
+           (list (org-iw-cmd-test--failing-save "b.org" '(quit)))))
+      (org-iw-cmd-test--with-prompt :yes
+        (org-iw-cmd-test--quits #'org-iw-cmd-test--normalise-essays)))
+    (should (buffer-modified-p (org-iw-cmd-test--visited "b.org")))
+    (should (equal (org-iw-test-file-string "b.org")
+                   (org-iw-cmd-test--three-files-text "b.org")))
+    (should-not (org-iw-cmd-test--visited "c.org"))
+    (apply #'org-iw-cmd-test--redistribution-report
+           org-iw-cmd-test--b-interrupted))
+  ;; A quit on b.org's second edit undoes the first.
+  (org-iw-test-with-corpus org-iw-cmd-test--three-files
+    (let ((put (symbol-function 'org-entry-put))
+          (puts 0))
+      (org-iw-cmd-test--with-prompt :yes
+        (org-iw-cmd-test--diverting
+         'org-entry-put (org-iw-cmd-test--named-p "b.org")
+         (lambda (&rest args)
+           (when (= (cl-incf puts) 2)
+             (signal 'quit nil))
+           (apply put args))
+         (lambda ()
+           (org-iw-cmd-test--quits #'org-iw-cmd-test--normalise-essays))))
+      (should (= puts 2)))
+    (should-not (org-iw-cmd-test--visited "b.org"))
+    (should (equal (org-iw-test-file-string "b.org")
+                   (org-iw-cmd-test--three-files-text "b.org")))
+    (should-not (org-iw-cmd-test--visited "c.org"))
+    (org-iw-cmd-test--redistribution-report
+     ""
+     "saved:"
+     "a.org: 1 entries written (saved)"
+     ""
+     "untouched:"
+     "b.org: not written: the run stopped"
+     "c.org: not written: the run stopped"))
+  ;; A quit during the consent save of b.org, after a.org's.
+  (org-iw-test-with-corpus org-iw-cmd-test--three-files
+    (org-iw-test-edit-elsewhere (org-iw-test-marker "a.org" nil))
+    (org-iw-test-edit-elsewhere (org-iw-test-marker "b.org" nil))
+    (let ((write-file-functions
+           (list (org-iw-cmd-test--failing-save "b.org" '(quit)))))
+      (org-iw-cmd-test--with-prompt :yes
+        (org-iw-cmd-test--quits #'org-iw-cmd-test--normalise-essays)))
+    (org-iw-cmd-test--should-write-no-rank "a.org")
+    (should (buffer-modified-p (org-iw-cmd-test--visited "b.org")))
+    (should-not (org-iw-cmd-test--visited "c.org"))
+    (org-iw-cmd-test--redistribution-report
+     ""
+     "untouched:"
+     "a.org: not written: the run stopped"
+     "b.org: not written: the run stopped"
+     "c.org: not written: the run stopped"
+     ""
+     "saved at your request before writing:"
+     "a.org")))
+
+;;;; Redistribution: outcomes
+
+(ert-deftest org-iw-cmd-test-outcome-partition ()
+  "`org-iw--outcome-partition' groups outcomes as saved, modified, untouched.
+Saved is written and saved, with no buffer left open; modified is any
+other write, an interrupted file or a buffer left open; untouched is a
+failed or stopped file.  Each group keeps the order of the outcomes."
+  (should (equal (org-iw--outcome-partition
+                  '(("/a" written saved 2)
+                    ("/b" written saved 2 left-open)
+                    ("/c" failed "x")
+                    ("/d" written unsaved 1)
+                    ("/e" stopped)
+                    ("/f" failed "x" left-open)
+                    ("/g" written (save-failed error "Disk full") 1)
+                    ("/h" interrupted)
+                    ("/i" written saved 1)
+                    ("/j" written (save-failed . still-modified) 1)))
+                 '((("/a" written saved 2) ("/i" written saved 1))
+                   (("/b" written saved 2 left-open)
+                    ("/d" written unsaved 1)
+                    ("/f" failed "x" left-open)
+                    ("/g" written (save-failed error "Disk full") 1)
+                    ("/h" interrupted)
+                    ("/j" written (save-failed . still-modified) 1))
+                   (("/c" failed "x") ("/e" stopped)))))
+  (should (equal (org-iw--outcome-partition nil) '(nil nil nil))))
+
+(ert-deftest org-iw-cmd-test-outcome-text-written ()
+  "A write reads as its count and save status; a stop as the run's text."
+  (pcase-dolist (`(,outcome ,text)
+                 `(((written saved 2) "2 entries written (saved)")
+                   ((written unsaved 1)
+                    ,(concat "1 entries written (buffer has unsaved changes"
+                             " — queue change not saved)"))
+                   ((written (save-failed . still-modified) 1)
+                    ,(concat "1 entries written (queue change applied but"
+                             " not saved: still modified)"))
+                   ((written (save-failed error "Disk full") 3 left-open)
+                    ,(concat "3 entries written (queue change applied but"
+                             " not saved: Disk full); buffer left open,"
+                             " modified"))
+                   ((interrupted) "interrupted; check this file")
+                   ((stopped) "not reached")
+                   ((failed "stale") "stale")))
+    (should (equal (org-iw--outcome-text outcome "not reached") text))))
 
 ;;;; Normalise
 
