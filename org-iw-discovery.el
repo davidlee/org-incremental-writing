@@ -503,13 +503,21 @@ matches in any case; values compare case-sensitively."
   "Signal an `org-iw-refusal' that WHAT is wrong with ID in FILE."
   (org-iw-core-refuse "ID %s in %s: %s" id file what))
 
+(defconst org-iw-discovery-not-org-text "buffer not in Org mode"
+  "The reason given when a buffer is not in Org mode.")
+
+(defun org-iw-discovery-org-mode-p ()
+  "Return non-nil if the current buffer is in Org mode.
+A mode derived from Org mode counts.  This is the one owner of the
+rule; no Org function may run in a buffer it rejects."
+  (derived-mode-p 'org-mode))
+
 (defun org-iw-discovery-require-org-mode (file)
   "Refuse with `org-iw-refusal' unless the current buffer is in Org mode.
-A mode derived from Org mode counts.  FILE, the buffer's file, is
-named in the message.  This is the one owner of the rule; no Org
-function may run in a buffer it refuses."
-  (unless (derived-mode-p 'org-mode)
-    (org-iw-core-refuse "%s: buffer not in Org mode" file)))
+See `org-iw-discovery-org-mode-p'.  FILE, the buffer's file, is named
+in the message, which ends in `org-iw-discovery-not-org-text'."
+  (unless (org-iw-discovery-org-mode-p)
+    (org-iw-core-refuse "%s: %s" file org-iw-discovery-not-org-text)))
 
 (defun org-iw-discovery--id-problems (scan id)
   "Return SCAN's problems whose ID is ID, in scan order.

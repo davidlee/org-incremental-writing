@@ -216,6 +216,23 @@ modified."
   (let ((others (remq target order)))
     (append (seq-take others depth) (list target) (seq-drop others depth))))
 
+;;;; Redistribution
+
+(defun org-iw-core-redistribution (order queue)
+  "Return the ranks that re-lay ORDER in QUEUE at the spacing.
+ORDER is the intended order: members of QUEUE and at most one other
+element standing for an entry joining QUEUE, compared with `eq'.  The
+Kth element, counting from 1, belongs at K times
+`org-iw-core-rank-spacing'.  Return (ELEMENT . RANK) for each element
+not already at its rank, in ORDER's order; an element that is not a
+member of QUEUE is always included."
+  (cl-assert (org-iw-core-rank-p (* (length order) org-iw-core-rank-spacing)))
+  (cl-loop for element in order
+           for rank from org-iw-core-rank-spacing by org-iw-core-rank-spacing
+           unless (eql rank (and (org-iw-entry-p element)
+                                 (org-iw-core-rank element queue)))
+           collect (cons element rank)))
+
 ;;;; Relative moves
 
 (defun org-iw-core-beside (order target anchor side)

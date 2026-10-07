@@ -60,20 +60,51 @@ line whose value parses to it."
      (and (integerp expected)
           (eql (org-iw-core-parse-rank value) expected)))))
 
+(defun org-iw-write-file-problems (file &optional buffer)
+  "Return what stands in the way of writing FILE, or nil.
+FILE is a truename.  BUFFER is the buffer the write goes through: the
+buffer visiting FILE (by default `find-buffer-visiting''s) or an
+indirect buffer of it; BASE is its base buffer.  The result lists, in
+this order, those of these symbols that hold: `changed-on-disk'
+\(BASE's file changed since visited), `not-writable', `read-only' (BASE
+or BUFFER is read-only), `not-org' (BASE is not in Org mode, see
+`org-iw-discovery-org-mode-p'), and `modified' (BASE has unsaved
+changes).  Without a buffer only `not-writable' can hold.  No file is
+visited and nothing is changed."
+  (let* ((buffer (or buffer (find-buffer-visiting file)))
+         (base (and buffer (org-iw-discovery-base-buffer buffer))))
+    (delq nil
+          (list (and base (not (verify-visited-file-modtime base))
+                     'changed-on-disk)
+                (and (not (file-writable-p file)) 'not-writable)
+                (and base
+                     (or (buffer-local-value 'buffer-read-only base)
+                         (buffer-local-value 'buffer-read-only buffer))
+                     'read-only)
+                (and base
+                     (not (with-current-buffer base
+                            (org-iw-discovery-org-mode-p)))
+                     'not-org)
+                (and base (buffer-modified-p base) 'modified)))))
+
+(defun org-iw-write-problem-text (problem)
+  "Return the text for PROBLEM, a symbol from `org-iw-write-file-problems'."
+  (cl-ecase problem
+    (changed-on-disk "changed on disk; revert first")
+    (not-writable "not writable")
+    (read-only "buffer is read-only")
+    (not-org org-iw-discovery-not-org-text)
+    (modified "unsaved changes")))
+
 (defun org-iw-write--check-file (marker)
-  "Refuse unless the file of MARKER may be written.
-The base buffer's file must be unchanged on disk since visited and
-writable, and neither it nor MARKER's buffer read-only.  Nothing is
-changed."
-  (let* ((base (org-iw-discovery-base-buffer (marker-buffer marker)))
-         (file (buffer-file-name base)))
-    (unless (verify-visited-file-modtime base)
-      (org-iw-write--refuse marker "changed on disk; revert first"))
-    (unless (file-writable-p file)
-      (org-iw-write--refuse marker "not writable"))
-    (when (or (buffer-local-value 'buffer-read-only base)
-              (buffer-local-value 'buffer-read-only (marker-buffer marker)))
-      (org-iw-write--refuse marker "buffer is read-only"))))
+  "Refuse unless the file of MARKER may be written through its buffer.
+See `org-iw-write-file-problems'.  Unsaved changes do not refuse: the
+write is made and left unsaved.  Nothing is changed."
+  (let* ((buffer (marker-buffer marker))
+         (file (buffer-file-name (org-iw-discovery-base-buffer buffer))))
+    (when-let* ((problem (car (remq 'modified
+                                    (org-iw-write-file-problems file buffer)))))
+      (org-iw-write--refuse marker "%s" (org-iw-write-problem-text problem)))))
 
 (defun org-iw-write--check-entry (marker queue expected)
   "Refuse unless the entry at MARKER holds the rank EXPECTED in QUEUE.

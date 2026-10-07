@@ -1,0 +1,18 @@
+schema = "doctrine.observation"
+schema_version = 1
+uid = "01a11431-5c5d-73d1-ab01-2d66e4ae466b"
+recorded_at = "2026-10-07T02:29:01.661592342Z"
+kind = "friction"
+summary = "memory retrieve has no positional query; --query missed a memory whose fact sits inside a multi-fact body"
+detail = """SL-006 PHASE-01 planner: 'doctrine memory retrieve <q>' rejected a positional query; '--query "should-error quit"' returned nothing although mem.fact.emacs.batch-test-gotchas contains it. Found via memory search + show."""
+
+[facets.execution]
+schema_version = 1
+interface = "cli"
+interface_origin = "automatic"
+product_surface = "doctrine"
+product_surface_origin = "automatic"
+command = "observation record"
+command_origin = "automatic"
+repository_context = "primary"
+repository_context_origin = "automatic"

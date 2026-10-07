@@ -903,5 +903,116 @@ text before it, where the file's document entry is."
                                                 :expected 2048)))
                    '(error "IW_ESSAYS not deleted alone")))))
 
+;;;; File problems
+
+(defun org-iw-write-test--problems (name &optional buffer)
+  "Return the file problems of corpus file NAME, with BUFFER if given."
+  (org-iw-write-file-problems (file-truename (org-iw-test-path name)) buffer))
+
+(defun org-iw-write-test--literal-buffer (name)
+  "Return a buffer visiting corpus file NAME in fundamental mode."
+  (find-file-literally (org-iw-test-path name)))
+
+(ert-deftest org-iw-write-test-file-problems-clean ()
+  "A clean visited file, found by default, has no problems."
+  (org-iw-test-with-corpus `(("a.org" . ,org-iw-write-test--target))
+    (org-iw-test-visit "a.org")
+    (should-not (org-iw-write-test--problems "a.org"))))
+
+(ert-deftest org-iw-write-test-file-problems-each-alone ()
+  "Each problem is reported alone when it alone holds."
+  (org-iw-test-with-corpus `(("a.org" . ,org-iw-write-test--target)
+                             ("b.org" . ,org-iw-write-test--target)
+                             ("c.org" . ,org-iw-write-test--target))
+    (org-iw-test-visit "a.org")
+    (org-iw-test-rewrite-behind "a.org" "* Else\n")
+    (should (equal (org-iw-write-test--problems "a.org") '(changed-on-disk)))
+    (with-current-buffer (org-iw-test-visit "b.org")
+      (setq buffer-read-only t))
+    (should (equal (org-iw-write-test--problems "b.org") '(read-only)))
+    (org-iw-test-edit-elsewhere (org-iw-test-marker "c.org" "Target"))
+    (should (equal (org-iw-write-test--problems "c.org") '(modified)))))
+
+(ert-deftest org-iw-write-test-file-problems-not-writable-unvisited ()
+  "Without a buffer only `not-writable' can hold, and nothing is visited."
+  (org-iw-test-unless-root
+    (org-iw-test-with-corpus `(("a.org" . ,org-iw-write-test--target))
+      (let ((before (org-iw-test-state)))
+        (should-not (org-iw-write-test--problems "a.org"))
+        (org-iw-test-set-modes "a.org" #o444)
+        (should (equal (org-iw-write-test--problems "a.org") '(not-writable)))
+        (should-not (find-buffer-visiting (org-iw-test-path "a.org")))
+        (should (equal (org-iw-test-state) before))))))
+
+(ert-deftest org-iw-write-test-file-problems-not-org ()
+  "A buffer not in Org mode reports `not-org', with discovery's text."
+  (org-iw-test-with-corpus `(("a.org" . ,org-iw-write-test--target))
+    (org-iw-write-test--literal-buffer "a.org")
+    (should (equal (org-iw-write-test--problems "a.org") '(not-org)))
+    (should (equal (org-iw-write-problem-text 'not-org)
+                   "buffer not in Org mode"))))
+
+(ert-deftest org-iw-write-test-file-problems-indirect-read-only ()
+  "Read-only holds once, if the base or the indirect buffer is read-only."
+  (org-iw-test-with-corpus `(("a.org" . ,org-iw-write-test--target))
+    (let ((marker (org-iw-test-marker "a.org" "Target"))
+          (base-read-only
+           (lambda (value)
+             (with-current-buffer (org-iw-test-visit "a.org")
+               (setq buffer-read-only value)))))
+      (org-iw-test-call-with-indirect
+       marker
+       (lambda (_)
+         (let ((indirect (current-buffer)))
+           (should-not (org-iw-write-test--problems "a.org" indirect))
+           (setq buffer-read-only t)
+           (should (equal (org-iw-write-test--problems "a.org" indirect)
+                          '(read-only)))
+           (funcall base-read-only t)
+           (should (equal (org-iw-write-test--problems "a.org" indirect)
+                          '(read-only)))
+           (setq buffer-read-only nil)
+           (should (equal (org-iw-write-test--problems "a.org" indirect)
+                          '(read-only)))))))))
+
+(ert-deftest org-iw-write-test-file-problems-order ()
+  "Problems come in the documented order, whatever the order they arose."
+  (org-iw-test-unless-root
+    (org-iw-test-with-corpus `(("a.org" . ,org-iw-write-test--target))
+      (with-current-buffer (org-iw-write-test--literal-buffer "a.org")
+        (insert "User edit.\n")
+        (setq buffer-read-only t))
+      (org-iw-test-rewrite-behind "a.org" "* Else\n")
+      (org-iw-test-set-modes "a.org" #o444)
+      (should (equal (org-iw-write-test--problems "a.org")
+                     '(changed-on-disk not-writable read-only not-org
+                                       modified))))))
+
+(ert-deftest org-iw-write-test-file-problems-visits-nothing ()
+  "Asking about an unvisited file visits and changes nothing."
+  (org-iw-test-with-corpus `(("a.org" . ,org-iw-write-test--target))
+    (let ((before (org-iw-test-state)))
+      (should-not (org-iw-write-test--problems "a.org"))
+      (should-not (find-buffer-visiting (org-iw-test-path "a.org")))
+      (should (equal (org-iw-test-state) before)))))
+
+(ert-deftest org-iw-write-test-problem-text ()
+  "Each problem has its text; an unknown one is a programmer error."
+  (should (equal (mapcar #'org-iw-write-problem-text
+                         '(changed-on-disk not-writable read-only not-org
+                                           modified))
+                 '("changed on disk; revert first" "not writable"
+                   "buffer is read-only" "buffer not in Org mode"
+                   "unsaved changes")))
+  (should-error (org-iw-write-problem-text 'bogus) :type 'error))
+
+(ert-deftest org-iw-write-test-refuses-not-org-buffer ()
+  "Writing through a buffer not in Org mode refuses, naming the file."
+  (org-iw-test-with-corpus `(("a.org" . ,org-iw-write-test--target))
+    (let ((marker (with-current-buffer
+                      (org-iw-write-test--literal-buffer "a.org")
+                    (copy-marker (point-min)))))
+      (org-iw-write-test--should-refuse-each marker "buffer not in Org mode"))))
+
 (provide 'org-iw-write-test)
 ;;; org-iw-write-test.el ends here

@@ -1236,5 +1236,25 @@ A misplaced-property problem also has no ID, but is not this entry's."
       (should (equal (org-iw-discovery-problem-types scan nil)
                      '(missing-id))))))
 
+(ert-deftest org-iw-discovery-test-org-mode-p ()
+  "Org mode and a mode derived from it count; no other mode does."
+  (with-temp-buffer
+    (should-not (org-iw-discovery-org-mode-p))
+    (org-mode)
+    (should (org-iw-discovery-org-mode-p)))
+  (with-temp-buffer
+    (org-iw-discovery-test--derived-mode)
+    (should (org-iw-discovery-org-mode-p))))
+
+(ert-deftest org-iw-discovery-test-require-org-mode ()
+  "Outside Org mode the refusal names the file and gives the shared text."
+  (with-temp-buffer
+    (let ((err (should-error (org-iw-discovery-require-org-mode "/x/a.org")
+                             :type 'org-iw-refusal)))
+      (should (equal (cadr err) "/x/a.org: buffer not in Org mode"))
+      (should (string-suffix-p org-iw-discovery-not-org-text (cadr err))))
+    (org-mode)
+    (should-not (org-iw-discovery-require-org-mode "/x/a.org"))))
+
 (provide 'org-iw-discovery-test)
 ;;; org-iw-discovery-test.el ends here

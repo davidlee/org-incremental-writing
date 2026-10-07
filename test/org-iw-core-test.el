@@ -26,6 +26,7 @@
 
 ;;; Code:
 
+(require 'cl-lib)
 (require 'ert)
 (require 'org-iw-core)
 
@@ -669,6 +670,63 @@ Each edge is called with a case's ORDER, TARGET, ANCHOR, SIDE and DELTA."
             (buffer-string))))
     (unless (eql status 0)
       (ert-fail (list :exit status :output output)))))
+
+;;;; Redistribution
+
+(defun org-iw-core-test--members (&rest ranks)
+  "Return queue Q members with IDs a, b, c, ... holding RANKS, in order."
+  (cl-loop for rank in ranks
+           for id across "abcdefgh"
+           collect (org-iw-core-test--entry (string id) (cons "Q" rank))))
+
+(ert-deftest org-iw-core-test-redistribution-relays-at-spacing ()
+  "Members out of place get the spacing multiple of their slot; others are left."
+  (pcase-let ((`(,a ,b ,c ,d)
+               (org-iw-core-test--members 1024 1536 1537 4096)))
+    (let ((plan (org-iw-core-redistribution (list a b d c) "Q")))
+      (should (equal (mapcar #'cdr plan) '(2048 3072 4096)))
+      (should (cl-every #'eq (mapcar #'car plan) (list b d c))))
+    (should (equal (mapcar #'cdr (org-iw-core-redistribution
+                                  (list a b c d) "Q"))
+                   '(2048 3072)))
+    (should (equal (mapcar #'cdr (org-iw-core-redistribution
+                                  (org-iw-core-reorder (list a b c d) d 2)
+                                  "Q"))
+                   '(2048 3072 4096)))))
+
+(ert-deftest org-iw-core-test-redistribution-includes-joining ()
+  "An element that is not an entry is always included, at its slot."
+  (pcase-let ((`(,a ,b) (org-iw-core-test--members 1024 2048)))
+    (should (equal (org-iw-core-redistribution (list a 'joining b) "Q")
+                   `((joining . 2048) (,b . 3072))))
+    (should (equal (org-iw-core-redistribution (list a b 'joining) "Q")
+                   '((joining . 3072))))
+    (should (equal (org-iw-core-redistribution (list 'joining) "Q")
+                   '((joining . 1024))))))
+
+(ert-deftest org-iw-core-test-redistribution-empty ()
+  "Nothing to order, or members already at their slots, plans nothing."
+  (should-not (org-iw-core-redistribution nil "Q"))
+  (should-not (org-iw-core-redistribution
+               (org-iw-core-test--members 1024 2048 3072) "Q")))
+
+(ert-deftest org-iw-core-test-redistribution-preserves-intended-order ()
+  "Applying the plan and sorting by queue order gives the intended order."
+  (pcase-let ((`(,a ,b ,c ,d)
+               (org-iw-core-test--members 1024 1536 1537 1537)))
+    (dolist (order (list (list a b c d) (list d c b a) (list a c d b)))
+      (let ((relaid
+             (mapcar (lambda (entry)
+                       (org-iw-core-test--entry
+                        (org-iw-entry-id entry)
+                        (cons "Q" (or (alist-get entry
+                                                 (org-iw-core-redistribution
+                                                  order "Q"))
+                                      (org-iw-core-rank entry "Q")))))
+                     order)))
+        (should (equal (org-iw-core-test--ids
+                        (org-iw-core-queue-order relaid "Q"))
+                       (org-iw-core-test--ids order)))))))
 
 (provide 'org-iw-core-test)
 ;;; org-iw-core-test.el ends here
