@@ -28,5 +28,10 @@ descriptor = "report buffer lifecycle"
 target = "DEC-028"
 
 [[relation]]
+label = "references"
+role = "originates_from"
+target = "SL-008"
+
+[[relation]]
 label = "related"
 target = "ISS-009"

@@ -28,6 +28,11 @@ descriptor = "saved status of a buffer kept modified"
 target = "DEC-026"
 
 [[relation]]
+label = "references"
+role = "originates_from"
+target = "SL-008"
+
+[[relation]]
 label = "related"
 target = "SL-004"
 

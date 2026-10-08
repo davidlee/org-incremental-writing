@@ -28,6 +28,11 @@ descriptor = "left-open classification and wording"
 target = "DEC-026"
 
 [[relation]]
+label = "references"
+role = "originates_from"
+target = "SL-008"
+
+[[relation]]
 label = "related"
 target = "ISS-008"
 
