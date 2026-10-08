@@ -26,3 +26,10 @@ paths. That also gives the diagnostic for the unexplained trigger: the
 next interactive run would say which files a hook dirtied after save.
 Not reproduced in `emacs -Q` or through `emacsclient` on copies of the
 affected notes; the trigger was only present in the interactive run.
+
+**Contested (SL-008 research, 2026-10-08).** SL-006 PHASE-02 Q2 asked this
+exact question. The shipped code and `org-iw-write-test-redirtied-save-is-saved`
+(`test/org-iw-write-test.el:502`) chose to keep `saved`: a write's status
+describes the queue change, which is on disk, not the hook's later edit.
+Under that reading the live line was true on both counts. SL-008's design
+decides whether to keep it (and record a DEC) or change it.
