@@ -11,15 +11,19 @@ needs = ["SL-001", "SL-002", "SL-003", "SL-004", "SL-005", "SL-006"]            
 after = []                      # slice→work soft sequence: { to, rank }
 
 [[selector]]
-selector = "README.org"
-intent = "scope-relevant"
-
-[[selector]]
 selector = "test/fixtures/**"
 intent = "scope-relevant"
 
 [[selector]]
 selector = "*.el"
+intent = "scope-relevant"
+
+[[selector]]
+selector = "README.md"
+intent = "scope-relevant"
+
+[[selector]]
+selector = "doc/**"
 intent = "scope-relevant"
 
 [[relation]]
