@@ -1,0 +1,40 @@
+schema = "doctrine.backlog"
+version = 1
+
+id = 9
+slug = "left-open-outcome-reads-modified-and-unsaved-from-buffer-liveness-alone"
+title = "Left-open outcome reads modified and unsaved from buffer liveness alone"
+kind = "issue"
+status = "open"
+resolution = ""                 # seeded empty so `backlog edit` sets it in place
+created = "2026-10-08"
+updated = "2026-10-08"
+tags = ["area:batch"]
+
+# outbound-only. Cross-kind structural edges (e.g. references with a role
+# — `originates_from` for backlog→slice provenance — governed_by, related, drift) are
+# uniform `[[relation]]` rows — author them with
+# `doctrine link ITEM-NNN <label> <target>`; `doctrine inspect ITEM-NNN` renders
+# them. The dep/seq axes below stay typed (they carry per-edge payloads).
+[relationships]
+needs    = []                   # item→item hard prerequisite
+after    = [{ to = "ISS-008", rank = 0 }]                   # item→item soft sequence: { to, rank? }
+triggers = []                   # watched source globs: { globs, note? }
+
+[[relation]]
+label = "references"
+role = "concerns"
+descriptor = "left-open classification and wording"
+target = "DEC-026"
+
+[[relation]]
+label = "related"
+target = "ISS-008"
+
+[[relation]]
+label = "related"
+target = "ISS-007"
+
+[[relation]]
+label = "related"
+target = "SL-006"
